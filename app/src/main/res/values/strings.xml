@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Agenda Sacramental</string>
+    <string name="sign_in">Iniciar sesión con Google</string>
+    <string name="default_web_client_id">833115584713-ooe0jff4lrhinahlc9i6u35077vc75gi.apps.googleusercontent.com</string>
+</resources>

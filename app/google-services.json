@@ -1,0 +1,63 @@
+{
+  "project_info": {
+    "project_number": "833115584713",
+    "project_id": "agendasacramental-333f2",
+    "storage_bucket": "agendasacramental-333f2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:833115584713:android:f798a8fb45bf0757beb518",
+        "android_client_info": {
+          "package_name": "com.martincornelli.agendasacramental"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "833115584713-mbqar1j5hr0r4krq3bjm3galh1vb9569.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.martincornelli.agendasacramental",
+            "certificate_hash": "364b63140670cbe00e7a987dbff2707c4de4b92d"
+          }
+        },
+        {
+          "client_id": "833115584713-mpqor9hm28e51u2623lej1lu38mqa1bp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.martincornelli.agendasacramental",
+            "certificate_hash": "b06f9e9d38f480dbcb5dfb2cc5dc747c6a43e040"
+          }
+        },
+        {
+          "client_id": "833115584713-nsuccdbf85eul36hq05jp4okl42jmpcm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.martincornelli.agendasacramental",
+            "certificate_hash": "9932d1a767833b59935c8d7126f5b7afffbdd379"
+          }
+        },
+        {
+          "client_id": "833115584713-ooe0jff4lrhinahlc9i6u35077vc75gi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHm4h7REdvYQ0PgKv168wZ82MJaLqGrko"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "833115584713-ooe0jff4lrhinahlc9i6u35077vc75gi.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
