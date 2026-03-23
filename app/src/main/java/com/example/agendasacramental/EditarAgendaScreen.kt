@@ -35,11 +35,12 @@ fun EditarAgendaScreen(
 
     var isLoading by remember { mutableStateOf(agendaId != null) }
     var isSaving by remember { mutableStateOf(false) }
+    var errorGuardado by remember { mutableStateOf("") }
     var nombresUsados by remember { mutableStateOf<List<String>>(emptyList()) }
 
-    // Campos de la agenda
     var fechaDate by remember { mutableStateOf(Date()) }
     var estado by remember { mutableStateOf(EstadoAgenda.BORRADOR) }
+    var asistencia by remember { mutableStateOf("") }
     var preside by remember { mutableStateOf("") }
     var dirige by remember { mutableStateOf("") }
     var reconocimientos by remember { mutableStateOf("") }
@@ -58,7 +59,6 @@ fun EditarAgendaScreen(
 
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
 
-    // Cargar agenda existente o nombres usados
     LaunchedEffect(agendaId) {
         nombresUsados = repository.getNombresUsados(numeroUnidad)
         if (agendaId != null) {
@@ -66,6 +66,7 @@ fun EditarAgendaScreen(
             result.onSuccess { agenda ->
                 fechaDate = agenda.fecha.toDate()
                 estado = agenda.estado
+                asistencia = if (agenda.asistencia > 0) agenda.asistencia.toString() else ""
                 preside = agenda.preside
                 dirige = agenda.dirige
                 reconocimientos = agenda.reconocimientos
@@ -94,6 +95,7 @@ fun EditarAgendaScreen(
             numeroUnidad = numeroUnidad,
             fecha = Timestamp(fechaDate),
             estado = estado,
+            asistencia = asistencia.toIntOrNull() ?: 0,
             preside = preside,
             dirige = dirige,
             reconocimientos = reconocimientos,
@@ -125,7 +127,6 @@ fun EditarAgendaScreen(
         try {
             context.startActivity(intent)
         } catch (e: Exception) {
-            // WhatsApp no instalado, compartir general
             val intentGeneral = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_TEXT, texto)
@@ -158,9 +159,15 @@ fun EditarAgendaScreen(
                         onClick = {
                             isSaving = true
                             scope.launch {
-                                repository.guardarAgenda(buildAgenda(), userEmail)
+                                val result = repository.guardarAgenda(buildAgenda(), userEmail)
                                 isSaving = false
-                                onBack()
+                                if (result.isSuccess) {
+                                    onBack()
+                                } else if (result.exceptionOrNull()?.message == "FECHA_DUPLICADA") {
+                                    errorGuardado = "Ya existe una agenda para esa fecha."
+                                } else {
+                                    errorGuardado = "Error al guardar. Intente nuevamente."
+                                }
                             }
                         },
                         enabled = !isSaving
@@ -175,190 +182,176 @@ fun EditarAgendaScreen(
             )
         }
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(vertical = 16.dp)
-        ) {
-            // Título fijo
-            item {
-                Text(
-                    "Agenda de Reunión Sacramental",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Cita fija
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            if (errorGuardado.isNotBlank()) {
+                androidx.compose.material3.Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(
-                        text = "D&C 46:2: Pero a pesar de las cosas que están escritas, siempre se ha concedido a los élderes de mi iglesia desde el principio, y siempre será así, dirigir todas las reuniones conforme los oriente y los guíe el Santo Espíritu.",
+                        errorGuardado,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
                         style = MaterialTheme.typography.bodySmall,
-                        fontStyle = FontStyle.Italic,
-                        modifier = Modifier.padding(12.dp)
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
             }
-
-            // Fecha
-            item {
-                FechaSelector(
-                    fecha = fechaDate,
-                    onFechaChange = { fechaDate = it },
-                    dateFormat = dateFormat
-                )
-            }
-
-            // Estado
-            item {
-                EstadoSelector(estado = estado, onEstadoChange = { estado = it })
-            }
-
-            // Preside
-            item {
-                CampoConAutocompletado(
-                    valor = preside,
-                    onValorChange = { preside = it },
-                    label = "Preside",
-                    sugerencias = nombresUsados
-                )
-            }
-
-            // Dirige
-            item {
-                CampoConAutocompletado(
-                    valor = dirige,
-                    onValorChange = { dirige = it },
-                    label = "Dirige",
-                    sugerencias = nombresUsados
-                )
-            }
-
-            // Reconocimientos
-            item {
-                OutlinedTextField(
-                    value = reconocimientos,
-                    onValueChange = { reconocimientos = it },
-                    label = { Text("Reconocimientos") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2
-                )
-            }
-
-            // Anuncios
-            item {
-                OutlinedTextField(
-                    value = anuncios,
-                    onValueChange = { anuncios = it },
-                    label = { Text("Anuncios") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2
-                )
-            }
-
-            // Primer Himno
-            item {
-                CampoHimno(
-                    label = "Primer Himno",
-                    numero = primerHimnoNumero,
-                    nombre = primerHimnoNombre,
-                    onNumeroChange = { num ->
-                        primerHimnoNumero = num
-                        val n = num.toIntOrNull()
-                        if (n != null) primerHimnoNombre = Himnos.getNombre(n).ifEmpty { primerHimnoNombre }
-                    },
-                    onNombreChange = { primerHimnoNombre = it }
-                )
-            }
-
-            // Primera Oración
-            item {
-                CampoConAutocompletado(
-                    valor = primeraOracion,
-                    onValorChange = { primeraOracion = it },
-                    label = "Primera Oración",
-                    sugerencias = nombresUsados
-                )
-            }
-
-            // Asuntos Estaca/Barrio
-            item {
-                TablaAsuntos(
-                    asuntos = asuntos,
-                    onAsuntosChange = { asuntos = it }
-                )
-            }
-
-            // Himno Sacramental
-            item {
-                CampoHimno(
-                    label = "Himno Sacramental",
-                    numero = himnoSacramentalNumero,
-                    nombre = himnoSacramentalNombre,
-                    onNumeroChange = { num ->
-                        himnoSacramentalNumero = num
-                        val n = num.toIntOrNull()
-                        if (n != null) himnoSacramentalNombre = Himnos.getNombre(n).ifEmpty { himnoSacramentalNombre }
-                    },
-                    onNombreChange = { himnoSacramentalNombre = it }
-                )
-            }
-
-            // Mensajes del Evangelio
-            item {
-                TablaMensajes(
-                    mensajes = mensajes,
-                    onMensajesChange = { mensajes = it },
-                    nombresUsados = nombresUsados
-                )
-            }
-
-            // Himno Final
-            item {
-                CampoHimno(
-                    label = "Himno Final",
-                    numero = himnoFinalNumero,
-                    nombre = himnoFinalNombre,
-                    onNumeroChange = { num ->
-                        himnoFinalNumero = num
-                        val n = num.toIntOrNull()
-                        if (n != null) himnoFinalNombre = Himnos.getNombre(n).ifEmpty { himnoFinalNombre }
-                    },
-                    onNombreChange = { himnoFinalNombre = it }
-                )
-            }
-
-            // Oración Final
-            item {
-                CampoConAutocompletado(
-                    valor = oracionFinal,
-                    onValorChange = { oracionFinal = it },
-                    label = "Oración Final",
-                    sugerencias = nombresUsados
-                )
-            }
-
-            // Metadata
-            if (metadataInfo.isNotBlank()) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(vertical = 16.dp)
+            ) {
                 item {
                     Text(
-                        text = metadataInfo,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        "Agenda de Reunión Sacramental",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
                     )
                 }
-            }
 
-            item { Spacer(modifier = Modifier.height(32.dp)) }
-        }
+                item {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Text(
+                            text = "D&C 46:2: Pero a pesar de las cosas que están escritas, siempre se ha concedido a los élderes de mi iglesia desde el principio, y siempre será así, dirigir todas las reuniones conforme los oriente y los guíe el Santo Espíritu.",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontStyle = FontStyle.Italic,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                }
+
+                // Fecha y Asistencia en la misma fila
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            FechaSelector(
+                                fecha = fechaDate,
+                                onFechaChange = { fechaDate = it },
+                                dateFormat = dateFormat
+                            )
+                        }
+                        OutlinedTextField(
+                            value = asistencia,
+                            onValueChange = { asistencia = it },
+                            label = { Text("Asist.") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.width(80.dp),
+                            singleLine = true
+                        )
+                    }
+                }
+
+                item { EstadoSelector(estado = estado, onEstadoChange = { estado = it }) }
+
+                item {
+                    CampoConAutocompletado(
+                        valor = preside, onValorChange = { preside = it },
+                        label = "Preside", sugerencias = nombresUsados
+                    )
+                }
+
+                item {
+                    CampoConAutocompletado(
+                        valor = dirige, onValorChange = { dirige = it },
+                        label = "Dirige", sugerencias = nombresUsados
+                    )
+                }
+
+                item {
+                    OutlinedTextField(
+                        value = reconocimientos, onValueChange = { reconocimientos = it },
+                        label = { Text("Reconocimientos") },
+                        modifier = Modifier.fillMaxWidth(), minLines = 2
+                    )
+                }
+
+                item {
+                    OutlinedTextField(
+                        value = anuncios, onValueChange = { anuncios = it },
+                        label = { Text("Anuncios") },
+                        modifier = Modifier.fillMaxWidth(), minLines = 2
+                    )
+                }
+
+                item {
+                    CampoHimno(
+                        label = "Primer Himno", numero = primerHimnoNumero, nombre = primerHimnoNombre,
+                        onNumeroChange = { num ->
+                            primerHimnoNumero = num
+                            val n = num.toIntOrNull()
+                            if (n != null) primerHimnoNombre = Himnos.getNombre(n).ifEmpty { primerHimnoNombre }
+                        },
+                        onNombreChange = { primerHimnoNombre = it }
+                    )
+                }
+
+                item {
+                    CampoConAutocompletado(
+                        valor = primeraOracion, onValorChange = { primeraOracion = it },
+                        label = "Primera Oración", sugerencias = nombresUsados
+                    )
+                }
+
+                item {
+                    TablaAsuntos(asuntos = asuntos, onAsuntosChange = { asuntos = it })
+                }
+
+                item {
+                    CampoHimno(
+                        label = "Himno Sacramental", numero = himnoSacramentalNumero, nombre = himnoSacramentalNombre,
+                        onNumeroChange = { num ->
+                            himnoSacramentalNumero = num
+                            val n = num.toIntOrNull()
+                            if (n != null) himnoSacramentalNombre = Himnos.getNombre(n).ifEmpty { himnoSacramentalNombre }
+                        },
+                        onNombreChange = { himnoSacramentalNombre = it }
+                    )
+                }
+
+                item {
+                    TablaMensajes(
+                        mensajes = mensajes, onMensajesChange = { mensajes = it },
+                        nombresUsados = nombresUsados
+                    )
+                }
+
+                item {
+                    CampoHimno(
+                        label = "Himno Final", numero = himnoFinalNumero, nombre = himnoFinalNombre,
+                        onNumeroChange = { num ->
+                            himnoFinalNumero = num
+                            val n = num.toIntOrNull()
+                            if (n != null) himnoFinalNombre = Himnos.getNombre(n).ifEmpty { himnoFinalNombre }
+                        },
+                        onNombreChange = { himnoFinalNombre = it }
+                    )
+                }
+
+                item {
+                    CampoConAutocompletado(
+                        valor = oracionFinal, onValorChange = { oracionFinal = it },
+                        label = "Oración Final", sugerencias = nombresUsados
+                    )
+                }
+
+                if (metadataInfo.isNotBlank()) {
+                    item {
+                        Text(
+                            text = metadataInfo,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(32.dp)) }
+            }
+        } // close Column
     }
 }
 
-// --- Componente: Selector de fecha ---
 @Composable
 fun FechaSelector(fecha: Date, onFechaChange: (Date) -> Unit, dateFormat: SimpleDateFormat) {
     var showPicker by remember { mutableStateOf(false) }
@@ -413,7 +406,6 @@ fun DatePickerDialog(
         confirmButton = {
             TextButton(onClick = {
                 datePickerState.selectedDateMillis?.let { millis ->
-                    // Use UTC calendar to avoid timezone day shift
                     val cal = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).also { it.timeInMillis = millis }
                     onDateSelected(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
                 }
@@ -425,7 +417,6 @@ fun DatePickerDialog(
     }
 }
 
-// --- Componente: Selector de estado ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EstadoSelector(estado: EstadoAgenda, onEstadoChange: (EstadoAgenda) -> Unit) {
@@ -441,55 +432,41 @@ fun EstadoSelector(estado: EstadoAgenda, onEstadoChange: (EstadoAgenda) -> Unit)
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             EstadoAgenda.values().forEach { e ->
-                DropdownMenuItem(
-                    text = { Text(e.label) },
-                    onClick = { onEstadoChange(e); expanded = false }
-                )
+                DropdownMenuItem(text = { Text(e.label) }, onClick = { onEstadoChange(e); expanded = false })
             }
         }
     }
 }
 
-// --- Componente: Campo himno ---
 @Composable
 fun CampoHimno(
-    label: String,
-    numero: String,
-    nombre: String,
-    onNumeroChange: (String) -> Unit,
-    onNombreChange: (String) -> Unit
+    label: String, numero: String, nombre: String,
+    onNumeroChange: (String) -> Unit, onNombreChange: (String) -> Unit
 ) {
     Column {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
-                value = numero,
-                onValueChange = onNumeroChange,
+                value = numero, onValueChange = onNumeroChange,
                 label = { Text("Nº") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.width(80.dp),
-                singleLine = true
+                modifier = Modifier.width(80.dp), singleLine = true
             )
             OutlinedTextField(
-                value = nombre,
-                onValueChange = onNombreChange,
+                value = nombre, onValueChange = onNombreChange,
                 label = { Text("Nombre del himno") },
-                modifier = Modifier.weight(1f),
-                singleLine = true
+                modifier = Modifier.weight(1f), singleLine = true
             )
         }
     }
 }
 
-// --- Componente: Campo con autocompletado ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CampoConAutocompletado(
-    valor: String,
-    onValorChange: (String) -> Unit,
-    label: String,
-    sugerencias: List<String>
+    valor: String, onValorChange: (String) -> Unit,
+    label: String, sugerencias: List<String>
 ) {
     var expanded by remember { mutableStateOf(false) }
     val filtradas = remember(valor, sugerencias) {
@@ -502,30 +479,20 @@ fun CampoConAutocompletado(
         onExpandedChange = { expanded = it }
     ) {
         OutlinedTextField(
-            value = valor,
-            onValueChange = { onValorChange(it); expanded = true },
+            value = valor, onValueChange = { onValorChange(it); expanded = true },
             label = { Text(label) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(),
-            singleLine = true
+            modifier = Modifier.fillMaxWidth().menuAnchor(), singleLine = true
         )
         if (filtradas.isNotEmpty()) {
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
+            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 filtradas.take(5).forEach { sugerencia ->
-                    DropdownMenuItem(
-                        text = { Text(sugerencia) },
-                        onClick = { onValorChange(sugerencia); expanded = false }
-                    )
+                    DropdownMenuItem(text = { Text(sugerencia) }, onClick = { onValorChange(sugerencia); expanded = false })
                 }
             }
         }
     }
 }
 
-// --- Componente: Tabla asuntos estaca/barrio ---
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TablaAsuntos(
     asuntos: List<AsuntoEstacaBarrio>,
@@ -540,9 +507,7 @@ fun TablaAsuntos(
                 modifier = Modifier.weight(1f)
             )
             if (asuntos.size < 20) {
-                IconButton(onClick = {
-                    onAsuntosChange(asuntos + AsuntoEstacaBarrio())
-                }) {
+                IconButton(onClick = { onAsuntosChange(asuntos + AsuntoEstacaBarrio()) }) {
                     Icon(Icons.Default.Add, "Agregar fila")
                 }
             }
@@ -550,12 +515,12 @@ fun TablaAsuntos(
         asuntos.forEachIndexed { index, asunto ->
             AsuntoRow(
                 asunto = asunto,
-                onAsuntoChange = { nuevo ->
-                    onAsuntosChange(asuntos.toMutableList().also { it[index] = nuevo })
-                },
-                onDelete = {
-                    onAsuntosChange(asuntos.toMutableList().also { it.removeAt(index) })
-                }
+                onAsuntoChange = { nuevo -> onAsuntosChange(asuntos.toMutableList().also { it[index] = nuevo }) },
+                onDelete = { onAsuntosChange(asuntos.toMutableList().also { it.removeAt(index) }) },
+                onMoveUp = { if (index > 0) onAsuntosChange(asuntos.toMutableList().also { it.add(index - 1, it.removeAt(index)) }) },
+                onMoveDown = { if (index < asuntos.size - 1) onAsuntosChange(asuntos.toMutableList().also { it.add(index + 1, it.removeAt(index)) }) },
+                isFirst = index == 0,
+                isLast = index == asuntos.size - 1
             )
             Spacer(modifier = Modifier.height(4.dp))
         }
@@ -567,24 +532,24 @@ fun TablaAsuntos(
 fun AsuntoRow(
     asunto: AsuntoEstacaBarrio,
     onAsuntoChange: (AsuntoEstacaBarrio) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    isFirst: Boolean,
+    isLast: Boolean
 ) {
     var expanded by remember { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = it },
+                    expanded = expanded, onExpandedChange = { expanded = it },
                     modifier = Modifier.weight(1f)
                 ) {
                     OutlinedTextField(
-                        value = asunto.tipo.label,
-                        onValueChange = {},
-                        readOnly = true,
+                        value = asunto.tipo.label, onValueChange = {}, readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(),
-                        singleLine = true
+                        modifier = Modifier.fillMaxWidth().menuAnchor(), singleLine = true
                     )
                     ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         TipoAsunto.values().forEach { tipo ->
@@ -595,30 +560,28 @@ fun AsuntoRow(
                         }
                     }
                 }
+                IconButton(onClick = onMoveUp, enabled = !isFirst) {
+                    Icon(Icons.Default.KeyboardArrowUp, "Subir", tint = if (!isFirst) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                }
+                IconButton(onClick = onMoveDown, enabled = !isLast) {
+                    Icon(Icons.Default.KeyboardArrowDown, "Bajar", tint = if (!isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Default.Close, "Eliminar", tint = MaterialTheme.colorScheme.error)
                 }
             }
             OutlinedTextField(
-                value = asunto.columna2,
-                onValueChange = { onAsuntoChange(asunto.copy(columna2 = it)) },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Nombre") },
-                minLines = 1
+                value = asunto.columna2, onValueChange = { onAsuntoChange(asunto.copy(columna2 = it)) },
+                modifier = Modifier.fillMaxWidth(), placeholder = { Text("Nombre") }, minLines = 1
             )
             OutlinedTextField(
-                value = asunto.columna3,
-                onValueChange = { onAsuntoChange(asunto.copy(columna3 = it)) },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Cargo / Detalle") },
-                minLines = 1
+                value = asunto.columna3, onValueChange = { onAsuntoChange(asunto.copy(columna3 = it)) },
+                modifier = Modifier.fillMaxWidth(), placeholder = { Text("Cargo / Detalle") }, minLines = 1
             )
         }
     }
 }
 
-// --- Componente: Tabla mensajes del evangelio ---
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TablaMensajes(
     mensajes: List<MensajeEvangelio>,
@@ -633,21 +596,19 @@ fun TablaMensajes(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f)
             )
-            IconButton(onClick = {
-                onMensajesChange(mensajes + MensajeEvangelio())
-            }) {
+            IconButton(onClick = { onMensajesChange(mensajes + MensajeEvangelio()) }) {
                 Icon(Icons.Default.Add, "Agregar")
             }
         }
         mensajes.forEachIndexed { index, mensaje ->
             MensajeRow(
                 mensaje = mensaje,
-                onMensajeChange = { nuevo ->
-                    onMensajesChange(mensajes.toMutableList().also { it[index] = nuevo })
-                },
-                onDelete = {
-                    onMensajesChange(mensajes.toMutableList().also { it.removeAt(index) })
-                },
+                onMensajeChange = { nuevo -> onMensajesChange(mensajes.toMutableList().also { it[index] = nuevo }) },
+                onDelete = { onMensajesChange(mensajes.toMutableList().also { it.removeAt(index) }) },
+                onMoveUp = { if (index > 0) onMensajesChange(mensajes.toMutableList().also { it.add(index - 1, it.removeAt(index)) }) },
+                onMoveDown = { if (index < mensajes.size - 1) onMensajesChange(mensajes.toMutableList().also { it.add(index + 1, it.removeAt(index)) }) },
+                isFirst = index == 0,
+                isLast = index == mensajes.size - 1,
                 nombresUsados = nombresUsados
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -661,6 +622,10 @@ fun MensajeRow(
     mensaje: MensajeEvangelio,
     onMensajeChange: (MensajeEvangelio) -> Unit,
     onDelete: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    isFirst: Boolean,
+    isLast: Boolean,
     nombresUsados: List<String>
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -669,15 +634,14 @@ fun MensajeRow(
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it },
-                    modifier = Modifier.weight(1f)) {
+                ExposedDropdownMenuBox(
+                    expanded = expanded, onExpandedChange = { expanded = it },
+                    modifier = Modifier.weight(1f)
+                ) {
                     OutlinedTextField(
-                        value = mensaje.tipo.label,
-                        onValueChange = {},
-                        readOnly = true,
+                        value = mensaje.tipo.label, onValueChange = {}, readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(),
-                        singleLine = true
+                        modifier = Modifier.fillMaxWidth().menuAnchor(), singleLine = true
                     )
                     ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         TipoMensaje.values().forEach { tipo ->
@@ -687,6 +651,13 @@ fun MensajeRow(
                             )
                         }
                     }
+                }
+                // Botones de reordenar
+                IconButton(onClick = onMoveUp, enabled = !isFirst) {
+                    Icon(Icons.Default.KeyboardArrowUp, "Subir", tint = if (!isFirst) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                }
+                IconButton(onClick = onMoveDown, enabled = !isLast) {
+                    Icon(Icons.Default.KeyboardArrowDown, "Bajar", tint = if (!isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
                 }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Default.Close, "Eliminar", tint = MaterialTheme.colorScheme.error)
@@ -705,15 +676,13 @@ fun MensajeRow(
                         },
                         label = { Text("Nº") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.width(80.dp),
-                        singleLine = true
+                        modifier = Modifier.width(80.dp), singleLine = true
                     )
                     OutlinedTextField(
                         value = mensaje.himnoNombre,
                         onValueChange = { onMensajeChange(mensaje.copy(himnoNombre = it)) },
                         label = { Text("Nombre del himno") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
+                        modifier = Modifier.weight(1f), singleLine = true
                     )
                 }
             } else {
@@ -728,13 +697,13 @@ fun MensajeRow(
     }
 }
 
-// --- Función para generar texto para compartir ---
 fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat): String {
     val sb = StringBuilder()
     sb.appendLine("📋 *AGENDA DE REUNIÓN SACRAMENTAL*")
     sb.appendLine("_D&C 46:2_")
     sb.appendLine()
     sb.appendLine("📅 Fecha: ${dateFormat.format(agenda.fecha.toDate())}")
+    if (agenda.asistencia > 0) sb.appendLine("👥 Asistencia: ${agenda.asistencia}")
     if (agenda.preside.isNotBlank()) sb.appendLine("👤 Preside: ${agenda.preside}")
     if (agenda.dirige.isNotBlank()) sb.appendLine("🎙 Dirige: ${agenda.dirige}")
     if (agenda.reconocimientos.isNotBlank()) sb.appendLine("⭐ Reconocimientos: ${agenda.reconocimientos}")
@@ -756,11 +725,12 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat): String {
 
     if (agenda.mensajesEvangelio.isNotEmpty()) {
         sb.appendLine()
-        sb.appendLine("✝️ Mensajes del Evangelio:")
+        sb.appendLine("📖 Mensajes del Evangelio:")
         agenda.mensajesEvangelio.forEach {
             when (it.tipo) {
-                TipoMensaje.HIMNO_INTERMEDIO -> sb.appendLine("  • Himno Intermedio: ${it.himnoNumero} - ${it.himnoNombre}")
-                else -> sb.appendLine("  • ${it.tipo.label}: ${it.nombre}")
+                TipoMensaje.HIMNO_INTERMEDIO -> sb.appendLine("  🎵 Himno Intermedio: ${it.himnoNumero} - ${it.himnoNombre}")
+                TipoMensaje.TESTIMONIO -> sb.appendLine("  👁️‍🗨️ Testimonio: ${it.nombre}")
+                else -> sb.appendLine("  📖 ${it.tipo.label}: ${it.nombre}")
             }
         }
     }

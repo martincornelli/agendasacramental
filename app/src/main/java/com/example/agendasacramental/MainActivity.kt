@@ -1,6 +1,5 @@
 package com.example.agendasacramental
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,7 +20,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var googleSignInClient: GoogleSignInClient
 
-    // Estado de navegación
     private var currentScreen = mutableStateOf<Screen>(Screen.Login)
     private var currentUnidad = mutableStateOf<String>("")
     private var currentAgendaId = mutableStateOf<String?>(null)
@@ -37,7 +35,6 @@ class MainActivity : ComponentActivity() {
             .build()
         googleSignInClient = GoogleSignIn.getClient(this, gso)
 
-        // Si ya está logueado con Google, saltar a pantalla de unidad
         if (auth.currentUser != null) {
             currentScreen.value = Screen.SeleccionUnidad
         }
@@ -57,8 +54,14 @@ class MainActivity : ComponentActivity() {
                             userEmail = auth.currentUser?.email ?: "",
                             onUnidadIngresada = { numeroUnidad ->
                                 currentUnidad.value = numeroUnidad
-                                currentScreen.value = Screen.ListaAgendas
+                                currentScreen.value = Screen.Home
                             },
+                            onLogout = { logout() }
+                        )
+                        Screen.Home -> HomeScreen(
+                            numeroUnidad = unidad,
+                            onIrAgendas = { currentScreen.value = Screen.ListaAgendas },
+                            onIrPlanificacion = { currentScreen.value = Screen.Planificacion },
                             onLogout = { logout() }
                         )
                         Screen.ListaAgendas -> ListaAgendasScreen(
@@ -72,13 +75,17 @@ class MainActivity : ComponentActivity() {
                                 currentAgendaId.value = id
                                 currentScreen.value = Screen.EditarAgenda
                             },
-                            onLogout = { logout() }
+                            onLogout = { currentScreen.value = Screen.Home }
                         )
                         Screen.EditarAgenda -> EditarAgendaScreen(
                             numeroUnidad = unidad,
                             agendaId = agendaId,
                             userEmail = auth.currentUser?.email ?: "",
                             onBack = { currentScreen.value = Screen.ListaAgendas }
+                        )
+                        Screen.Planificacion -> PlanificacionScreen(
+                            numeroUnidad = unidad,
+                            onBack = { currentScreen.value = Screen.Home }
                         )
                     }
                 }
@@ -119,6 +126,8 @@ class MainActivity : ComponentActivity() {
 sealed class Screen {
     object Login : Screen()
     object SeleccionUnidad : Screen()
+    object Home : Screen()
     object ListaAgendas : Screen()
     object EditarAgenda : Screen()
+    object Planificacion : Screen()
 }

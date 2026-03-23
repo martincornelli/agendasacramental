@@ -34,9 +34,11 @@ fun ListaAgendasScreen(
     var showSearch by remember { mutableStateOf(false) }
     var agendaAEliminar by remember { mutableStateOf<Agenda?>(null) }
 
+    // Por defecto BORRADOR y CONFIRMADA seleccionados, REALIZADA no
+    var filtrosActivos by remember { mutableStateOf(setOf(EstadoAgenda.BORRADOR, EstadoAgenda.CONFIRMADA)) }
+
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
 
-    // Cargar agendas
     LaunchedEffect(numeroUnidad) {
         isLoading = true
         val result = repository.getAgendas(numeroUnidad)
@@ -44,31 +46,33 @@ fun ListaAgendasScreen(
         isLoading = false
     }
 
-    // Filtrar agendas por búsqueda
-    val agendasFiltradas = remember(agendas, searchQuery) {
-        if (searchQuery.isBlank()) agendas
-        else agendas.filter { agenda ->
-            val fechaStr = dateFormat.format(agenda.fecha.toDate())
-            fechaStr.contains(searchQuery, ignoreCase = true) ||
-            agenda.preside.contains(searchQuery, ignoreCase = true) ||
-            agenda.dirige.contains(searchQuery, ignoreCase = true) ||
-            agenda.primeraOracion.contains(searchQuery, ignoreCase = true) ||
-            agenda.oracionFinal.contains(searchQuery, ignoreCase = true) ||
-            agenda.primerHimnoNombre.contains(searchQuery, ignoreCase = true) ||
-            agenda.himnoSacramentalNombre.contains(searchQuery, ignoreCase = true) ||
-            agenda.himnoFinalNombre.contains(searchQuery, ignoreCase = true) ||
-            agenda.primerHimnoNumero.toString().contains(searchQuery) ||
-            agenda.himnoSacramentalNumero.toString().contains(searchQuery) ||
-            agenda.himnoFinalNumero.toString().contains(searchQuery) ||
-            agenda.mensajesEvangelio.any {
-                it.nombre.contains(searchQuery, ignoreCase = true) ||
-                it.himnoNombre.contains(searchQuery, ignoreCase = true) ||
-                it.himnoNumero.toString().contains(searchQuery)
+    val agendasFiltradas = remember(agendas, searchQuery, filtrosActivos) {
+        agendas
+            .filter { agenda -> filtrosActivos.isEmpty() || agenda.estado in filtrosActivos }
+            .filter { agenda ->
+                if (searchQuery.isBlank()) true
+                else {
+                    val fechaStr = dateFormat.format(agenda.fecha.toDate())
+                    fechaStr.contains(searchQuery, ignoreCase = true) ||
+                            agenda.preside.contains(searchQuery, ignoreCase = true) ||
+                            agenda.dirige.contains(searchQuery, ignoreCase = true) ||
+                            agenda.primeraOracion.contains(searchQuery, ignoreCase = true) ||
+                            agenda.oracionFinal.contains(searchQuery, ignoreCase = true) ||
+                            agenda.primerHimnoNombre.contains(searchQuery, ignoreCase = true) ||
+                            agenda.himnoSacramentalNombre.contains(searchQuery, ignoreCase = true) ||
+                            agenda.himnoFinalNombre.contains(searchQuery, ignoreCase = true) ||
+                            agenda.primerHimnoNumero.toString().contains(searchQuery) ||
+                            agenda.himnoSacramentalNumero.toString().contains(searchQuery) ||
+                            agenda.himnoFinalNumero.toString().contains(searchQuery) ||
+                            agenda.mensajesEvangelio.any {
+                                it.nombre.contains(searchQuery, ignoreCase = true) ||
+                                        it.himnoNombre.contains(searchQuery, ignoreCase = true) ||
+                                        it.himnoNumero.toString().contains(searchQuery)
+                            }
+                }
             }
-        }
     }
 
-    // Diálogo de confirmación de eliminación
     agendaAEliminar?.let { agenda ->
         AlertDialog(
             onDismissRequest = { agendaAEliminar = null },
@@ -116,7 +120,7 @@ fun ListaAgendasScreen(
                             Icon(Icons.Default.Search, "Buscar")
                         }
                         IconButton(onClick = onLogout) {
-                            Icon(Icons.Default.ExitToApp, "Salir")
+                            Icon(Icons.Default.ArrowBack, "Volver al menú")
                         }
                     }
                 )
@@ -128,41 +132,65 @@ fun ListaAgendasScreen(
             }
         }
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            when {
-                isLoading -> {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+
+            // Chips de filtro por estado
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                EstadoAgenda.values().forEach { estado ->
+                    val seleccionado = estado in filtrosActivos
+                    FilterChip(
+                        selected = seleccionado,
+                        onClick = {
+                            filtrosActivos = if (seleccionado) {
+                                filtrosActivos - estado
+                            } else {
+                                filtrosActivos + estado
+                            }
+                        },
+                        label = { Text(estado.label) },
+                        leadingIcon = if (seleccionado) {
+                            { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
+                        } else null
+                    )
                 }
-                agendasFiltradas.isEmpty() -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            if (searchQuery.isBlank()) "No hay agendas aún.\nToque + para crear una."
-                            else "No se encontraron resultados.",
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(agendasFiltradas) { agenda ->
-                            AgendaCard(
-                                agenda = agenda,
-                                dateFormat = dateFormat,
-                                onClick = { onEditarAgenda(agenda.id) },
-                                onDelete = { agendaAEliminar = agenda }
+            }
+
+            Box(modifier = Modifier.fillMaxSize()) {
+                when {
+                    isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    agendasFiltradas.isEmpty() -> {
+                        Column(
+                            modifier = Modifier.align(Alignment.Center),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                if (searchQuery.isBlank() && filtrosActivos.size == EstadoAgenda.values().size)
+                                    "No hay agendas aún.\nToque + para crear una."
+                                else "No se encontraron resultados.",
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                    }
+                    else -> {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(agendasFiltradas) { agenda ->
+                                AgendaCard(
+                                    agenda = agenda,
+                                    dateFormat = dateFormat,
+                                    onClick = { onEditarAgenda(agenda.id) },
+                                    onDelete = { agendaAEliminar = agenda }
+                                )
+                            }
                         }
                     }
                 }
@@ -184,23 +212,14 @@ fun AgendaCard(
         EstadoAgenda.REALIZADA -> MaterialTheme.colorScheme.secondary
     }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-    ) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = dateFormat.format(agenda.fecha.toDate()),
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    Text(text = dateFormat.format(agenda.fecha.toDate()), style = MaterialTheme.typography.titleMedium)
                     Spacer(modifier = Modifier.width(8.dp))
                     Surface(
                         color = estadoColor.copy(alpha = 0.15f),
@@ -213,6 +232,14 @@ fun AgendaCard(
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
+                    if (agenda.asistencia > 0) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "👥 ${agenda.asistencia}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 if (agenda.preside.isNotBlank()) {
                     Spacer(modifier = Modifier.height(4.dp))
@@ -220,8 +247,7 @@ fun AgendaCard(
                         text = "Preside: ${agenda.preside}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
                 }
                 if (agenda.ultimaEdicionPor.isNotBlank()) {
@@ -233,11 +259,7 @@ fun AgendaCard(
                 }
             }
             IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Eliminar",
-                    tint = MaterialTheme.colorScheme.error
-                )
+                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
             }
         }
     }

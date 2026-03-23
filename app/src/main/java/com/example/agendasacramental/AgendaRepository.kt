@@ -5,6 +5,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 import java.security.MessageDigest
+import java.util.Calendar
 
 class AgendaRepository {
     private val db = FirebaseFirestore.getInstance()
@@ -16,13 +17,9 @@ class AgendaRepository {
         return bytes.joinToString("") { "%02x".format(it) }
     }
 
-    suspend fun existeUnidad(numeroUnidad: String): Result<Boolean> {
-        return try {
-            val result = unidadesRef.document(numeroUnidad).get().await()
-            Result.success(result.exists())
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    suspend fun existeUnidad(numeroUnidad: String): Boolean {
+        val result = unidadesRef.document(numeroUnidad).get().await()
+        return result.exists()
     }
 
     suspend fun crearUnidad(numeroUnidad: String, password: String, creadoPor: String): Result<Unit> {
@@ -40,24 +37,13 @@ class AgendaRepository {
         }
     }
 
-    suspend fun verificarPassword(numeroUnidad: String, password: String): Result<Boolean> {
+    suspend fun verificarPassword(numeroUnidad: String, password: String): Boolean {
         return try {
             val doc = unidadesRef.document(numeroUnidad).get().await()
-            val storedHash = doc.getString("passwordHash") ?: return Result.success(false)
-            Result.success(storedHash == hashPassword(password))
+            val storedHash = doc.getString("passwordHash") ?: return false
+            storedHash == hashPassword(password)
         } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    suspend fun cambiarPassword(numeroUnidad: String, newPassword: String): Result<Unit> {
-        return try {
-            unidadesRef.document(numeroUnidad)
-                .update("passwordHash", hashPassword(newPassword))
-                .await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
+            false
         }
     }
 
@@ -66,8 +52,7 @@ class AgendaRepository {
             val snapshot = agendasRef
                 .whereEqualTo("numeroUnidad", numeroUnidad)
                 .orderBy("fecha", Query.Direction.DESCENDING)
-                .get()
-                .await()
+                .get().await()
             val agendas = snapshot.documents.mapNotNull { doc ->
                 doc.toObject(Agenda::class.java)?.copy(id = doc.id)
             }
@@ -88,8 +73,36 @@ class AgendaRepository {
         }
     }
 
+    // Verificar si ya existe agenda con la misma fecha (mismo día) para la unidad
+    private fun mismoDia(t1: Timestamp, t2: Timestamp): Boolean {
+        val c1 = Calendar.getInstance().apply { time = t1.toDate() }
+        val c2 = Calendar.getInstance().apply { time = t2.toDate() }
+        return c1.get(Calendar.YEAR) == c2.get(Calendar.YEAR) &&
+                c1.get(Calendar.DAY_OF_YEAR) == c2.get(Calendar.DAY_OF_YEAR)
+    }
+
+    suspend fun existeAgendaMismaFecha(numeroUnidad: String, fecha: Timestamp, excludeId: String = ""): Boolean {
+        return try {
+            val snapshot = agendasRef
+                .whereEqualTo("numeroUnidad", numeroUnidad)
+                .get().await()
+            snapshot.documents.any { doc ->
+                doc.id != excludeId &&
+                        doc.getTimestamp("fecha")?.let { mismoDia(it, fecha) } == true
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     suspend fun guardarAgenda(agenda: Agenda, userEmail: String): Result<String> {
         return try {
+            // Validar fecha duplicada
+            val duplicada = existeAgendaMismaFecha(agenda.numeroUnidad, agenda.fecha, agenda.id)
+            if (duplicada) {
+                return Result.failure(Exception("FECHA_DUPLICADA"))
+            }
+
             val ahora = Timestamp.now()
             val data = agendaToMap(agenda).toMutableMap()
             data["ultimaEdicionPor"] = userEmail
@@ -123,8 +136,7 @@ class AgendaRepository {
         return try {
             val snapshot = agendasRef
                 .whereEqualTo("numeroUnidad", numeroUnidad)
-                .get()
-                .await()
+                .get().await()
             val nombres = mutableSetOf<String>()
             snapshot.documents.forEach { doc ->
                 doc.getString("preside")?.takeIf { it.isNotBlank() }?.let { nombres.add(it) }
@@ -148,6 +160,7 @@ class AgendaRepository {
             "numeroUnidad" to agenda.numeroUnidad,
             "fecha" to agenda.fecha,
             "estado" to agenda.estado.name,
+            "asistencia" to agenda.asistencia,
             "preside" to agenda.preside,
             "dirige" to agenda.dirige,
             "reconocimientos" to agenda.reconocimientos,
@@ -164,17 +177,171 @@ class AgendaRepository {
                 mapOf("tipo" to it.tipo.name, "columna2" to it.columna2, "columna3" to it.columna3)
             },
             "mensajesEvangelio" to agenda.mensajesEvangelio.map {
-                mapOf(
-                    "tipo" to it.tipo.name,
-                    "nombre" to it.nombre,
-                    "himnoNumero" to it.himnoNumero,
-                    "himnoNombre" to it.himnoNombre
-                )
+                mapOf("tipo" to it.tipo.name, "nombre" to it.nombre,
+                    "himnoNumero" to it.himnoNumero, "himnoNombre" to it.himnoNombre)
             },
             "creadoPor" to agenda.creadoPor,
             "creadoEn" to agenda.creadoEn,
             "ultimaEdicionPor" to agenda.ultimaEdicionPor,
             "ultimaEdicionEn" to agenda.ultimaEdicionEn
         )
+    }
+
+    suspend fun excluirHermanoHistorial(numeroUnidad: String, nombre: String): Result<Unit> {
+        return try {
+            val data = mapOf(
+                "numeroUnidad" to numeroUnidad,
+                "nombre" to nombre,
+                "agregadoManualmente" to false,
+                "excluido" to true,
+                "creadoEn" to Timestamp.now()
+            )
+            db.collection("hermanos").add(data).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun eliminarHermano(hermanoId: String): Result<Unit> {
+        return try {
+            db.collection("hermanos").document(hermanoId).delete().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun cambiarPassword(numeroUnidad: String, newPassword: String): Result<Unit> {
+        return try {
+            unidadesRef.document(numeroUnidad)
+                .update("passwordHash", hashPassword(newPassword))
+                .await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getHermanos(numeroUnidad: String): List<Hermano> {
+        return try {
+            val snapshot = db.collection("hermanos")
+                .whereEqualTo("numeroUnidad", numeroUnidad)
+                .orderBy("nombre")
+                .get().await()
+
+            val excluidos = snapshot.documents
+                .filter { it.getBoolean("excluido") == true }
+                .map { it.getString("nombre")?.trim()?.lowercase() ?: "" }
+                .toSet()
+
+            val manual = snapshot.documents
+                .filter { it.getBoolean("excluido") != true }
+                .mapNotNull { it.toObject(Hermano::class.java)?.copy(id = it.id) }
+
+            // Extraer nombres del historial de agendas
+            val agendasSnap = agendasRef
+                .whereEqualTo("numeroUnidad", numeroUnidad)
+                .get().await()
+            val nombresHistorial = mutableSetOf<String>()
+            agendasSnap.documents.forEach { doc ->
+                doc.getString("primeraOracion")?.takeIf { it.isNotBlank() }?.let { nombresHistorial.add(it.trim()) }
+                doc.getString("oracionFinal")?.takeIf { it.isNotBlank() }?.let { nombresHistorial.add(it.trim()) }
+                @Suppress("UNCHECKED_CAST")
+                val mensajes = doc.get("mensajesEvangelio") as? List<Map<String, Any>> ?: emptyList()
+                mensajes.forEach { m ->
+                    val tipo = m["tipo"] as? String
+                    if (tipo != "HIMNO_INTERMEDIO") {
+                        (m["nombre"] as? String)?.takeIf { it.isNotBlank() }?.let { nombresHistorial.add(it.trim()) }
+                    }
+                }
+            }
+
+            val nombresManual = manual.map { it.nombre.trim().lowercase() }.toSet()
+            val deHistorial = nombresHistorial
+                .filter { it.lowercase() !in nombresManual && it.lowercase() !in excluidos }
+                .map { Hermano(numeroUnidad = numeroUnidad, nombre = it) }
+
+            (manual + deHistorial).sortedBy { it.nombre.lowercase() }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun agregarHermano(hermano: Hermano): Result<Unit> {
+        return try {
+            val data = mapOf(
+                "numeroUnidad" to hermano.numeroUnidad,
+                "nombre" to hermano.nombre,
+                "agregadoManualmente" to true,
+                "excluido" to false,
+                "creadoEn" to Timestamp.now()
+            )
+            db.collection("hermanos").add(data).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getConfiguracion(numeroUnidad: String): ConfiguracionPlanificacion? {
+        return try {
+            val snapshot = db.collection("configuracion")
+                .whereEqualTo("numeroUnidad", numeroUnidad)
+                .limit(1)
+                .get().await()
+            snapshot.documents.firstOrNull()?.toObject(ConfiguracionPlanificacion::class.java)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun guardarConfiguracion(config: ConfiguracionPlanificacion): Result<Unit> {
+        return try {
+            val data = mapOf(
+                "numeroUnidad" to config.numeroUnidad,
+                "diasVerdeDiscurso" to config.diasVerdeDiscurso,
+                "diasAmarilloDiscurso" to config.diasAmarilloDiscurso,
+                "diasVerdeOracion" to config.diasVerdeOracion,
+                "diasAmarilloOracion" to config.diasAmarilloOracion
+            )
+            if (config.id.isBlank()) {
+                db.collection("configuracion").add(data).await()
+            } else {
+                db.collection("configuracion").document(config.id).set(data).await()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun asignarHermanoAAgenda(agendaId: String, campo: String, nombre: String): Result<Unit> {
+        return try {
+            when (campo) {
+                "Primera Oración" -> {
+                    agendasRef.document(agendaId).update("primeraOracion", nombre).await()
+                }
+                "Oración Final" -> {
+                    agendasRef.document(agendaId).update("oracionFinal", nombre).await()
+                }
+                "NUEVO_DISCURSO" -> {
+                    // Leer agenda actual y agregar nuevo mensaje al final
+                    val doc = agendasRef.document(agendaId).get().await()
+                    val agenda = doc.toObject(Agenda::class.java)?.copy(id = doc.id)
+                        ?: return Result.failure(Exception("Agenda no encontrada"))
+                    val mensajes = agenda.mensajesEvangelio.toMutableList()
+                    mensajes.add(MensajeEvangelio(tipo = TipoMensaje.DISCURSO, nombre = nombre))
+                    val mensajesData = mensajes.map {
+                        mapOf("tipo" to it.tipo.name, "nombre" to it.nombre,
+                            "himnoNumero" to it.himnoNumero, "himnoNombre" to it.himnoNombre)
+                    }
+                    agendasRef.document(agendaId).update("mensajesEvangelio", mensajesData).await()
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }

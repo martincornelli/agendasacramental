@@ -39,7 +39,6 @@ fun SeleccionUnidadScreen(
     var newPassword by remember { mutableStateOf("") }
     var confirmNewPassword by remember { mutableStateOf("") }
 
-    // Diálogo para confirmar creación de nueva unidad
     if (showCreateDialog) {
         AlertDialog(
             onDismissRequest = { showCreateDialog = false },
@@ -56,10 +55,7 @@ fun SeleccionUnidadScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    showCreateDialog = false
-                    isNewUnit = true
-                }) { Text("Sí, crear") }
+                TextButton(onClick = { showCreateDialog = false; isNewUnit = true }) { Text("Sí, crear") }
             },
             dismissButton = {
                 TextButton(onClick = { showCreateDialog = false }) { Text("Cancelar") }
@@ -67,7 +63,6 @@ fun SeleccionUnidadScreen(
         )
     }
 
-    // Diálogo para cambiar contraseña
     if (showForgotDialog) {
         AlertDialog(
             onDismissRequest = { showForgotDialog = false; newPassword = ""; confirmNewPassword = "" },
@@ -102,12 +97,6 @@ fun SeleccionUnidadScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        if (newPassword.length < 4) {
-                            return@TextButton
-                        }
-                        if (newPassword != confirmNewPassword) {
-                            return@TextButton
-                        }
                         isChangingPassword = true
                         scope.launch {
                             val result = repository.cambiarPassword(numeroUnidad, newPassword)
@@ -133,52 +122,31 @@ fun SeleccionUnidadScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    showForgotDialog = false
-                    newPassword = ""
-                    confirmNewPassword = ""
-                }) { Text("Cancelar") }
+                TextButton(onClick = { showForgotDialog = false; newPassword = ""; confirmNewPassword = "" }) {
+                    Text("Cancelar")
+                }
             }
         )
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
+        modifier = Modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "Acceso a Unidad",
-            style = MaterialTheme.typography.headlineMedium,
-            textAlign = TextAlign.Center
-        )
-
+        Text(text = "Acceso a Unidad", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Sesión: $userEmail",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
+        Text(text = "Sesión: $userEmail", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(32.dp))
 
         OutlinedTextField(
             value = numeroUnidad,
-            onValueChange = {
-                numeroUnidad = it
-                isNewUnit = false
-                errorMessage = ""
-                successMessage = ""
-            },
+            onValueChange = { numeroUnidad = it; isNewUnit = false; errorMessage = ""; successMessage = "" },
             label = { Text("Número de Unidad") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
         )
-
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
@@ -214,79 +182,37 @@ fun SeleccionUnidadScreen(
 
         if (errorMessage.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = errorMessage,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
-            )
+            Text(text = errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
 
         if (successMessage.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = successMessage,
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodySmall
-            )
+            Text(text = successMessage, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(
             onClick = {
-                if (numeroUnidad.isBlank()) {
-                    errorMessage = "Ingrese el número de unidad"
-                    return@Button
-                }
-                if (password.isBlank()) {
-                    errorMessage = "Ingrese la contraseña"
-                    return@Button
-                }
-                if (isNewUnit && password != confirmPassword) {
-                    errorMessage = "Las contraseñas no coinciden"
-                    return@Button
-                }
-                if (isNewUnit && password.length < 4) {
-                    errorMessage = "La contraseña debe tener al menos 4 caracteres"
-                    return@Button
-                }
+                if (numeroUnidad.isBlank()) { errorMessage = "Ingrese el número de unidad"; return@Button }
+                if (password.isBlank()) { errorMessage = "Ingrese la contraseña"; return@Button }
+                if (isNewUnit && password != confirmPassword) { errorMessage = "Las contraseñas no coinciden"; return@Button }
+                if (isNewUnit && password.length < 4) { errorMessage = "La contraseña debe tener al menos 4 caracteres"; return@Button }
 
                 isLoading = true
                 scope.launch {
                     if (isNewUnit) {
                         val result = repository.crearUnidad(numeroUnidad, password, userEmail)
                         isLoading = false
-                        if (result.isSuccess) {
-                            onUnidadIngresada(numeroUnidad)
-                        } else {
-                            errorMessage = "Error al crear la unidad. Intente nuevamente."
-                        }
+                        if (result.isSuccess) onUnidadIngresada(numeroUnidad)
+                        else errorMessage = "Error al crear la unidad. Intente nuevamente."
                     } else {
-                        val existeResult = repository.existeUnidad(numeroUnidad)
-                        if (existeResult.isFailure) {
-                            isLoading = false
-                            errorMessage = "Sin conexión. Verificá tu internet e intentá de nuevo."
-                            return@launch
-                        }
-                        val existe = existeResult.getOrElse { false }
-                        if (!existe) {
-                            isLoading = false
-                            showCreateDialog = true
-                            return@launch
-                        }
-                        val passwordResult = repository.verificarPassword(numeroUnidad, password)
-                        if (passwordResult.isFailure) {
-                            isLoading = false
-                            errorMessage = "Sin conexión. Verificá tu internet e intentá de nuevo."
-                            return@launch
-                        }
-                        val passwordOk = passwordResult.getOrElse { false }
+                        val existe = repository.existeUnidad(numeroUnidad)
+                        if (!existe) { isLoading = false; showCreateDialog = true; return@launch }
+                        val passwordOk = repository.verificarPassword(numeroUnidad, password)
                         isLoading = false
-                        if (passwordOk) {
-                            onUnidadIngresada(numeroUnidad)
-                        } else {
-                            errorMessage = "Contraseña incorrecta"
-                        }
+                        if (passwordOk) onUnidadIngresada(numeroUnidad)
+                        else errorMessage = "Contraseña incorrecta"
                     }
                 }
             },
@@ -294,11 +220,7 @@ fun SeleccionUnidadScreen(
             enabled = !isLoading
         ) {
             if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
             } else {
                 Text(if (isNewUnit) "Crear unidad" else "Ingresar")
             }
@@ -306,36 +228,20 @@ fun SeleccionUnidadScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Botón olvidé mi contraseña
         TextButton(
             onClick = {
-                if (numeroUnidad.isBlank()) {
-                    errorMessage = "Ingrese el número de unidad primero"
-                    return@TextButton
-                }
-                errorMessage = ""
-                successMessage = ""
+                if (numeroUnidad.isBlank()) { errorMessage = "Ingrese el número de unidad primero"; return@TextButton }
+                errorMessage = ""; successMessage = ""
                 scope.launch {
-                    val existeResult = repository.existeUnidad(numeroUnidad)
-                    if (existeResult.isFailure) {
-                        errorMessage = "Sin conexión. Verificá tu internet e intentá de nuevo."
-                        return@launch
-                    }
-                    if (existeResult.getOrElse { false }) {
-                        showForgotDialog = true
-                    } else {
-                        errorMessage = "La unidad $numeroUnidad no existe."
-                    }
+                    val existe = repository.existeUnidad(numeroUnidad)
+                    if (existe) showForgotDialog = true
+                    else errorMessage = "La unidad $numeroUnidad no existe."
                 }
             }
-        ) {
-            Text("Olvidé mi contraseña")
-        }
+        ) { Text("Olvidé mi contraseña") }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        TextButton(onClick = onLogout) {
-            Text("Cerrar sesión de Google")
-        }
+        TextButton(onClick = onLogout) { Text("Cerrar sesión de Google") }
     }
 }
