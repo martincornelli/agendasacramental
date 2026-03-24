@@ -1,5 +1,8 @@
 package com.example.agendasacramental
 
+import android.content.Context
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -14,10 +17,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import kotlinx.coroutines.launch
 
 @Composable
 fun SeleccionUnidadScreen(
+    activity: FragmentActivity,
     userEmail: String,
     onUnidadIngresada: (String) -> Unit,
     onLogout: () -> Unit
@@ -38,7 +44,33 @@ fun SeleccionUnidadScreen(
     var isChangingPassword by remember { mutableStateOf(false) }
     var newPassword by remember { mutableStateOf("") }
     var confirmNewPassword by remember { mutableStateOf("") }
+    var recordarDispositivo by remember { mutableStateOf(false) }
+    var usandoContrasena by remember { mutableStateOf(false) }
 
+    val prefs = remember { activity.getSharedPreferences("agenda_prefs", Context.MODE_PRIVATE) }
+    val unidadGuardada = remember { prefs.getString("unidad_guardada", "") ?: "" }
+    val passwordGuardado = remember { prefs.getString("password_guardado", "") ?: "" }
+    val biometriaDisponible = remember { isBiometriaDisponible(activity) }
+    val tieneSesionGuardada = unidadGuardada.isNotBlank() && passwordGuardado.isNotBlank() && biometriaDisponible
+
+    // Pre-cargar número de unidad
+    LaunchedEffect(Unit) {
+        if (unidadGuardada.isNotBlank()) numeroUnidad = unidadGuardada
+    }
+
+    // Lanzar biometría automáticamente si hay sesión guardada
+    LaunchedEffect(tieneSesionGuardada) {
+        if (tieneSesionGuardada && !usandoContrasena) {
+            lanzarBiometria(
+                activity = activity,
+                onSuccess = { onUnidadIngresada(unidadGuardada) },
+                onUsarContrasena = { usandoContrasena = true },
+                onError = { msg -> errorMessage = msg }
+            )
+        }
+    }
+
+    // Diálogo crear nueva unidad
     if (showCreateDialog) {
         AlertDialog(
             onDismissRequest = { showCreateDialog = false },
@@ -63,6 +95,7 @@ fun SeleccionUnidadScreen(
         )
     }
 
+    // Diálogo cambiar contraseña
     if (showForgotDialog) {
         AlertDialog(
             onDismissRequest = { showForgotDialog = false; newPassword = ""; confirmNewPassword = "" },
@@ -75,22 +108,18 @@ fun SeleccionUnidadScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedTextField(
-                        value = newPassword,
-                        onValueChange = { newPassword = it },
+                        value = newPassword, onValueChange = { newPassword = it },
                         label = { Text("Nueva contraseña") },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        modifier = Modifier.fillMaxWidth(), singleLine = true
                     )
                     OutlinedTextField(
-                        value = confirmNewPassword,
-                        onValueChange = { confirmNewPassword = it },
+                        value = confirmNewPassword, onValueChange = { confirmNewPassword = it },
                         label = { Text("Confirmar nueva contraseña") },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        modifier = Modifier.fillMaxWidth(), singleLine = true
                     )
                 }
             },
@@ -102,11 +131,12 @@ fun SeleccionUnidadScreen(
                             val result = repository.cambiarPassword(numeroUnidad, newPassword)
                             isChangingPassword = false
                             showForgotDialog = false
-                            newPassword = ""
-                            confirmNewPassword = ""
+                            newPassword = ""; confirmNewPassword = ""
                             if (result.isSuccess) {
                                 successMessage = "Contraseña actualizada correctamente."
                                 errorMessage = ""
+                                prefs.edit().remove("unidad_guardada").remove("password_guardado").apply()
+                                usandoContrasena = true
                             } else {
                                 errorMessage = "Error al cambiar la contraseña. Intente nuevamente."
                             }
@@ -114,21 +144,17 @@ fun SeleccionUnidadScreen(
                     },
                     enabled = newPassword.length >= 4 && newPassword == confirmNewPassword && !isChangingPassword
                 ) {
-                    if (isChangingPassword) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text("Cambiar")
-                    }
+                    if (isChangingPassword) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    else Text("Cambiar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showForgotDialog = false; newPassword = ""; confirmNewPassword = "" }) {
-                    Text("Cancelar")
-                }
+                TextButton(onClick = { showForgotDialog = false; newPassword = ""; confirmNewPassword = "" }) { Text("Cancelar") }
             }
         )
     }
 
+    // Pantalla principal
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.Center,
@@ -144,8 +170,7 @@ fun SeleccionUnidadScreen(
             onValueChange = { numeroUnidad = it; isNewUnit = false; errorMessage = ""; successMessage = "" },
             label = { Text("Número de Unidad") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            modifier = Modifier.fillMaxWidth(), singleLine = true
         )
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -163,8 +188,7 @@ fun SeleccionUnidadScreen(
                     )
                 }
             },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            modifier = Modifier.fillMaxWidth(), singleLine = true
         )
 
         if (isNewUnit) {
@@ -175,16 +199,27 @@ fun SeleccionUnidadScreen(
                 label = { Text("Confirmar contraseña") },
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                modifier = Modifier.fillMaxWidth(), singleLine = true
             )
+        }
+
+        // Checkbox recordar — solo si biometría disponible y no es unidad nueva
+        if (biometriaDisponible && !isNewUnit) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Checkbox(checked = recordarDispositivo, onCheckedChange = { recordarDispositivo = it })
+                Text(
+                    "Recordar en este dispositivo (huella)",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
         }
 
         if (errorMessage.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(text = errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
-
         if (successMessage.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(text = successMessage, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
@@ -204,44 +239,110 @@ fun SeleccionUnidadScreen(
                     if (isNewUnit) {
                         val result = repository.crearUnidad(numeroUnidad, password, userEmail)
                         isLoading = false
-                        if (result.isSuccess) onUnidadIngresada(numeroUnidad)
-                        else errorMessage = "Error al crear la unidad. Intente nuevamente."
+                        if (result.isSuccess) {
+                            if (recordarDispositivo) guardarCredenciales(prefs, numeroUnidad, password)
+                            onUnidadIngresada(numeroUnidad)
+                        } else {
+                            errorMessage = "Error al crear la unidad. Intente nuevamente."
+                        }
                     } else {
                         val existe = repository.existeUnidad(numeroUnidad)
                         if (!existe) { isLoading = false; showCreateDialog = true; return@launch }
                         val passwordOk = repository.verificarPassword(numeroUnidad, password)
                         isLoading = false
-                        if (passwordOk) onUnidadIngresada(numeroUnidad)
-                        else errorMessage = "Contraseña incorrecta"
+                        if (passwordOk) {
+                            if (recordarDispositivo) guardarCredenciales(prefs, numeroUnidad, password)
+                            onUnidadIngresada(numeroUnidad)
+                        } else {
+                            errorMessage = "Contraseña incorrecta"
+                        }
                     }
                 }
             },
             modifier = Modifier.fillMaxWidth(),
             enabled = !isLoading
         ) {
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-            } else {
-                Text(if (isNewUnit) "Crear unidad" else "Ingresar")
-            }
+            if (isLoading) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+            else Text(if (isNewUnit) "Crear unidad" else "Ingresar")
+        }
+
+        // Botón huella si hay sesión guardada y el usuario eligió usar contraseña
+        if (tieneSesionGuardada && usandoContrasena) {
+            Spacer(modifier = Modifier.height(8.dp))
+            TextButton(onClick = {
+                usandoContrasena = false
+                lanzarBiometria(
+                    activity = activity,
+                    onSuccess = { onUnidadIngresada(unidadGuardada) },
+                    onUsarContrasena = { usandoContrasena = true },
+                    onError = { msg -> errorMessage = msg }
+                )
+            }) { Text("Usar huella digital") }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        TextButton(
-            onClick = {
-                if (numeroUnidad.isBlank()) { errorMessage = "Ingrese el número de unidad primero"; return@TextButton }
-                errorMessage = ""; successMessage = ""
-                scope.launch {
-                    val existe = repository.existeUnidad(numeroUnidad)
-                    if (existe) showForgotDialog = true
-                    else errorMessage = "La unidad $numeroUnidad no existe."
-                }
+        TextButton(onClick = {
+            if (numeroUnidad.isBlank()) { errorMessage = "Ingrese el número de unidad primero"; return@TextButton }
+            errorMessage = ""; successMessage = ""
+            scope.launch {
+                val existe = repository.existeUnidad(numeroUnidad)
+                if (existe) showForgotDialog = true
+                else errorMessage = "La unidad $numeroUnidad no existe."
             }
-        ) { Text("Olvidé mi contraseña") }
+        }) { Text("Olvidé mi contraseña") }
 
         Spacer(modifier = Modifier.height(8.dp))
-
         TextButton(onClick = onLogout) { Text("Cerrar sesión de Google") }
     }
+}
+
+// --- Helpers ---
+
+fun isBiometriaDisponible(context: Context): Boolean {
+    val bm = BiometricManager.from(context)
+    return bm.canAuthenticate(
+        BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                BiometricManager.Authenticators.BIOMETRIC_WEAK
+    ) == BiometricManager.BIOMETRIC_SUCCESS
+}
+
+fun guardarCredenciales(prefs: android.content.SharedPreferences, numeroUnidad: String, password: String) {
+    prefs.edit().putString("unidad_guardada", numeroUnidad).putString("password_guardado", password).apply()
+}
+
+fun lanzarBiometria(
+    activity: FragmentActivity,
+    onSuccess: () -> Unit,
+    onUsarContrasena: () -> Unit,
+    onError: (String) -> Unit
+) {
+    val executor = ContextCompat.getMainExecutor(activity)
+    val prompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
+        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+            onSuccess()
+        }
+        override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+            when (errorCode) {
+                BiometricPrompt.ERROR_NEGATIVE_BUTTON,
+                BiometricPrompt.ERROR_USER_CANCELED -> onUsarContrasena()
+                else -> onError("Error: $errString")
+            }
+        }
+        override fun onAuthenticationFailed() {
+            onError("Huella no reconocida. Intentá de nuevo.")
+        }
+    })
+
+    val promptInfo = BiometricPrompt.PromptInfo.Builder()
+        .setTitle("Agenda Sacramental")
+        .setSubtitle("Autenticá con tu huella digital")
+        .setNegativeButtonText("Usar contraseña")
+        .setAllowedAuthenticators(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                    BiometricManager.Authenticators.BIOMETRIC_WEAK
+        )
+        .build()
+
+    prompt.authenticate(promptInfo)
 }

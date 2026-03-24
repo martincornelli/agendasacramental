@@ -2,6 +2,7 @@ package com.example.agendasacramental
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
+import java.text.Normalizer
 
 data class Unidad(
     @DocumentId val id: String = "",
@@ -67,16 +68,15 @@ enum class TipoMensaje(val label: String) {
     HIMNO_INTERMEDIO("Himno Intermedio")
 }
 
-// --- Hermano/a para planificación ---
 data class Hermano(
     @DocumentId val id: String = "",
     val numeroUnidad: String = "",
     val nombre: String = "",
     val agregadoManualmente: Boolean = false,
+    val inactivo: Boolean = false,
     val creadoEn: Timestamp = Timestamp.now()
 )
 
-// Resultado del cálculo de ranking para un hermano
 data class HermanoRanking(
     val hermano: Hermano,
     val ultimaVezDiscurso: Timestamp? = null,
@@ -91,12 +91,17 @@ enum class ColorRanking(val label: String) {
     ROJO("Reciente")
 }
 
-// Configuración de parámetros de color
 data class ConfiguracionPlanificacion(
     @DocumentId val id: String = "",
     val numeroUnidad: String = "",
-    val diasVerdeDiscurso: Int = 90,    // más de X días = verde
-    val diasAmarilloDiscurso: Int = 30, // entre X y verde = amarillo, menos = rojo
+    val diasVerdeDiscurso: Int = 90,
+    val diasAmarilloDiscurso: Int = 30,
     val diasVerdeOracion: Int = 30,
     val diasAmarilloOracion: Int = 14
 )
+
+// Normalizar nombre: quita tildes y pone en minúsculas para comparar
+fun normalizarNombre(nombre: String): String {
+    val normalized = Normalizer.normalize(nombre.trim(), Normalizer.Form.NFD)
+    return normalized.replace(Regex("[\\p{InCombiningDiacriticalMarks}]"), "").lowercase()
+}

@@ -134,10 +134,12 @@ class AgendaRepository {
 
     suspend fun getNombresUsados(numeroUnidad: String): List<String> {
         return try {
+            val nombres = mutableSetOf<String>()
+
+            // Del historial de agendas
             val snapshot = agendasRef
                 .whereEqualTo("numeroUnidad", numeroUnidad)
                 .get().await()
-            val nombres = mutableSetOf<String>()
             snapshot.documents.forEach { doc ->
                 doc.getString("preside")?.takeIf { it.isNotBlank() }?.let { nombres.add(it) }
                 doc.getString("dirige")?.takeIf { it.isNotBlank() }?.let { nombres.add(it) }
@@ -149,6 +151,17 @@ class AgendaRepository {
                     (m["nombre"] as? String)?.takeIf { it.isNotBlank() }?.let { nombres.add(it) }
                 }
             }
+
+            // También incluir hermanos agregados manualmente al planificador
+            val hermanosSnap = db.collection("hermanos")
+                .whereEqualTo("numeroUnidad", numeroUnidad)
+                .get().await()
+            hermanosSnap.documents.forEach { doc ->
+                if (doc.getBoolean("excluido") != true && doc.getBoolean("inactivo") != true) {
+                    doc.getString("nombre")?.takeIf { it.isNotBlank() }?.let { nombres.add(it) }
+                }
+            }
+
             nombres.sorted()
         } catch (e: Exception) {
             emptyList()
@@ -232,7 +245,7 @@ class AgendaRepository {
 
             val excluidos = snapshot.documents
                 .filter { it.getBoolean("excluido") == true }
-                .map { it.getString("nombre")?.trim()?.lowercase() ?: "" }
+                .map { normalizarNombre(it.getString("nombre") ?: "") }
                 .toSet()
 
             val manual = snapshot.documents
@@ -257,9 +270,9 @@ class AgendaRepository {
                 }
             }
 
-            val nombresManual = manual.map { it.nombre.trim().lowercase() }.toSet()
+            val nombresManual = manual.map { normalizarNombre(it.nombre) }.toSet()
             val deHistorial = nombresHistorial
-                .filter { it.lowercase() !in nombresManual && it.lowercase() !in excluidos }
+                .filter { normalizarNombre(it) !in nombresManual && normalizarNombre(it) !in excluidos }
                 .map { Hermano(numeroUnidad = numeroUnidad, nombre = it) }
 
             (manual + deHistorial).sortedBy { it.nombre.lowercase() }
@@ -273,8 +286,9 @@ class AgendaRepository {
             val data = mapOf(
                 "numeroUnidad" to hermano.numeroUnidad,
                 "nombre" to hermano.nombre,
-                "agregadoManualmente" to true,
+                "agregadoManualmente" to hermano.agregadoManualmente,
                 "excluido" to false,
+                "inactivo" to hermano.inactivo,
                 "creadoEn" to Timestamp.now()
             )
             db.collection("hermanos").add(data).await()
@@ -342,6 +356,33 @@ class AgendaRepository {
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    suspend fun toggleInactivoHermano(hermanoId: String, inactivo: Boolean): Result<Unit> {
+        return try {
+            db.collection("hermanos").document(hermanoId)
+                .update("inactivo", inactivo).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Verificar si ya existe un hermano con nombre similar (ignorando tildes)
+    suspend fun existeHermanoSimilar(numeroUnidad: String, nombre: String): String? {
+        return try {
+            val snapshot = db.collection("hermanos")
+                .whereEqualTo("numeroUnidad", numeroUnidad)
+                .whereEqualTo("excluido", false)
+                .get().await()
+            val nombreNorm = normalizarNombre(nombre)
+            snapshot.documents.firstOrNull { doc ->
+                val n = doc.getString("nombre") ?: ""
+                normalizarNombre(n) == nombreNorm
+            }?.getString("nombre")
+        } catch (e: Exception) {
+            null
         }
     }
 }

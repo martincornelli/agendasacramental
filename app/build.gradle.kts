@@ -6,14 +6,14 @@ plugins {
 
 android {
     namespace = "com.example.agendasacramental"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.martincornelli.agendasacramental"
         minSdk = 24
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.0.3"
+        versionCode = 8
+        versionName = "1.1.0"
     }
 
     buildFeatures {
@@ -58,4 +58,9 @@ dependencies {
 
     // Google Sign In
     implementation("com.google.android.gms:play-services-auth:21.0.0")
+
+    // Biometría
+    implementation("androidx.biometric:biometric:1.1.0")
+
+
 }

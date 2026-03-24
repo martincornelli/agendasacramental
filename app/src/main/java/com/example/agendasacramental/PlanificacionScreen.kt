@@ -40,6 +40,7 @@ fun PlanificacionScreen(
     var showAgregarHermano by remember { mutableStateOf(false) }
     var showConfiguracion by remember { mutableStateOf(false) }
     var hermanoParaAsignar by remember { mutableStateOf<HermanoRanking?>(null) }
+    var hermanoAEliminar by remember { mutableStateOf<HermanoRanking?>(null) }
 
     // Filtros activos por tab: 0=Discursos, 1=Oraciones
     var filtrosDiscurso by remember { mutableStateOf(setOf(ColorRanking.VERDE, ColorRanking.AMARILLO)) }
@@ -65,9 +66,35 @@ fun PlanificacionScreen(
         }
     }
 
+    // Diálogo confirmar eliminación
+    hermanoAEliminar?.let { ranking ->
+        AlertDialog(
+            onDismissRequest = { hermanoAEliminar = null },
+            title = { Text("Eliminar hermano/a") },
+            text = { Text("¿Estás seguro que querés eliminar a ${ranking.hermano.nombre} del planificador?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        if (ranking.hermano.id.isNotBlank()) {
+                            repository.eliminarHermano(ranking.hermano.id)
+                        } else {
+                            repository.excluirHermanoHistorial(numeroUnidad, ranking.hermano.nombre)
+                        }
+                        recargar()
+                        hermanoAEliminar = null
+                    }
+                }) { Text("Eliminar", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { hermanoAEliminar = null }) { Text("Cancelar") }
+            }
+        )
+    }
+
     // Diálogo agregar hermano manualmente
     if (showAgregarHermano) {
         AgregarHermanoDialog(
+            nombresExistentes = rankings.map { it.hermano.nombre },
             onConfirm = { nombre ->
                 scope.launch {
                     repository.agregarHermano(Hermano(
@@ -186,6 +213,8 @@ fun PlanificacionScreen(
                 // Lista de rankings filtrada
                 val listaFiltrada = rankings
                     .filter { ranking ->
+                        // Inactivos siempre se muestran (greyed out) independientemente del filtro
+                        if (ranking.hermano.inactivo) return@filter true
                         val color = if (selectedTab == 0)
                             calcularColor(ranking.ultimaVezDiscurso, config.diasVerdeDiscurso, config.diasAmarilloDiscurso)
                         else
@@ -193,9 +222,12 @@ fun PlanificacionScreen(
                         color in filtrosActivos
                     }
                     .sortedWith(Comparator { a, b ->
+                        // Inactivos al final
+                        if (a.hermano.inactivo && !b.hermano.inactivo) return@Comparator 1
+                        if (!a.hermano.inactivo && b.hermano.inactivo) return@Comparator -1
                         val diasA = if (selectedTab == 0) diasDesde(a.ultimaVezDiscurso) else diasDesde(a.ultimaVezOracion)
                         val diasB = if (selectedTab == 0) diasDesde(b.ultimaVezDiscurso) else diasDesde(b.ultimaVezOracion)
-                        diasB.compareTo(diasA) // más días primero (más tiempo sin participar)
+                        diasB.compareTo(diasA)
                     })
 
                 if (listaFiltrada.isEmpty()) {
@@ -216,14 +248,24 @@ fun PlanificacionScreen(
                                 ranking = ranking,
                                 tab = selectedTab,
                                 config = config,
-                                onClick = { hermanoParaAsignar = ranking },
-                                onDelete = {
+                                onClick = { if (!ranking.hermano.inactivo) hermanoParaAsignar = ranking },
+                                onDelete = { hermanoAEliminar = ranking },
+                                onToggleInactivo = {
                                     scope.launch {
                                         if (ranking.hermano.id.isNotBlank()) {
-                                            repository.eliminarHermano(ranking.hermano.id)
+                                            repository.toggleInactivoHermano(ranking.hermano.id, !ranking.hermano.inactivo)
                                         } else {
-                                            // Hermano del historial: guardarlo como excluido manualmente
-                                            repository.excluirHermanoHistorial(numeroUnidad, ranking.hermano.nombre)
+                                            // Hermano del historial: guardarlo en Firestore primero
+                                            val result = repository.agregarHermano(
+                                                Hermano(
+                                                    numeroUnidad = numeroUnidad,
+                                                    nombre = ranking.hermano.nombre,
+                                                    agregadoManualmente = false,
+                                                    inactivo = true
+                                                )
+                                            )
+                                            if (result.isSuccess) recargar()
+                                            return@launch
                                         }
                                         recargar()
                                     }
@@ -243,7 +285,8 @@ fun HermanoRankingCard(
     tab: Int,
     config: ConfiguracionPlanificacion,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onToggleInactivo: () -> Unit
 ) {
     val ultimaVez = if (tab == 0) ranking.ultimaVezDiscurso else ranking.ultimaVezOracion
     val dias = diasDesde(ultimaVez)
@@ -252,52 +295,92 @@ fun HermanoRankingCard(
     else
         calcularColor(ultimaVez, config.diasVerdeOracion, config.diasAmarilloOracion)
     val colorReal = colorParaChip(color)
+    val inactivo = ranking.hermano.inactivo
+    val alpha = if (inactivo) 0.4f else 1f
 
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth().then(
+            if (inactivo) Modifier else Modifier
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (inactivo)
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            else
+                MaterialTheme.colorScheme.surface
+        )
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Indicador de color
             Box(
                 modifier = Modifier
                     .size(12.dp)
-                    .background(colorReal, shape = MaterialTheme.shapes.small)
+                    .background(colorReal.copy(alpha = alpha), shape = MaterialTheme.shapes.small)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(ranking.hermano.nombre, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        ranking.hermano.nombre,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
+                    )
+                    if (inactivo) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(
+                                "Inactivo",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
                 Text(
                     if (ultimaVez == null) "Sin registros" else "Hace $dias días",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
                 )
                 if (tab == 0 && ranking.vecesDiscurso90Dias > 0) {
                     Text(
                         "${ranking.vecesDiscurso90Dias} vez/veces en los últimos 90 días",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
                     )
                 } else if (tab == 1 && ranking.vecesOracion90Dias > 0) {
                     Text(
                         "${ranking.vecesOracion90Dias} vez/veces en los últimos 90 días",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
                     )
                 }
             }
-            Surface(
-                color = colorReal.copy(alpha = 0.15f),
-                shape = MaterialTheme.shapes.small
-            ) {
-                Text(
-                    color.label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colorReal,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            if (!inactivo) {
+                Surface(
+                    color = colorReal.copy(alpha = 0.15f),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text(
+                        color.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colorReal,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+            // Toggle inactivo — para todos los hermanos
+            IconButton(onClick = onToggleInactivo) {
+                Icon(
+                    if (inactivo) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                    contentDescription = if (inactivo) "Reactivar" else "Desactivar",
+                    tint = MaterialTheme.colorScheme.outline
                 )
             }
             IconButton(onClick = onDelete) {
@@ -308,8 +391,36 @@ fun HermanoRankingCard(
 }
 
 @Composable
-fun AgregarHermanoDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+fun AgregarHermanoDialog(
+    nombresExistentes: List<String>,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
     var nombre by remember { mutableStateOf("") }
+    var showDuplicadoWarning by remember { mutableStateOf(false) }
+    var nombreDuplicado by remember { mutableStateOf("") }
+
+    val nombreNorm = normalizarNombre(nombre)
+    val duplicado = nombresExistentes.firstOrNull { normalizarNombre(it) == nombreNorm && it.isNotBlank() }
+
+    if (showDuplicadoWarning) {
+        AlertDialog(
+            onDismissRequest = { showDuplicadoWarning = false },
+            title = { Text("¿Nombre duplicado?") },
+            text = { Text("Ya existe \"$nombreDuplicado\" que parece el mismo nombre. ¿Querés agregarlo igual?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onConfirm(nombre.trim())
+                    showDuplicadoWarning = false
+                }) { Text("Agregar igual") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDuplicadoWarning = false }) { Text("Cancelar") }
+            }
+        )
+        return
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Agregar hermano/a") },
@@ -324,7 +435,16 @@ fun AgregarHermanoDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(
-                onClick = { if (nombre.isNotBlank()) onConfirm(nombre.trim()) },
+                onClick = {
+                    if (nombre.isNotBlank()) {
+                        if (duplicado != null) {
+                            nombreDuplicado = duplicado
+                            showDuplicadoWarning = true
+                        } else {
+                            onConfirm(nombre.trim())
+                        }
+                    }
+                },
                 enabled = nombre.isNotBlank()
             ) { Text("Agregar") }
         },

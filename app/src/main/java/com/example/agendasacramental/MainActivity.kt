@@ -1,7 +1,6 @@
 package com.example.agendasacramental
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
@@ -9,13 +8,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.fragment.app.FragmentActivity
 import com.google.android.gms.auth.api.signin.*
 import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.*
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var googleSignInClient: GoogleSignInClient
@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
                             onLoginClick = { signIn() }
                         )
                         Screen.SeleccionUnidad -> SeleccionUnidadScreen(
+                            activity = this@MainActivity,
                             userEmail = auth.currentUser?.email ?: "",
                             onUnidadIngresada = { numeroUnidad ->
                                 currentUnidad.value = numeroUnidad
