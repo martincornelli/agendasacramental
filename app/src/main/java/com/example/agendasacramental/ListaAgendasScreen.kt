@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -33,21 +34,35 @@ fun ListaAgendasScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
     var agendaAEliminar by remember { mutableStateOf<Agenda?>(null) }
+    var showCrearDomingos by remember { mutableStateOf(false) }
 
-    // Por defecto BORRADOR y CONFIRMADA seleccionados, REALIZADA no
     var filtrosActivos by remember { mutableStateOf(setOf(EstadoAgenda.BORRADOR, EstadoAgenda.CONFIRMADA)) }
 
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+    val hoy = remember { Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }.time }
 
     LaunchedEffect(numeroUnidad) {
         isLoading = true
+        // Auto-marcar pasadas como realizadas
+        repository.marcarAgendasPasadasComoRealizadas(numeroUnidad)
         val result = repository.getAgendas(numeroUnidad)
         agendas = result.getOrElse { emptyList() }
         isLoading = false
     }
 
-    val agendasFiltradas = remember(agendas, searchQuery, filtrosActivos) {
+    // Separar próximo domingo de las demás
+    val proximoDomingo = remember(agendas) {
         agendas
+            .filter { !it.fecha.toDate().before(hoy) && it.estado != EstadoAgenda.REALIZADA }
+            .minByOrNull { it.fecha.toDate() }
+    }
+
+    val agendasFiltradas = remember(agendas, searchQuery, filtrosActivos, proximoDomingo) {
+        agendas
+            .filter { it.id != proximoDomingo?.id } // excluir el próximo para mostrarlo separado
             .filter { agenda -> filtrosActivos.isEmpty() || agenda.estado in filtrosActivos }
             .filter { agenda ->
                 if (searchQuery.isBlank()) true
@@ -71,8 +86,15 @@ fun ListaAgendasScreen(
                             }
                 }
             }
+            .sortedWith(compareBy(
+                // Primero futuras/hoy (no realizadas), luego realizadas
+                { if (it.estado == EstadoAgenda.REALIZADA) 1 else 0 },
+                // Futuras: más próximas primero; realizadas: más recientes primero
+                { if (it.estado == EstadoAgenda.REALIZADA) -it.fecha.seconds else it.fecha.seconds }
+            ))
     }
 
+    // Diálogo eliminar agenda
     agendaAEliminar?.let { agenda ->
         AlertDialog(
             onDismissRequest = { agendaAEliminar = null },
@@ -90,6 +112,27 @@ fun ListaAgendasScreen(
             dismissButton = {
                 TextButton(onClick = { agendaAEliminar = null }) { Text("Cancelar") }
             }
+        )
+    }
+
+    // Diálogo crear domingos en blanco
+    if (showCrearDomingos) {
+        CrearDomingosDialog(
+            onConfirm = { hastaFecha ->
+                scope.launch {
+                    val result = repository.crearAgendasDomingos(numeroUnidad, userEmail, hastaFecha)
+                    showCrearDomingos = false
+                    // Recargar
+                    isLoading = true
+                    repository.marcarAgendasPasadasComoRealizadas(numeroUnidad)
+                    agendas = repository.getAgendas(numeroUnidad).getOrElse { emptyList() }
+                    isLoading = false
+                    result.onSuccess { n ->
+                        // podría mostrarse un snackbar
+                    }
+                }
+            },
+            onDismiss = { showCrearDomingos = false }
         )
     }
 
@@ -116,6 +159,9 @@ fun ListaAgendasScreen(
                 TopAppBar(
                     title = { Text("Unidad $numeroUnidad") },
                     actions = {
+                        IconButton(onClick = { showCrearDomingos = true }) {
+                            Icon(Icons.Default.CalendarMonth, "Crear domingos")
+                        }
                         IconButton(onClick = { showSearch = true }) {
                             Icon(Icons.Default.Search, "Buscar")
                         }
@@ -134,11 +180,9 @@ fun ListaAgendasScreen(
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
 
-            // Chips de filtro por estado
+            // Chips de filtro
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 EstadoAgenda.values().forEach { estado ->
@@ -146,11 +190,7 @@ fun ListaAgendasScreen(
                     FilterChip(
                         selected = seleccionado,
                         onClick = {
-                            filtrosActivos = if (seleccionado) {
-                                filtrosActivos - estado
-                            } else {
-                                filtrosActivos + estado
-                            }
+                            filtrosActivos = if (seleccionado) filtrosActivos - estado else filtrosActivos + estado
                         },
                         label = { Text(estado.label) },
                         leadingIcon = if (seleccionado) {
@@ -163,33 +203,83 @@ fun ListaAgendasScreen(
             Box(modifier = Modifier.fillMaxSize()) {
                 when {
                     isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                    agendasFiltradas.isEmpty() -> {
-                        Column(
-                            modifier = Modifier.align(Alignment.Center),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                if (searchQuery.isBlank() && filtrosActivos.size == EstadoAgenda.values().size)
-                                    "No hay agendas aún.\nToque + para crear una."
-                                else "No se encontraron resultados.",
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
                     else -> {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(agendasFiltradas) { agenda ->
-                                AgendaCard(
-                                    agenda = agenda,
-                                    dateFormat = dateFormat,
-                                    onClick = { onEditarAgenda(agenda.id) },
-                                    onDelete = { agendaAEliminar = agenda }
-                                )
+                            // Próximo domingo destacado
+                            proximoDomingo?.let { agenda ->
+                                if (filtrosActivos.contains(agenda.estado) || filtrosActivos.isEmpty()) {
+                                    item {
+                                        Text(
+                                            "PRÓXIMO DOMINGO",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(vertical = 4.dp)
+                                        )
+                                    }
+                                    item {
+                                        AgendaCard(
+                                            agenda = agenda,
+                                            dateFormat = dateFormat,
+                                            destacada = true,
+                                            onClick = { onEditarAgenda(agenda.id) },
+                                            onDelete = { agendaAEliminar = agenda }
+                                        )
+                                    }
+                                    item { Divider(modifier = Modifier.padding(vertical = 8.dp)) }
+                                }
+                            }
+
+                            if (agendasFiltradas.isEmpty() && proximoDomingo == null) {
+                                item {
+                                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                        Text(
+                                            "No hay agendas aún.\nToque + para crear una.",
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Separador si hay agendas futuras/pasadas
+                            val futuras = agendasFiltradas.filter { it.estado != EstadoAgenda.REALIZADA }
+                            val realizadas = agendasFiltradas.filter { it.estado == EstadoAgenda.REALIZADA }
+
+                            if (futuras.isNotEmpty()) {
+                                items(futuras) { agenda ->
+                                    AgendaCard(
+                                        agenda = agenda,
+                                        dateFormat = dateFormat,
+                                        onClick = { onEditarAgenda(agenda.id) },
+                                        onDelete = { agendaAEliminar = agenda }
+                                    )
+                                }
+                            }
+
+                            if (realizadas.isNotEmpty() && EstadoAgenda.REALIZADA in filtrosActivos) {
+                                item {
+                                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                                    Text(
+                                        "REALIZADAS",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    )
+                                }
+                                items(realizadas) { agenda ->
+                                    AgendaCard(
+                                        agenda = agenda,
+                                        dateFormat = dateFormat,
+                                        onClick = { onEditarAgenda(agenda.id) },
+                                        onDelete = { agendaAEliminar = agenda }
+                                    )
+                                }
                             }
                         }
                     }
@@ -199,10 +289,87 @@ fun ListaAgendasScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CrearDomingosDialog(
+    onConfirm: (Date) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedDate by remember {
+        // Default: 3 meses desde hoy
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.MONTH, 3)
+        // Avanzar al próximo domingo
+        while (cal.get(Calendar.DAY_OF_WEEK) != Calendar.SUNDAY) cal.add(Calendar.DAY_OF_MONTH, 1)
+        mutableStateOf(cal.time)
+    }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                time = selectedDate
+                set(Calendar.HOUR_OF_DAY, 12); set(Calendar.MINUTE, 0)
+            }.timeInMillis
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).also { it.timeInMillis = millis }
+                        val localCal = Calendar.getInstance().apply {
+                            set(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
+                        }
+                        selectedDate = localCal.time
+                    }
+                    showDatePicker = false
+                }) { Text("Aceptar") }
+            },
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") } }
+        ) { DatePicker(state = datePickerState) }
+        return
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Crear domingos en blanco") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Se crearán agendas en blanco para todos los domingos desde hoy hasta la fecha elegida. Las fechas que ya tengan agenda serán ignoradas.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = dateFormat.format(selectedDate),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Hasta el domingo") },
+                    trailingIcon = {
+                        IconButton(onClick = { showDatePicker = true }) {
+                            Icon(Icons.Default.DateRange, "Seleccionar fecha")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(selectedDate) }) { Text("Crear") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        }
+    )
+}
+
 @Composable
 fun AgendaCard(
     agenda: Agenda,
     dateFormat: SimpleDateFormat,
+    destacada: Boolean = false,
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -212,14 +379,26 @@ fun AgendaCard(
         EstadoAgenda.REALIZADA -> MaterialTheme.colorScheme.secondary
     }
 
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = if (destacada)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else
+                MaterialTheme.colorScheme.surface
+        )
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = dateFormat.format(agenda.fecha.toDate()), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = dateFormat.format(agenda.fecha.toDate()),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = if (destacada) FontWeight.Bold else FontWeight.Normal
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     Surface(
                         color = estadoColor.copy(alpha = 0.15f),

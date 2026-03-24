@@ -6,6 +6,7 @@ import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 import java.security.MessageDigest
 import java.util.Calendar
+import java.util.Date
 
 class AgendaRepository {
     private val db = FirebaseFirestore.getInstance()
@@ -383,6 +384,100 @@ class AgendaRepository {
             }?.getString("nombre")
         } catch (e: Exception) {
             null
+        }
+    }
+
+    suspend fun editarNombreHermano(hermanoId: String, nuevoNombre: String): Result<Unit> {
+        return try {
+            db.collection("hermanos").document(hermanoId)
+                .update("nombre", nuevoNombre).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Marca automáticamente como REALIZADA las agendas cuya fecha ya pasó
+    suspend fun marcarAgendasPasadasComoRealizadas(numeroUnidad: String): Result<Unit> {
+        return try {
+            val hoy = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.time
+            val snapshot = agendasRef
+                .whereEqualTo("numeroUnidad", numeroUnidad)
+                .whereIn("estado", listOf("BORRADOR", "CONFIRMADA"))
+                .get().await()
+            snapshot.documents.forEach { doc ->
+                val fecha = doc.getTimestamp("fecha")?.toDate()
+                if (fecha != null && fecha.before(hoy)) {
+                    doc.reference.update("estado", EstadoAgenda.REALIZADA.name).await()
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // Crea agendas en blanco para los domingos hasta una fecha dada
+    suspend fun crearAgendasDomingos(
+        numeroUnidad: String,
+        userEmail: String,
+        hastaFecha: Date
+    ): Result<Int> {
+        return try {
+            // Obtener agendas existentes para no duplicar
+            val existentes = agendasRef
+                .whereEqualTo("numeroUnidad", numeroUnidad)
+                .get().await()
+            val fechasExistentes = existentes.documents.mapNotNull {
+                it.getTimestamp("fecha")?.toDate()?.let { d ->
+                    val c = Calendar.getInstance().apply { time = d }
+                    Triple(c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH))
+                }
+            }.toSet()
+
+            // Calcular próximos domingos desde hoy hasta hastaFecha
+            val cal = Calendar.getInstance()
+            // Avanzar al próximo domingo
+            while (cal.get(Calendar.DAY_OF_WEEK) != Calendar.SUNDAY) {
+                cal.add(Calendar.DAY_OF_MONTH, 1)
+            }
+
+            var creadas = 0
+            while (!cal.time.after(hastaFecha)) {
+                val key = Triple(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
+                if (key !in fechasExistentes) {
+                    val ahora = Timestamp.now()
+                    val data = mapOf(
+                        "numeroUnidad" to numeroUnidad,
+                        "fecha" to Timestamp(cal.time),
+                        "estado" to EstadoAgenda.BORRADOR.name,
+                        "asistencia" to 0,
+                        "preside" to "", "dirige" to "",
+                        "reconocimientos" to "", "anuncios" to "",
+                        "primerHimnoNumero" to 0, "primerHimnoNombre" to "",
+                        "himnoSacramentalNumero" to 0, "himnoSacramentalNombre" to "",
+                        "himnoFinalNumero" to 0, "himnoFinalNombre" to "",
+                        "primeraOracion" to "", "oracionFinal" to "",
+                        "asuntosEstacaBarrio" to emptyList<Any>(),
+                        "mensajesEvangelio" to emptyList<Any>(),
+                        "creadoPor" to userEmail,
+                        "creadoEn" to ahora,
+                        "ultimaEdicionPor" to userEmail,
+                        "ultimaEdicionEn" to ahora
+                    )
+                    agendasRef.add(data).await()
+                    creadas++
+                }
+                cal.add(Calendar.WEEK_OF_YEAR, 1)
+            }
+            Result.success(creadas)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 }

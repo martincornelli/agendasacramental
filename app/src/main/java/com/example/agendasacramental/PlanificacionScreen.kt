@@ -41,6 +41,7 @@ fun PlanificacionScreen(
     var showConfiguracion by remember { mutableStateOf(false) }
     var hermanoParaAsignar by remember { mutableStateOf<HermanoRanking?>(null) }
     var hermanoAEliminar by remember { mutableStateOf<HermanoRanking?>(null) }
+    var hermanoAEditar by remember { mutableStateOf<HermanoRanking?>(null) }
 
     // Filtros activos por tab: 0=Discursos, 1=Oraciones
     var filtrosDiscurso by remember { mutableStateOf(setOf(ColorRanking.VERDE, ColorRanking.AMARILLO)) }
@@ -88,6 +89,22 @@ fun PlanificacionScreen(
             dismissButton = {
                 TextButton(onClick = { hermanoAEliminar = null }) { Text("Cancelar") }
             }
+        )
+    }
+
+    // Diálogo editar hermano
+    hermanoAEditar?.let { ranking ->
+        EditarHermanoDialog(
+            nombreActual = ranking.hermano.nombre,
+            nombresExistentes = rankings.map { it.hermano.nombre }.filter { it != ranking.hermano.nombre },
+            onConfirm = { nuevoNombre ->
+                scope.launch {
+                    repository.editarNombreHermano(ranking.hermano.id, nuevoNombre)
+                    recargar()
+                    hermanoAEditar = null
+                }
+            },
+            onDismiss = { hermanoAEditar = null }
         )
     }
 
@@ -250,6 +267,34 @@ fun PlanificacionScreen(
                                 config = config,
                                 onClick = { if (!ranking.hermano.inactivo) hermanoParaAsignar = ranking },
                                 onDelete = { hermanoAEliminar = ranking },
+                                onEdit = {
+                                    scope.launch {
+                                        if (ranking.hermano.id.isNotBlank()) {
+                                            hermanoAEditar = ranking
+                                        } else {
+                                            // Guardar en Firestore primero para obtener ID
+                                            val result = repository.agregarHermano(
+                                                Hermano(
+                                                    numeroUnidad = numeroUnidad,
+                                                    nombre = ranking.hermano.nombre,
+                                                    agregadoManualmente = false,
+                                                    inactivo = false
+                                                )
+                                            )
+                                            if (result.isSuccess) {
+                                                recargar()
+                                                // Buscar el hermano recién creado para editarlo
+                                                val hermanos = repository.getHermanos(numeroUnidad)
+                                                val nuevo = hermanos.find {
+                                                    normalizarNombre(it.nombre) == normalizarNombre(ranking.hermano.nombre) && it.id.isNotBlank()
+                                                }
+                                                if (nuevo != null) {
+                                                    hermanoAEditar = HermanoRanking(hermano = nuevo)
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
                                 onToggleInactivo = {
                                     scope.launch {
                                         if (ranking.hermano.id.isNotBlank()) {
@@ -286,6 +331,7 @@ fun HermanoRankingCard(
     config: ConfiguracionPlanificacion,
     onClick: () -> Unit,
     onDelete: () -> Unit,
+    onEdit: () -> Unit,
     onToggleInactivo: () -> Unit
 ) {
     val ultimaVez = if (tab == 0) ranking.ultimaVezDiscurso else ranking.ultimaVezOracion
@@ -374,6 +420,10 @@ fun HermanoRankingCard(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
+            }
+            // Editar nombre — para todos los hermanos
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, "Editar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             // Toggle inactivo — para todos los hermanos
             IconButton(onClick = onToggleInactivo) {
@@ -652,6 +702,72 @@ fun AsignarAgendaDialog(
     )
 }
 
+
+@Composable
+fun EditarHermanoDialog(
+    nombreActual: String,
+    nombresExistentes: List<String>,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var nombre by remember { mutableStateOf(nombreActual) }
+    var showDuplicadoWarning by remember { mutableStateOf(false) }
+    var nombreDuplicado by remember { mutableStateOf("") }
+
+    val nombreNorm = normalizarNombre(nombre)
+    val duplicado = nombresExistentes.firstOrNull {
+        normalizarNombre(it) == nombreNorm && it.isNotBlank()
+    }
+
+    if (showDuplicadoWarning) {
+        AlertDialog(
+            onDismissRequest = { showDuplicadoWarning = false },
+            title = { Text("¿Nombre duplicado?") },
+            text = { Text("Ya existe \"$nombreDuplicado\" que parece el mismo nombre. ¿Querés guardarlo igual?") },
+            confirmButton = {
+                TextButton(onClick = { onConfirm(nombre.trim()); showDuplicadoWarning = false }) {
+                    Text("Guardar igual")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDuplicadoWarning = false }) { Text("Cancelar") }
+            }
+        )
+        return
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Editar nombre") },
+        text = {
+            OutlinedTextField(
+                value = nombre,
+                onValueChange = { nombre = it },
+                label = { Text("Nombre completo") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (nombre.isNotBlank() && nombre.trim() != nombreActual) {
+                        if (duplicado != null) {
+                            nombreDuplicado = duplicado
+                            showDuplicadoWarning = true
+                        } else {
+                            onConfirm(nombre.trim())
+                        }
+                    }
+                },
+                enabled = nombre.isNotBlank() && nombre.trim() != nombreActual
+            ) { Text("Guardar") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        }
+    )
+}
 
 // --- Funciones de cálculo ---
 
