@@ -153,7 +153,10 @@ fun EditarAgendaScreen(
                 },
                 actions = {
                     IconButton(onClick = { compartirWhatsApp(context) }) {
-                        Icon(Icons.Default.Share, "Compartir")
+                        Icon(Icons.Default.Share, "Compartir WhatsApp")
+                    }
+                    IconButton(onClick = { GeneradorPDF.generarYCompartir(context, buildAgenda()) }) {
+                        Icon(Icons.Default.PictureAsPdf, "Exportar PDF")
                     }
                     IconButton(
                         onClick = {
