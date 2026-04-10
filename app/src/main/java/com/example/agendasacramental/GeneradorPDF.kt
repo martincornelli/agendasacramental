@@ -32,6 +32,14 @@ object GeneradorPDF {
 
         document.finishPage(page)
 
+        // Página 2: fórmulas litúrgicas (solo si hay asuntos)
+        if (agenda.asuntosEstacaBarrio.isNotEmpty()) {
+            val pageInfo2 = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, 2).create()
+            val page2 = document.startPage(pageInfo2)
+            dibujarFormulasLiturgicas(page2.canvas, agenda)
+            document.finishPage(page2)
+        }
+
         // Guardar en cache
         val fileName = "agenda_${dateFormat.format(agenda.fecha.toDate()).replace("/", "-")}.pdf"
         val file = File(context.cacheDir, fileName)
@@ -218,6 +226,11 @@ object GeneradorPDF {
         campo("Himno Sacramental:", himnoSac, MARGIN_LEFT, y, COL_WIDTH)
         y += 16f
 
+        // Bendición y Reparto de la Santa Cena
+        canvas.drawText("Bendición y Reparto de la Santa Cena", MARGIN_LEFT, y,
+            Paint().apply { color = Color.GRAY; textSize = 8f; isAntiAlias = true; typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.ITALIC) })
+        y += 20f
+
         // --- Mensajes del Evangelio ---
         canvas.drawText("Mensajes del evangelio, canto de la congregación y números musicales especiales", MARGIN_LEFT, y, paintBold)
         y += 8f
@@ -271,5 +284,73 @@ object GeneradorPDF {
         canvas.drawText("Área Sudamérica Sur", MARGIN_RIGHT, y, paintAreaRight)
 
         return y
+    }
+
+    private fun dibujarFormulasLiturgicas(canvas: Canvas, agenda: Agenda) {
+        var y = 50f
+        val paintTitulo = Paint().apply {
+            color = Color.BLACK; textSize = 13f; isFakeBoldText = true
+            textAlign = Paint.Align.CENTER; isAntiAlias = true
+        }
+        val paintSeccion = Paint().apply {
+            color = Color.BLACK; textSize = 10f; isFakeBoldText = true; isAntiAlias = true
+        }
+        val paintTexto = Paint().apply {
+            color = Color.BLACK; textSize = 9f; isAntiAlias = true
+        }
+        val paintGris = Paint().apply {
+            color = Color.GRAY; textSize = 8f; isAntiAlias = true
+        }
+        val paintLinea = Paint().apply { color = Color.LTGRAY; strokeWidth = 0.5f }
+
+        canvas.drawText("Fórmulas de Sostenimiento y Relevo", PAGE_WIDTH / 2f, y, paintTitulo)
+        y += 8f
+        canvas.drawText("Referencia para uso durante la reunión", PAGE_WIDTH / 2f, y,
+            Paint().apply { color = Color.GRAY; textSize = 8f; textAlign = Paint.Align.CENTER; isAntiAlias = true })
+        y += 6f
+        canvas.drawLine(MARGIN_LEFT, y, MARGIN_RIGHT, y, paintLinea)
+        y += 16f
+
+        agenda.asuntosEstacaBarrio.forEachIndexed { index, asunto ->
+            if (y > PAGE_HEIGHT - 80f) return@forEachIndexed
+
+            val nombre = asunto.columna2.ifBlank { "[Nombre]" }
+            val cargo = asunto.columna3.ifBlank { "[Cargo]" }
+
+            val lineas = when (asunto.tipo) {
+                TipoAsunto.RELEVO -> listOf(
+                    "\"$nombre ha sido relevado como $cargo.",
+                    "Quienes deseen expresar agradecimiento por su servicio,",
+                    "sírvanse hacerlo levantando la mano.\""
+                )
+                TipoAsunto.SOSTENIMIENTO -> listOf(
+                    "\"$nombre ha sido llamado como $cargo.",
+                    "Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano.",
+                    "[Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\""
+                )
+            }
+
+            val tipoLabel = if (asunto.tipo == TipoAsunto.RELEVO) "RELEVO" else "SOSTENIMIENTO"
+            canvas.drawText("${index + 1}. $tipoLabel — $nombre", MARGIN_LEFT, y, paintSeccion)
+            y += 14f
+
+            lineas.forEach { linea ->
+                canvas.drawText(linea, MARGIN_LEFT + 12f, y, paintTexto)
+                y += 13f
+            }
+            y += 6f
+
+            if (index < agenda.asuntosEstacaBarrio.size - 1) {
+                canvas.drawLine(MARGIN_LEFT, y, MARGIN_RIGHT, y, paintLinea)
+                y += 10f
+            }
+        }
+
+        // Nota al pie
+        canvas.drawLine(MARGIN_LEFT, PAGE_HEIGHT - 40f, MARGIN_RIGHT, PAGE_HEIGHT - 40f, paintLinea)
+        canvas.drawText(
+            "Texto sugerido según el Manual General de Instrucciones de La Iglesia de Jesucristo de los Santos de los Últimos Días.",
+            MARGIN_LEFT, PAGE_HEIGHT - 28f, paintGris
+        )
     }
 }

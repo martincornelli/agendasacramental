@@ -12,6 +12,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -42,8 +45,10 @@ fun PlanificacionScreen(
     var hermanoParaAsignar by remember { mutableStateOf<HermanoRanking?>(null) }
     var hermanoAEliminar by remember { mutableStateOf<HermanoRanking?>(null) }
     var hermanoAEditar by remember { mutableStateOf<HermanoRanking?>(null) }
+    var modoSeleccion by remember { mutableStateOf(false) }
+    var seleccionados by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var showConfirmarBulkDelete by remember { mutableStateOf(false) }
 
-    // Filtros activos por tab: 0=Discursos, 1=Oraciones
     var filtrosDiscurso by remember { mutableStateOf(setOf(ColorRanking.VERDE, ColorRanking.AMARILLO)) }
     var filtrosOracion by remember { mutableStateOf(setOf(ColorRanking.VERDE, ColorRanking.AMARILLO)) }
 
@@ -67,7 +72,47 @@ fun PlanificacionScreen(
         }
     }
 
-    // Diálogo confirmar eliminación
+    // Salir del modo selección con el botón atrás
+    BackHandler(enabled = modoSeleccion) {
+        modoSeleccion = false
+        seleccionados = emptySet()
+    }
+
+    // Diálogo confirmar bulk delete
+    if (showConfirmarBulkDelete) {
+        AlertDialog(
+            onDismissRequest = { showConfirmarBulkDelete = false },
+            title = { Text("Eliminar hermanos") },
+            text = { Text("¿Estás seguro que querés eliminar ${seleccionados.size} hermano${if (seleccionados.size == 1) "" else "s"} del planificador?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        seleccionados.forEach { id ->
+                            val ranking = rankings.find { r ->
+                                if (r.hermano.id.isNotBlank()) r.hermano.id == id
+                                else r.hermano.nombre == id
+                            }
+                            if (ranking != null) {
+                                if (ranking.hermano.id.isNotBlank()) {
+                                    repository.eliminarHermano(ranking.hermano.id)
+                                } else {
+                                    repository.excluirHermanoHistorial(numeroUnidad, ranking.hermano.nombre)
+                                }
+                            }
+                        }
+                        recargar()
+                        seleccionados = emptySet()
+                        modoSeleccion = false
+                        showConfirmarBulkDelete = false
+                    }
+                }) { Text("Eliminar", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmarBulkDelete = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
     hermanoAEliminar?.let { ranking ->
         AlertDialog(
             onDismissRequest = { hermanoAEliminar = null },
@@ -92,14 +137,18 @@ fun PlanificacionScreen(
         )
     }
 
-    // Diálogo editar hermano
     hermanoAEditar?.let { ranking ->
         EditarHermanoDialog(
             nombreActual = ranking.hermano.nombre,
+            fechaDiscursoActual = ranking.hermano.ultimaVezDiscursoManual,
+            fechaOracionActual = ranking.hermano.ultimaVezOracionManual,
             nombresExistentes = rankings.map { it.hermano.nombre }.filter { it != ranking.hermano.nombre },
-            onConfirm = { nuevoNombre ->
+            onConfirm = { nuevoNombre, fechaDiscurso, fechaOracion ->
                 scope.launch {
-                    repository.editarNombreHermano(ranking.hermano.id, nuevoNombre)
+                    if (nuevoNombre != ranking.hermano.nombre) {
+                        repository.editarNombreHermano(ranking.hermano.id, nuevoNombre)
+                    }
+                    repository.actualizarFechasManual(ranking.hermano.id, fechaDiscurso, fechaOracion)
                     recargar()
                     hermanoAEditar = null
                 }
@@ -108,16 +157,17 @@ fun PlanificacionScreen(
         )
     }
 
-    // Diálogo agregar hermano manualmente
     if (showAgregarHermano) {
         AgregarHermanoDialog(
             nombresExistentes = rankings.map { it.hermano.nombre },
-            onConfirm = { nombre ->
+            onConfirm = { nombre, fechaDiscurso, fechaOracion ->
                 scope.launch {
                     repository.agregarHermano(Hermano(
                         numeroUnidad = numeroUnidad,
                         nombre = nombre,
-                        agregadoManualmente = true
+                        agregadoManualmente = true,
+                        ultimaVezDiscursoManual = fechaDiscurso,
+                        ultimaVezOracionManual = fechaOracion
                     ))
                     recargar()
                     showAgregarHermano = false
@@ -127,7 +177,6 @@ fun PlanificacionScreen(
         )
     }
 
-    // Diálogo configuración
     if (showConfiguracion) {
         ConfiguracionDialog(
             config = config,
@@ -144,7 +193,6 @@ fun PlanificacionScreen(
         )
     }
 
-    // Diálogo asignar a agenda
     hermanoParaAsignar?.let { ranking ->
         AsignarAgendaDialog(
             ranking = ranking,
@@ -164,27 +212,48 @@ fun PlanificacionScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Planificación") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Volver")
+            if (modoSeleccion) {
+                TopAppBar(
+                    title = { Text("${seleccionados.size} seleccionado${if (seleccionados.size == 1) "" else "s"}") },
+                    navigationIcon = {
+                        IconButton(onClick = { modoSeleccion = false; seleccionados = emptySet() }) {
+                            Icon(Icons.Default.Close, "Cancelar selección")
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = { showConfirmarBulkDelete = true },
+                            enabled = seleccionados.isNotEmpty()
+                        ) {
+                            Icon(Icons.Default.Delete, "Eliminar seleccionados", tint = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("Planificación") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.Default.ArrowBack, "Volver")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { showAgregarHermano = true }) {
+                            Icon(Icons.Default.PersonAdd, "Agregar hermano")
+                        }
+                        IconButton(onClick = { showConfiguracion = true }) {
+                            Icon(Icons.Default.Settings, "Configuración")
+                        }
                     }
-                },
-                actions = {
-                    IconButton(onClick = { showAgregarHermano = true }) {
-                        Icon(Icons.Default.PersonAdd, "Agregar hermano")
-                    }
-                    IconButton(onClick = { showConfiguracion = true }) {
-                        Icon(Icons.Default.Settings, "Configuración")
-                    }
-                }
-            )
+                )
+            }
         }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
 
-            // Tabs Discursos / Oraciones
             TabRow(selectedTabIndex = selectedTab) {
                 Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Discursos") })
                 Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Oraciones") })
@@ -197,11 +266,8 @@ fun PlanificacionScreen(
             } else {
                 val filtrosActivos = if (selectedTab == 0) filtrosDiscurso else filtrosOracion
 
-                // Chips de filtro
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ColorRanking.values().forEach { color ->
@@ -227,11 +293,13 @@ fun PlanificacionScreen(
                     }
                 }
 
-                // Lista de rankings filtrada
+                val inactivoParaTab: (HermanoRanking) -> Boolean = { r ->
+                    if (selectedTab == 0) r.hermano.inactivoDiscurso else r.hermano.inactivoOracion
+                }
+
                 val listaFiltrada = rankings
                     .filter { ranking ->
-                        // Inactivos siempre se muestran (greyed out) independientemente del filtro
-                        if (ranking.hermano.inactivo) return@filter true
+                        if (inactivoParaTab(ranking)) return@filter true
                         val color = if (selectedTab == 0)
                             calcularColor(ranking.ultimaVezDiscurso, config.diasVerdeDiscurso, config.diasAmarilloDiscurso)
                         else
@@ -239,9 +307,8 @@ fun PlanificacionScreen(
                         color in filtrosActivos
                     }
                     .sortedWith(Comparator { a, b ->
-                        // Inactivos al final
-                        if (a.hermano.inactivo && !b.hermano.inactivo) return@Comparator 1
-                        if (!a.hermano.inactivo && b.hermano.inactivo) return@Comparator -1
+                        if (inactivoParaTab(a) && !inactivoParaTab(b)) return@Comparator 1
+                        if (!inactivoParaTab(a) && inactivoParaTab(b)) return@Comparator -1
                         val diasA = if (selectedTab == 0) diasDesde(a.ultimaVezDiscurso) else diasDesde(a.ultimaVezOracion)
                         val diasB = if (selectedTab == 0) diasDesde(b.ultimaVezDiscurso) else diasDesde(b.ultimaVezOracion)
                         diasB.compareTo(diasA)
@@ -249,10 +316,7 @@ fun PlanificacionScreen(
 
                 if (listaFiltrada.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            "No hay hermanos en esta categoría.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text("No hay hermanos en esta categoría.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
                     LazyColumn(
@@ -261,29 +325,45 @@ fun PlanificacionScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(listaFiltrada) { ranking ->
+                            val itemId = ranking.hermano.id.ifBlank { ranking.hermano.nombre }
+                            val estaSeleccionado = itemId in seleccionados
                             HermanoRankingCard(
                                 ranking = ranking,
                                 tab = selectedTab,
                                 config = config,
-                                onClick = { if (!ranking.hermano.inactivo) hermanoParaAsignar = ranking },
+                                modoSeleccion = modoSeleccion,
+                                estaSeleccionado = estaSeleccionado,
+                                onClick = {
+                                    if (modoSeleccion) {
+                                        seleccionados = if (estaSeleccionado)
+                                            seleccionados - itemId
+                                        else
+                                            seleccionados + itemId
+                                    } else {
+                                        if (!inactivoParaTab(ranking)) hermanoParaAsignar = ranking
+                                    }
+                                },
+                                onLongClick = {
+                                    if (!modoSeleccion) {
+                                        modoSeleccion = true
+                                        seleccionados = setOf(itemId)
+                                    }
+                                },
                                 onDelete = { hermanoAEliminar = ranking },
                                 onEdit = {
                                     scope.launch {
                                         if (ranking.hermano.id.isNotBlank()) {
                                             hermanoAEditar = ranking
                                         } else {
-                                            // Guardar en Firestore primero para obtener ID
                                             val result = repository.agregarHermano(
                                                 Hermano(
                                                     numeroUnidad = numeroUnidad,
                                                     nombre = ranking.hermano.nombre,
-                                                    agregadoManualmente = false,
-                                                    inactivo = false
+                                                    agregadoManualmente = false
                                                 )
                                             )
                                             if (result.isSuccess) {
                                                 recargar()
-                                                // Buscar el hermano recién creado para editarlo
                                                 val hermanos = repository.getHermanos(numeroUnidad)
                                                 val nuevo = hermanos.find {
                                                     normalizarNombre(it.nombre) == normalizarNombre(ranking.hermano.nombre) && it.id.isNotBlank()
@@ -297,20 +377,16 @@ fun PlanificacionScreen(
                                 },
                                 onToggleInactivo = {
                                     scope.launch {
+                                        val campo = if (selectedTab == 0) "inactivoDiscurso" else "inactivoOracion"
+                                        val valorActual = if (selectedTab == 0) ranking.hermano.inactivoDiscurso else ranking.hermano.inactivoOracion
                                         if (ranking.hermano.id.isNotBlank()) {
-                                            repository.toggleInactivoHermano(ranking.hermano.id, !ranking.hermano.inactivo)
+                                            repository.toggleInactivoHermano(ranking.hermano.id, campo, !valorActual)
                                         } else {
-                                            // Hermano del historial: guardarlo en Firestore primero
-                                            val result = repository.agregarHermano(
-                                                Hermano(
-                                                    numeroUnidad = numeroUnidad,
-                                                    nombre = ranking.hermano.nombre,
-                                                    agregadoManualmente = false,
-                                                    inactivo = true
-                                                )
-                                            )
-                                            if (result.isSuccess) recargar()
-                                            return@launch
+                                            val hermano = if (selectedTab == 0)
+                                                Hermano(numeroUnidad = numeroUnidad, nombre = ranking.hermano.nombre, inactivoDiscurso = true)
+                                            else
+                                                Hermano(numeroUnidad = numeroUnidad, nombre = ranking.hermano.nombre, inactivoOracion = true)
+                                            repository.agregarHermano(hermano)
                                         }
                                         recargar()
                                     }
@@ -324,12 +400,16 @@ fun PlanificacionScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HermanoRankingCard(
     ranking: HermanoRanking,
     tab: Int,
     config: ConfiguracionPlanificacion,
+    modoSeleccion: Boolean = false,
+    estaSeleccionado: Boolean = false,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     onDelete: () -> Unit,
     onEdit: () -> Unit,
     onToggleInactivo: () -> Unit
@@ -341,30 +421,43 @@ fun HermanoRankingCard(
     else
         calcularColor(ultimaVez, config.diasVerdeOracion, config.diasAmarilloOracion)
     val colorReal = colorParaChip(color)
-    val inactivo = ranking.hermano.inactivo
+    val inactivo = if (tab == 0) ranking.hermano.inactivoDiscurso else ranking.hermano.inactivoOracion
     val alpha = if (inactivo) 0.4f else 1f
 
     Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().then(
-            if (inactivo) Modifier else Modifier
-        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         colors = CardDefaults.cardColors(
-            containerColor = if (inactivo)
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            else
-                MaterialTheme.colorScheme.surface
+            containerColor = when {
+                estaSeleccionado -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                inactivo -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                else -> MaterialTheme.colorScheme.surface
+            }
         )
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .background(colorReal.copy(alpha = alpha), shape = MaterialTheme.shapes.small)
-            )
+            if (modoSeleccion) {
+                Checkbox(
+                    checked = estaSeleccionado,
+                    onCheckedChange = { onClick() },
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .background(colorReal.copy(alpha = alpha), shape = MaterialTheme.shapes.small)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+            }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(
@@ -396,7 +489,12 @@ fun HermanoRankingCard(
                     }
                 }
                 Text(
-                    if (ultimaVez == null) "Sin registros" else "Hace $dias días",
+                    when {
+                        ultimaVez == null -> "Sin registros"
+                        dias < 0 -> "Dentro de ${-dias} día${if (-dias == 1L) "" else "s"}"
+                        dias == 0L -> "Hoy"
+                        else -> "Hace $dias día${if (dias == 1L) "" else "s"}"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
                 )
@@ -427,20 +525,20 @@ fun HermanoRankingCard(
                     )
                 }
             }
-            // Editar nombre — para todos los hermanos
-            IconButton(onClick = onEdit) {
-                Icon(Icons.Default.Edit, "Editar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            // Toggle inactivo — para todos los hermanos
-            IconButton(onClick = onToggleInactivo) {
-                Icon(
-                    if (inactivo) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                    contentDescription = if (inactivo) "Reactivar" else "Desactivar",
-                    tint = MaterialTheme.colorScheme.outline
-                )
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Close, "Eliminar", tint = MaterialTheme.colorScheme.error)
+            if (!modoSeleccion) {
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Default.Edit, "Editar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                IconButton(onClick = onToggleInactivo) {
+                    Icon(
+                        if (inactivo) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = if (inactivo) "Reactivar" else "Desactivar",
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Close, "Eliminar", tint = MaterialTheme.colorScheme.error)
+                }
             }
         }
     }
@@ -449,15 +547,36 @@ fun HermanoRankingCard(
 @Composable
 fun AgregarHermanoDialog(
     nombresExistentes: List<String>,
-    onConfirm: (String) -> Unit,
+    onConfirm: (String, Timestamp?, Timestamp?) -> Unit,
     onDismiss: () -> Unit
 ) {
     var nombre by remember { mutableStateOf("") }
     var showDuplicadoWarning by remember { mutableStateOf(false) }
     var nombreDuplicado by remember { mutableStateOf("") }
+    var fechaDiscurso by remember { mutableStateOf<Timestamp?>(null) }
+    var fechaOracion by remember { mutableStateOf<Timestamp?>(null) }
+    var showPickerDiscurso by remember { mutableStateOf(false) }
+    var showPickerOracion by remember { mutableStateOf(false) }
 
+    val dateFormat = remember { java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()) }
     val nombreNorm = normalizarNombre(nombre)
     val duplicado = nombresExistentes.firstOrNull { normalizarNombre(it) == nombreNorm && it.isNotBlank() }
+
+    if (showPickerDiscurso) {
+        FechaSelectorDialog(
+            onFechaSeleccionada = { fechaDiscurso = Timestamp(it); showPickerDiscurso = false },
+            onDismiss = { showPickerDiscurso = false }
+        )
+        return
+    }
+
+    if (showPickerOracion) {
+        FechaSelectorDialog(
+            onFechaSeleccionada = { fechaOracion = Timestamp(it); showPickerOracion = false },
+            onDismiss = { showPickerOracion = false }
+        )
+        return
+    }
 
     if (showDuplicadoWarning) {
         AlertDialog(
@@ -465,10 +584,7 @@ fun AgregarHermanoDialog(
             title = { Text("¿Nombre duplicado?") },
             text = { Text("Ya existe \"$nombreDuplicado\" que parece el mismo nombre. ¿Querés agregarlo igual?") },
             confirmButton = {
-                TextButton(onClick = {
-                    onConfirm(nombre.trim())
-                    showDuplicadoWarning = false
-                }) { Text("Agregar igual") }
+                TextButton(onClick = { onConfirm(nombre.trim(), fechaDiscurso, fechaOracion); showDuplicadoWarning = false }) { Text("Agregar igual") }
             },
             dismissButton = {
                 TextButton(onClick = { showDuplicadoWarning = false }) { Text("Cancelar") }
@@ -481,32 +597,71 @@ fun AgregarHermanoDialog(
         onDismissRequest = onDismiss,
         title = { Text("Agregar hermano/a") },
         text = {
-            OutlinedTextField(
-                value = nombre,
-                onValueChange = { nombre = it },
-                label = { Text("Nombre completo") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = nombre, onValueChange = { nombre = it },
+                    label = { Text("Nombre completo") },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true
+                )
+                Text(
+                    "Opcional: última participación conocida",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = fechaDiscurso?.let { dateFormat.format(it.toDate()) } ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Último discurso") },
+                    placeholder = { Text("Sin datos") },
+                    trailingIcon = {
+                        Row {
+                            if (fechaDiscurso != null) {
+                                IconButton(onClick = { fechaDiscurso = null }) {
+                                    Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                            IconButton(onClick = { showPickerDiscurso = true }) {
+                                Icon(Icons.Default.DateRange, "Seleccionar")
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = fechaOracion?.let { dateFormat.format(it.toDate()) } ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Última oración") },
+                    placeholder = { Text("Sin datos") },
+                    trailingIcon = {
+                        Row {
+                            if (fechaOracion != null) {
+                                IconButton(onClick = { fechaOracion = null }) {
+                                    Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                            IconButton(onClick = { showPickerOracion = true }) {
+                                Icon(Icons.Default.DateRange, "Seleccionar")
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         },
         confirmButton = {
             TextButton(
                 onClick = {
                     if (nombre.isNotBlank()) {
-                        if (duplicado != null) {
-                            nombreDuplicado = duplicado
-                            showDuplicadoWarning = true
-                        } else {
-                            onConfirm(nombre.trim())
-                        }
+                        if (duplicado != null) { nombreDuplicado = duplicado; showDuplicadoWarning = true }
+                        else onConfirm(nombre.trim(), fechaDiscurso, fechaOracion)
                     }
                 },
                 enabled = nombre.isNotBlank()
             ) { Text("Agregar") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
 }
 
@@ -528,43 +683,15 @@ fun ConfiguracionDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Discursos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = diasVerdeDiscurso,
-                        onValueChange = { diasVerdeDiscurso = it },
-                        label = { Text("🟢 días") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        value = diasAmarilloDiscurso,
-                        onValueChange = { diasAmarilloDiscurso = it },
-                        label = { Text("🟡 días") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
+                    OutlinedTextField(value = diasVerdeDiscurso, onValueChange = { diasVerdeDiscurso = it }, label = { Text("🟢 días") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = diasAmarilloDiscurso, onValueChange = { diasAmarilloDiscurso = it }, label = { Text("🟡 días") }, modifier = Modifier.weight(1f), singleLine = true)
                 }
                 Text("Oraciones", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = diasVerdeOracion,
-                        onValueChange = { diasVerdeOracion = it },
-                        label = { Text("🟢 días") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        value = diasAmarilloOracion,
-                        onValueChange = { diasAmarilloOracion = it },
-                        label = { Text("🟡 días") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
+                    OutlinedTextField(value = diasVerdeOracion, onValueChange = { diasVerdeOracion = it }, label = { Text("🟢 días") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = diasAmarilloOracion, onValueChange = { diasAmarilloOracion = it }, label = { Text("🟡 días") }, modifier = Modifier.weight(1f), singleLine = true)
                 }
-                Text(
-                    "🟢 = más de X días  🟡 = entre X y Y días  🔴 = menos de Y días",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text("🟢 = más de X días  🟡 = entre X y Y días  🔴 = menos de Y días", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         confirmButton = {
@@ -577,9 +704,7 @@ fun ConfiguracionDialog(
                 ))
             }) { Text("Guardar") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
 }
 
@@ -614,18 +739,11 @@ fun AsignarAgendaDialog(
         AlertDialog(
             onDismissRequest = { showAdvertencia = false },
             title = { Text("⚠️ Hermano/a reciente") },
-            text = {
-                Text("${ranking.hermano.nombre} participó hace solo ${diasDesde(ultimaVez)} días. ¿Deseas asignarlo/a de todas formas?")
-            },
+            text = { Text("${ranking.hermano.nombre} participó hace solo ${diasDesde(ultimaVez)} días. ¿Deseas asignarlo/a de todas formas?") },
             confirmButton = {
-                TextButton(onClick = {
-                    agendaSeleccionada?.let { onConfirm(it.id, campoFinal) }
-                    showAdvertencia = false
-                }) { Text("Sí, asignar") }
+                TextButton(onClick = { agendaSeleccionada?.let { onConfirm(it.id, campoFinal) }; showAdvertencia = false }) { Text("Sí, asignar") }
             },
-            dismissButton = {
-                TextButton(onClick = { showAdvertencia = false }) { Text("Cancelar") }
-            }
+            dismissButton = { TextButton(onClick = { showAdvertencia = false }) { Text("Cancelar") } }
         )
         return
     }
@@ -637,14 +755,12 @@ fun AsignarAgendaDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     if (tab == 0) "Se agregará como discursante" else "Se asignará como oración",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 ExposedDropdownMenuBox(expanded = expandedAgenda, onExpandedChange = { expandedAgenda = it }) {
                     OutlinedTextField(
                         value = agendaSeleccionada?.let { dateFormat.format(it.fecha.toDate()) } ?: "",
-                        onValueChange = {},
-                        readOnly = true,
+                        onValueChange = {}, readOnly = true,
                         label = { Text("Reunión (borrador)") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedAgenda) },
                         modifier = Modifier.fillMaxWidth().menuAnchor(),
@@ -652,17 +768,10 @@ fun AsignarAgendaDialog(
                     )
                     ExposedDropdownMenu(expanded = expandedAgenda, onDismissRequest = { expandedAgenda = false }) {
                         if (agendas.isEmpty()) {
-                            DropdownMenuItem(
-                                text = { Text("No hay agendas borrador") },
-                                onClick = { expandedAgenda = false },
-                                enabled = false
-                            )
+                            DropdownMenuItem(text = { Text("No hay agendas borrador") }, onClick = { expandedAgenda = false }, enabled = false)
                         } else {
                             agendas.forEach { agenda ->
-                                DropdownMenuItem(
-                                    text = { Text(dateFormat.format(agenda.fecha.toDate())) },
-                                    onClick = { agendaSeleccionada = agenda; expandedAgenda = false }
-                                )
+                                DropdownMenuItem(text = { Text(dateFormat.format(agenda.fecha.toDate())) }, onClick = { agendaSeleccionada = agenda; expandedAgenda = false })
                             }
                         }
                     }
@@ -670,9 +779,7 @@ fun AsignarAgendaDialog(
                 if (tab == 1) {
                     ExposedDropdownMenuBox(expanded = expandedOracion, onExpandedChange = { expandedOracion = it }) {
                         OutlinedTextField(
-                            value = campoOracion,
-                            onValueChange = {},
-                            readOnly = true,
+                            value = campoOracion, onValueChange = {}, readOnly = true,
                             label = { Text("Tipo de oración") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedOracion) },
                             modifier = Modifier.fillMaxWidth().menuAnchor(),
@@ -680,10 +787,7 @@ fun AsignarAgendaDialog(
                         )
                         ExposedDropdownMenu(expanded = expandedOracion, onDismissRequest = { expandedOracion = false }) {
                             camposOracion.forEach { campo ->
-                                DropdownMenuItem(
-                                    text = { Text(campo) },
-                                    onClick = { campoOracion = campo; expandedOracion = false }
-                                )
+                                DropdownMenuItem(text = { Text(campo) }, onClick = { campoOracion = campo; expandedOracion = false })
                             }
                         }
                     }
@@ -693,36 +797,51 @@ fun AsignarAgendaDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (color == ColorRanking.ROJO) {
-                        showAdvertencia = true
-                    } else {
-                        agendaSeleccionada?.let { onConfirm(it.id, campoFinal) }
-                    }
+                    if (color == ColorRanking.ROJO) showAdvertencia = true
+                    else agendaSeleccionada?.let { onConfirm(it.id, campoFinal) }
                 },
                 enabled = puedeConfirmar
             ) { Text("Asignar") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
 }
-
 
 @Composable
 fun EditarHermanoDialog(
     nombreActual: String,
+    fechaDiscursoActual: Timestamp?,
+    fechaOracionActual: Timestamp?,
     nombresExistentes: List<String>,
-    onConfirm: (String) -> Unit,
+    onConfirm: (String, Timestamp?, Timestamp?) -> Unit,
     onDismiss: () -> Unit
 ) {
     var nombre by remember { mutableStateOf(nombreActual) }
     var showDuplicadoWarning by remember { mutableStateOf(false) }
     var nombreDuplicado by remember { mutableStateOf("") }
+    var fechaDiscurso by remember { mutableStateOf(fechaDiscursoActual) }
+    var fechaOracion by remember { mutableStateOf(fechaOracionActual) }
+    var showPickerDiscurso by remember { mutableStateOf(false) }
+    var showPickerOracion by remember { mutableStateOf(false) }
 
+    val dateFormat = remember { java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()) }
     val nombreNorm = normalizarNombre(nombre)
-    val duplicado = nombresExistentes.firstOrNull {
-        normalizarNombre(it) == nombreNorm && it.isNotBlank()
+    val duplicado = nombresExistentes.firstOrNull { normalizarNombre(it) == nombreNorm && it.isNotBlank() }
+
+    if (showPickerDiscurso) {
+        FechaSelectorDialog(
+            onFechaSeleccionada = { fechaDiscurso = Timestamp(it); showPickerDiscurso = false },
+            onDismiss = { showPickerDiscurso = false }
+        )
+        return
+    }
+
+    if (showPickerOracion) {
+        FechaSelectorDialog(
+            onFechaSeleccionada = { fechaOracion = Timestamp(it); showPickerOracion = false },
+            onDismiss = { showPickerOracion = false }
+        )
+        return
     }
 
     if (showDuplicadoWarning) {
@@ -731,63 +850,142 @@ fun EditarHermanoDialog(
             title = { Text("¿Nombre duplicado?") },
             text = { Text("Ya existe \"$nombreDuplicado\" que parece el mismo nombre. ¿Querés guardarlo igual?") },
             confirmButton = {
-                TextButton(onClick = { onConfirm(nombre.trim()); showDuplicadoWarning = false }) {
-                    Text("Guardar igual")
-                }
+                TextButton(onClick = { onConfirm(nombre.trim(), fechaDiscurso, fechaOracion); showDuplicadoWarning = false }) { Text("Guardar igual") }
             },
-            dismissButton = {
-                TextButton(onClick = { showDuplicadoWarning = false }) { Text("Cancelar") }
-            }
+            dismissButton = { TextButton(onClick = { showDuplicadoWarning = false }) { Text("Cancelar") } }
         )
         return
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Editar nombre") },
+        title = { Text("Editar hermano/a") },
         text = {
-            OutlinedTextField(
-                value = nombre,
-                onValueChange = { nombre = it },
-                label = { Text("Nombre completo") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = nombre, onValueChange = { nombre = it },
+                    label = { Text("Nombre completo") },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true
+                )
+                Text(
+                    "Última participación conocida",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = fechaDiscurso?.let { dateFormat.format(it.toDate()) } ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Último discurso") },
+                    placeholder = { Text("Sin datos") },
+                    trailingIcon = {
+                        Row {
+                            if (fechaDiscurso != null) {
+                                IconButton(onClick = { fechaDiscurso = null }) {
+                                    Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                            IconButton(onClick = { showPickerDiscurso = true }) {
+                                Icon(Icons.Default.DateRange, "Seleccionar")
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = fechaOracion?.let { dateFormat.format(it.toDate()) } ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Última oración") },
+                    placeholder = { Text("Sin datos") },
+                    trailingIcon = {
+                        Row {
+                            if (fechaOracion != null) {
+                                IconButton(onClick = { fechaOracion = null }) {
+                                    Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                            IconButton(onClick = { showPickerOracion = true }) {
+                                Icon(Icons.Default.DateRange, "Seleccionar")
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (nombre.isNotBlank() && nombre.trim() != nombreActual) {
-                        if (duplicado != null) {
-                            nombreDuplicado = duplicado
-                            showDuplicadoWarning = true
+                    if (nombre.isNotBlank()) {
+                        if (nombre.trim() != nombreActual && duplicado != null) {
+                            nombreDuplicado = duplicado; showDuplicadoWarning = true
                         } else {
-                            onConfirm(nombre.trim())
+                            onConfirm(nombre.trim(), fechaDiscurso, fechaOracion)
                         }
                     }
                 },
-                enabled = nombre.isNotBlank() && nombre.trim() != nombreActual
+                enabled = nombre.isNotBlank()
             ) { Text("Guardar") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FechaSelectorDialog(
+    onFechaSeleccionada: (java.util.Date) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+            .apply { set(java.util.Calendar.HOUR_OF_DAY, 12) }.timeInMillis
+    )
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                datePickerState.selectedDateMillis?.let { millis ->
+                    val calUtc = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).also { it.timeInMillis = millis }
+                    val calLocal = java.util.Calendar.getInstance().apply {
+                        set(calUtc.get(java.util.Calendar.YEAR), calUtc.get(java.util.Calendar.MONTH), calUtc.get(java.util.Calendar.DAY_OF_MONTH), 12, 0, 0)
+                        set(java.util.Calendar.MILLISECOND, 0)
+                    }
+                    onFechaSeleccionada(calLocal.time)
+                }
+            }) { Text("Aceptar") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    ) { DatePicker(state = datePickerState) }
 }
 
 // --- Funciones de cálculo ---
 
 fun diasDesde(timestamp: Timestamp?): Long {
     if (timestamp == null) return Long.MAX_VALUE
-    val ahora = Date()
-    val diff = ahora.time - timestamp.toDate().time
-    return TimeUnit.MILLISECONDS.toDays(diff)
+    val hoy = java.util.Calendar.getInstance().apply {
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val fecha = java.util.Calendar.getInstance().apply {
+        time = timestamp.toDate()
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    // Negativo = fecha futura, positivo = fecha pasada
+    return TimeUnit.MILLISECONDS.toDays(hoy - fecha)
 }
 
 fun calcularColor(ultimaVez: Timestamp?, diasVerde: Int, diasAmarillo: Int): ColorRanking {
     val dias = diasDesde(ultimaVez)
     return when {
-        dias == Long.MAX_VALUE -> ColorRanking.VERDE // nunca participó
+        dias == Long.MAX_VALUE -> ColorRanking.VERDE  // nunca participó
+        dias < 0 -> ColorRanking.ROJO                 // participación futura = muy reciente
         dias >= diasVerde -> ColorRanking.VERDE
         dias >= diasAmarillo -> ColorRanking.AMARILLO
         else -> ColorRanking.ROJO
@@ -805,19 +1003,16 @@ fun calcularRankings(
     agendas: List<Agenda>,
     config: ConfiguracionPlanificacion
 ): List<HermanoRanking> {
-    val agendasConDatos = agendas
     val hace90Dias = Date(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(90))
 
     return hermanos.map { hermano ->
         val nombre = hermano.nombre.trim().lowercase()
 
-        // Buscar última vez que discursó
         var ultimaVezDiscurso: Timestamp? = null
         var vecesDiscurso90 = 0
-        agendasConDatos.forEach { agenda ->
+        agendas.forEach { agenda ->
             agenda.mensajesEvangelio.forEach { msg ->
-                if (msg.tipo != TipoMensaje.HIMNO_INTERMEDIO &&
-                    msg.nombre.trim().lowercase() == nombre) {
+                if (msg.tipo != TipoMensaje.HIMNO_INTERMEDIO && msg.nombre.trim().lowercase() == nombre) {
                     if (ultimaVezDiscurso == null || agenda.fecha.toDate().after(ultimaVezDiscurso!!.toDate())) {
                         ultimaVezDiscurso = agenda.fecha
                     }
@@ -825,19 +1020,29 @@ fun calcularRankings(
                 }
             }
         }
+        // Usar fecha manual solo si es más reciente que la de agendas (o si no hay dato de agendas)
+        hermano.ultimaVezDiscursoManual?.let { manual ->
+            if (ultimaVezDiscurso == null || manual.toDate().after(ultimaVezDiscurso!!.toDate())) {
+                ultimaVezDiscurso = manual
+            }
+        }
 
-        // Buscar última vez que hizo oración
         var ultimaVezOracion: Timestamp? = null
         var vecesOracion90 = 0
-        agendasConDatos.forEach { agenda ->
-            val oraciones = listOf(agenda.primeraOracion, agenda.oracionFinal)
-            oraciones.forEach { oracion ->
+        agendas.forEach { agenda ->
+            listOf(agenda.primeraOracion, agenda.oracionFinal).forEach { oracion ->
                 if (oracion.trim().lowercase() == nombre) {
                     if (ultimaVezOracion == null || agenda.fecha.toDate().after(ultimaVezOracion!!.toDate())) {
                         ultimaVezOracion = agenda.fecha
                     }
                     if (agenda.fecha.toDate().after(hace90Dias)) vecesOracion90++
                 }
+            }
+        }
+        // Usar fecha manual solo si es más reciente que la de agendas (o si no hay dato de agendas)
+        hermano.ultimaVezOracionManual?.let { manual ->
+            if (ultimaVezOracion == null || manual.toDate().after(ultimaVezOracion!!.toDate())) {
+                ultimaVezOracion = manual
             }
         }
 

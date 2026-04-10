@@ -535,6 +535,33 @@ fun TablaAsuntos(
     asuntos: List<AsuntoEstacaBarrio>,
     onAsuntosChange: (List<AsuntoEstacaBarrio>) -> Unit
 ) {
+    var asuntoFormula by remember { mutableStateOf<AsuntoEstacaBarrio?>(null) }
+
+    // Diálogo fórmula litúrgica
+    asuntoFormula?.let { asunto ->
+        val nombre = asunto.columna2.ifBlank { "[Nombre]" }
+        val cargo = asunto.columna3.ifBlank { "[Cargo]" }
+        val texto = when (asunto.tipo) {
+            TipoAsunto.RELEVO ->
+                "\"$nombre ha sido relevado como $cargo. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano.\""
+            TipoAsunto.SOSTENIMIENTO ->
+                "\"$nombre ha sido llamado como $cargo. Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\""
+        }
+        AlertDialog(
+            onDismissRequest = { asuntoFormula = null },
+            title = { Text("Fórmula — ${asunto.tipo.label}") },
+            text = {
+                Text(
+                    texto,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { asuntoFormula = null }) { Text("Cerrar") }
+            }
+        )
+    }
+
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -557,7 +584,8 @@ fun TablaAsuntos(
                 onMoveUp = { if (index > 0) onAsuntosChange(asuntos.toMutableList().also { it.add(index - 1, it.removeAt(index)) }) },
                 onMoveDown = { if (index < asuntos.size - 1) onAsuntosChange(asuntos.toMutableList().also { it.add(index + 1, it.removeAt(index)) }) },
                 isFirst = index == 0,
-                isLast = index == asuntos.size - 1
+                isLast = index == asuntos.size - 1,
+                onVerFormula = { asuntoFormula = asunto }
             )
             Spacer(modifier = Modifier.height(4.dp))
         }
@@ -573,7 +601,8 @@ fun AsuntoRow(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     isFirst: Boolean,
-    isLast: Boolean
+    isLast: Boolean,
+    onVerFormula: () -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -596,6 +625,14 @@ fun AsuntoRow(
                             )
                         }
                     }
+                }
+                // Botón ver fórmula litúrgica
+                IconButton(onClick = onVerFormula) {
+                    Icon(
+                        Icons.Default.MenuBook,
+                        contentDescription = "Ver fórmula",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
                 IconButton(onClick = onMoveUp, enabled = !isFirst) {
                     Icon(Icons.Default.KeyboardArrowUp, "Subir", tint = if (!isFirst) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)

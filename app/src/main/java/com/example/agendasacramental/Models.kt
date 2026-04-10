@@ -75,7 +75,10 @@ data class Hermano(
     val numeroUnidad: String = "",
     val nombre: String = "",
     val agregadoManualmente: Boolean = false,
-    val inactivo: Boolean = false,
+    val inactivoDiscurso: Boolean = false,
+    val inactivoOracion: Boolean = false,
+    val ultimaVezDiscursoManual: Timestamp? = null,
+    val ultimaVezOracionManual: Timestamp? = null,
     val creadoEn: Timestamp = Timestamp.now()
 )
 

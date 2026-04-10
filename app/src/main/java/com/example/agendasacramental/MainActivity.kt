@@ -1,6 +1,8 @@
 package com.example.agendasacramental
 
+import android.app.Activity
 import android.os.Bundle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
@@ -11,6 +13,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.fragment.app.FragmentActivity
 import com.google.android.gms.auth.api.signin.*
 import com.google.android.gms.common.api.ApiException
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.appupdate.AppUpdateOptions
+import com.google.android.play.core.install.InstallStateUpdatedListener
+import com.google.android.play.core.install.model.AppUpdateType
+import com.google.android.play.core.install.model.InstallStatus
+import com.google.android.play.core.install.model.UpdateAvailability
 import com.google.firebase.auth.*
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
@@ -23,6 +31,18 @@ class MainActivity : FragmentActivity() {
     private var currentScreen = mutableStateOf<Screen>(Screen.Login)
     private var currentUnidad = mutableStateOf<String>("")
     private var currentAgendaId = mutableStateOf<String?>(null)
+
+    // In-app update
+    private val appUpdateManager by lazy { AppUpdateManagerFactory.create(this) }
+    private var installStateListener: InstallStateUpdatedListener? = null
+
+    private val updateLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) {
+            // Usuario canceló o falló — no pasa nada, lo intentará la próxima vez
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,12 +59,27 @@ class MainActivity : FragmentActivity() {
             currentScreen.value = Screen.SeleccionUnidad
         }
 
+        verificarActualizacion()
+
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val screen by currentScreen
                     val unidad by currentUnidad
                     val agendaId by currentAgendaId
+
+                    BackHandler(enabled = screen != Screen.Login && screen != Screen.SeleccionUnidad) {
+                        when (screen) {
+                            Screen.Home -> {
+                                currentUnidad.value = ""
+                                currentScreen.value = Screen.SeleccionUnidad
+                            }
+                            Screen.ListaAgendas -> currentScreen.value = Screen.Home
+                            Screen.EditarAgenda -> currentScreen.value = Screen.ListaAgendas
+                            Screen.Planificacion -> currentScreen.value = Screen.Home
+                            else -> {}
+                        }
+                    }
 
                     when (screen) {
                         Screen.Login -> LoginScreen(
@@ -93,6 +128,46 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    private fun verificarActualizacion() {
+        val appUpdateInfoTask = appUpdateManager.appUpdateInfo
+
+        // Listener para cuando la descarga termina en segundo plano
+        installStateListener = InstallStateUpdatedListener { state ->
+            if (state.installStatus() == InstallStatus.DOWNLOADED) {
+                // La actualización está lista — completar instalación
+                appUpdateManager.completeUpdate()
+            }
+        }
+        installStateListener?.let { appUpdateManager.registerListener(it) }
+
+        appUpdateInfoTask.addOnSuccessListener { appUpdateInfo ->
+            if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
+                && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)
+            ) {
+                appUpdateManager.startUpdateFlowForResult(
+                    appUpdateInfo,
+                    updateLauncher,
+                    AppUpdateOptions.newBuilder(AppUpdateType.FLEXIBLE).build()
+                )
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Si el usuario vuelve a la app con una actualización ya descargada, completarla
+        appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
+            if (appUpdateInfo.installStatus() == InstallStatus.DOWNLOADED) {
+                appUpdateManager.completeUpdate()
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        installStateListener?.let { appUpdateManager.unregisterListener(it) }
     }
 
     private val launcher =

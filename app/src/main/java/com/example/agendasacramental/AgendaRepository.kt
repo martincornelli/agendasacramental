@@ -286,12 +286,15 @@ class AgendaRepository {
 
     suspend fun agregarHermano(hermano: Hermano): Result<Unit> {
         return try {
-            val data = mapOf(
+            val data = mutableMapOf<String, Any?>(
                 "numeroUnidad" to hermano.numeroUnidad,
                 "nombre" to hermano.nombre,
                 "agregadoManualmente" to hermano.agregadoManualmente,
                 "excluido" to false,
-                "inactivo" to hermano.inactivo,
+                "inactivoDiscurso" to hermano.inactivoDiscurso,
+                "inactivoOracion" to hermano.inactivoOracion,
+                "ultimaVezDiscursoManual" to hermano.ultimaVezDiscursoManual,
+                "ultimaVezOracionManual" to hermano.ultimaVezOracionManual,
                 "creadoEn" to Timestamp.now()
             )
             db.collection("hermanos").add(data).await()
@@ -362,10 +365,10 @@ class AgendaRepository {
         }
     }
 
-    suspend fun toggleInactivoHermano(hermanoId: String, inactivo: Boolean): Result<Unit> {
+    suspend fun toggleInactivoHermano(hermanoId: String, campo: String, valor: Boolean): Result<Unit> {
         return try {
             db.collection("hermanos").document(hermanoId)
-                .update("inactivo", inactivo).await()
+                .update(campo, valor).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -386,6 +389,22 @@ class AgendaRepository {
             }?.getString("nombre")
         } catch (e: Exception) {
             null
+        }
+    }
+
+    suspend fun actualizarFechasManual(
+        hermanoId: String,
+        ultimaVezDiscurso: Timestamp?,
+        ultimaVezOracion: Timestamp?
+    ): Result<Unit> {
+        return try {
+            val updates = mutableMapOf<String, Any?>()
+            updates["ultimaVezDiscursoManual"] = ultimaVezDiscurso
+            updates["ultimaVezOracionManual"] = ultimaVezOracion
+            db.collection("hermanos").document(hermanoId).update(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
@@ -442,15 +461,23 @@ class AgendaRepository {
                 }
             }.toSet()
 
-            // Calcular próximos domingos desde hoy hasta hastaFecha
+            // Calcular próximos domingos desde hoy hasta hastaFecha (inclusive)
             val cal = Calendar.getInstance()
-            // Avanzar al próximo domingo
+            // Avanzar al próximo domingo (si hoy es domingo, empezar desde hoy)
             while (cal.get(Calendar.DAY_OF_WEEK) != Calendar.SUNDAY) {
                 cal.add(Calendar.DAY_OF_MONTH, 1)
             }
 
+            // Normalizar hastaFecha al final del día para que el domingo elegido sea inclusivo
+            val hastaFechaFin = Calendar.getInstance().apply {
+                time = hastaFecha
+                set(Calendar.HOUR_OF_DAY, 23)
+                set(Calendar.MINUTE, 59)
+                set(Calendar.SECOND, 59)
+            }.time
+
             var creadas = 0
-            while (!cal.time.after(hastaFecha)) {
+            while (!cal.time.after(hastaFechaFin)) {
                 val key = Triple(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
                 if (key !in fechasExistentes) {
                     val ahora = Timestamp.now()

@@ -12,8 +12,8 @@ android {
         applicationId = "com.martincornelli.agendasacramental"
         minSdk = 24
         targetSdk = 35
-        versionCode = 14
-        versionName = "1.0.1"
+        versionCode = 16
+        versionName = "1.0.2"
     }
 
     buildFeatures {
@@ -62,5 +62,7 @@ dependencies {
     // Biometría
     implementation("androidx.biometric:biometric:1.1.0")
 
-
+    // In-App Updates
+    implementation("com.google.android.play:app-update:2.1.0")
+    implementation("com.google.android.play:app-update-ktx:2.1.0")
 }
