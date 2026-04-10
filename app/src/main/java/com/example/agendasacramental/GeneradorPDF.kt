@@ -38,14 +38,24 @@ object GeneradorPDF {
         document.writeTo(FileOutputStream(file))
         document.close()
 
-        // Compartir
+        // Abrir en lector de PDF (el usuario puede compartir desde ahí)
         val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/pdf"
-            putExtra(Intent.EXTRA_STREAM, uri)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/pdf")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
         }
-        context.startActivity(Intent.createChooser(intent, "Compartir agenda PDF"))
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            // Si no hay lector de PDF, ofrecer compartir
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(shareIntent, "Abrir agenda PDF"))
+        }
     }
 
     private fun dibujarContenido(canvas: Canvas, agenda: Agenda, dateFormat: SimpleDateFormat): Float {
@@ -138,9 +148,13 @@ object GeneradorPDF {
 
         // Director/a | Pianista
         canvas.drawText("Director/a:", MARGIN_LEFT, y, paintLabel)
-        canvas.drawLine(MARGIN_LEFT + paintLabel.measureText("Director/a:") + 4f, y + 2f, 270f, y + 2f, paintLinea)
+        val xDirVal = MARGIN_LEFT + paintLabel.measureText("Director/a:") + 4f
+        canvas.drawText(agenda.directorMusica, xDirVal, y, paintLabel)
+        canvas.drawLine(xDirVal, y + 2f, 270f, y + 2f, paintLinea)
         canvas.drawText("Pianista:", 290f, y, paintLabel)
-        canvas.drawLine(290f + paintLabel.measureText("Pianista:") + 4f, y + 2f, MARGIN_RIGHT, y + 2f, paintLinea)
+        val xPiVal = 290f + paintLabel.measureText("Pianista:") + 4f
+        canvas.drawText(agenda.pianista, xPiVal, y, paintLabel)
+        canvas.drawLine(xPiVal, y + 2f, MARGIN_RIGHT, y + 2f, paintLinea)
         y += 16f
 
         // Primera oración

@@ -52,6 +52,7 @@ fun SeleccionUnidadScreen(
     val passwordGuardado = remember { prefs.getString("password_guardado", "") ?: "" }
     val biometriaDisponible = remember { isBiometriaDisponible(activity) }
     val tieneSesionGuardada = unidadGuardada.isNotBlank() && passwordGuardado.isNotBlank() && biometriaDisponible
+    val tieneUnidadGuardada = unidadGuardada.isNotBlank()
 
     // Pre-cargar número de unidad
     LaunchedEffect(Unit) {
@@ -203,13 +204,13 @@ fun SeleccionUnidadScreen(
             )
         }
 
-        // Checkbox recordar — solo si biometría disponible y no es unidad nueva
-        if (biometriaDisponible && !isNewUnit) {
+        // Checkbox recordar — siempre visible si no es unidad nueva
+        if (!isNewUnit) {
             Spacer(modifier = Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Checkbox(checked = recordarDispositivo, onCheckedChange = { recordarDispositivo = it })
                 Text(
-                    "Recordar en este dispositivo (huella)",
+                    if (biometriaDisponible) "Recordar en este dispositivo (huella)" else "Recordar número de unidad",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(start = 4.dp)
                 )
@@ -240,7 +241,7 @@ fun SeleccionUnidadScreen(
                         val result = repository.crearUnidad(numeroUnidad, password, userEmail)
                         isLoading = false
                         if (result.isSuccess) {
-                            if (recordarDispositivo) guardarCredenciales(prefs, numeroUnidad, password)
+                            if (recordarDispositivo) { if (biometriaDisponible) guardarCredenciales(prefs, numeroUnidad, password) else prefs.edit().putString("unidad_guardada", numeroUnidad).remove("password_guardado").apply() }
                             onUnidadIngresada(numeroUnidad)
                         } else {
                             errorMessage = "Error al crear la unidad. Intente nuevamente."
@@ -251,7 +252,7 @@ fun SeleccionUnidadScreen(
                         val passwordOk = repository.verificarPassword(numeroUnidad, password)
                         isLoading = false
                         if (passwordOk) {
-                            if (recordarDispositivo) guardarCredenciales(prefs, numeroUnidad, password)
+                            if (recordarDispositivo) { if (biometriaDisponible) guardarCredenciales(prefs, numeroUnidad, password) else prefs.edit().putString("unidad_guardada", numeroUnidad).remove("password_guardado").apply() }
                             onUnidadIngresada(numeroUnidad)
                         } else {
                             errorMessage = "Contraseña incorrecta"

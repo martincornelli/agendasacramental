@@ -47,6 +47,8 @@ fun EditarAgendaScreen(
     var anuncios by remember { mutableStateOf("") }
     var primerHimnoNumero by remember { mutableStateOf("") }
     var primerHimnoNombre by remember { mutableStateOf("") }
+    var directorMusica by remember { mutableStateOf("") }
+    var pianista by remember { mutableStateOf("") }
     var himnoSacramentalNumero by remember { mutableStateOf("") }
     var himnoSacramentalNombre by remember { mutableStateOf("") }
     var himnoFinalNumero by remember { mutableStateOf("") }
@@ -73,6 +75,8 @@ fun EditarAgendaScreen(
                 anuncios = agenda.anuncios
                 primerHimnoNumero = if (agenda.primerHimnoNumero > 0) agenda.primerHimnoNumero.toString() else ""
                 primerHimnoNombre = agenda.primerHimnoNombre
+                directorMusica = agenda.directorMusica
+                pianista = agenda.pianista
                 himnoSacramentalNumero = if (agenda.himnoSacramentalNumero > 0) agenda.himnoSacramentalNumero.toString() else ""
                 himnoSacramentalNombre = agenda.himnoSacramentalNombre
                 himnoFinalNumero = if (agenda.himnoFinalNumero > 0) agenda.himnoFinalNumero.toString() else ""
@@ -102,6 +106,8 @@ fun EditarAgendaScreen(
             anuncios = anuncios,
             primerHimnoNumero = primerHimnoNumero.toIntOrNull() ?: 0,
             primerHimnoNombre = primerHimnoNombre,
+            directorMusica = directorMusica,
+            pianista = pianista,
             himnoSacramentalNumero = himnoSacramentalNumero.toIntOrNull() ?: 0,
             himnoSacramentalNombre = himnoSacramentalNombre,
             himnoFinalNumero = himnoFinalNumero.toIntOrNull() ?: 0,
@@ -165,7 +171,10 @@ fun EditarAgendaScreen(
                                 val result = repository.guardarAgenda(buildAgenda(), userEmail)
                                 isSaving = false
                                 if (result.isSuccess) {
-                                    onBack()
+                                    errorGuardado = ""
+                                    // Recargar el agendaId si es nueva para habilitar PDF
+                                    if (agendaId == null) onBack()
+                                    else errorGuardado = "✓ Guardado correctamente."
                                 } else if (result.exceptionOrNull()?.message == "FECHA_DUPLICADA") {
                                     errorGuardado = "Ya existe una agenda para esa fecha."
                                 } else {
@@ -187,13 +196,14 @@ fun EditarAgendaScreen(
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             if (errorGuardado.isNotBlank()) {
+                val esExito = errorGuardado.startsWith("✓")
                 androidx.compose.material3.Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
+                    color = if (esExito) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         errorGuardado,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        color = if (esExito) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
@@ -284,10 +294,32 @@ fun EditarAgendaScreen(
                         onNumeroChange = { num ->
                             primerHimnoNumero = num
                             val n = num.toIntOrNull()
-                            if (n != null) primerHimnoNombre = Himnos.getNombre(n).ifEmpty { primerHimnoNombre }
+                            if (num.isBlank()) primerHimnoNombre = ""
+                            else if (n != null) primerHimnoNombre = Himnos.getNombre(n).ifEmpty { primerHimnoNombre }
                         },
                         onNombreChange = { primerHimnoNombre = it }
                     )
+                }
+
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            CampoConAutocompletado(
+                                valor = directorMusica,
+                                onValorChange = { directorMusica = it },
+                                label = "Director/a de música",
+                                sugerencias = nombresUsados
+                            )
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            CampoConAutocompletado(
+                                valor = pianista,
+                                onValorChange = { pianista = it },
+                                label = "Pianista",
+                                sugerencias = nombresUsados
+                            )
+                        }
+                    }
                 }
 
                 item {
@@ -307,7 +339,8 @@ fun EditarAgendaScreen(
                         onNumeroChange = { num ->
                             himnoSacramentalNumero = num
                             val n = num.toIntOrNull()
-                            if (n != null) himnoSacramentalNombre = Himnos.getNombre(n).ifEmpty { himnoSacramentalNombre }
+                            if (num.isBlank()) himnoSacramentalNombre = ""
+                            else if (n != null) himnoSacramentalNombre = Himnos.getNombre(n).ifEmpty { himnoSacramentalNombre }
                         },
                         onNombreChange = { himnoSacramentalNombre = it }
                     )
@@ -326,7 +359,8 @@ fun EditarAgendaScreen(
                         onNumeroChange = { num ->
                             himnoFinalNumero = num
                             val n = num.toIntOrNull()
-                            if (n != null) himnoFinalNombre = Himnos.getNombre(n).ifEmpty { himnoFinalNombre }
+                            if (num.isBlank()) himnoFinalNombre = ""
+                            else if (n != null) himnoFinalNombre = Himnos.getNombre(n).ifEmpty { himnoFinalNombre }
                         },
                         onNombreChange = { himnoFinalNombre = it }
                     )
@@ -674,7 +708,7 @@ fun MensajeRow(
                         onValueChange = { num ->
                             himnoNumero = num
                             val n = num.toIntOrNull()
-                            val nombre = if (n != null) Himnos.getNombre(n).ifEmpty { mensaje.himnoNombre } else mensaje.himnoNombre
+                            val nombre = if (num.isBlank()) "" else if (n != null) Himnos.getNombre(n).ifEmpty { mensaje.himnoNombre } else mensaje.himnoNombre
                             onMensajeChange(mensaje.copy(himnoNumero = n ?: 0, himnoNombre = nombre))
                         },
                         label = { Text("Nº") },
@@ -713,6 +747,8 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat): String {
     if (agenda.anuncios.isNotBlank()) sb.appendLine("📣 Anuncios: ${agenda.anuncios}")
     sb.appendLine()
     if (agenda.primerHimnoNumero > 0) sb.appendLine("🎵 Primer Himno: ${agenda.primerHimnoNumero} - ${agenda.primerHimnoNombre}")
+    if (agenda.directorMusica.isNotBlank()) sb.appendLine("🎼 Director/a: ${agenda.directorMusica}")
+    if (agenda.pianista.isNotBlank()) sb.appendLine("🎹 Pianista: ${agenda.pianista}")
     if (agenda.primeraOracion.isNotBlank()) sb.appendLine("🙏 Primera Oración: ${agenda.primeraOracion}")
 
     if (agenda.asuntosEstacaBarrio.isNotEmpty()) {

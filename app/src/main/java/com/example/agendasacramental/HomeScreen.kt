@@ -2,6 +2,7 @@ package com.example.agendasacramental
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Groups
@@ -19,12 +20,18 @@ fun HomeScreen(
     numeroUnidad: String,
     onIrAgendas: () -> Unit,
     onIrPlanificacion: () -> Unit,
+    onCambiarUnidad: () -> Unit,
     onLogout: () -> Unit
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Unidad $numeroUnidad") },
+                navigationIcon = {
+                    IconButton(onClick = onCambiarUnidad) {
+                        Icon(Icons.Default.ArrowBack, "Cambiar unidad")
+                    }
+                },
                 actions = {
                     IconButton(onClick = onLogout) {
                         Icon(Icons.Default.ExitToApp, "Salir")

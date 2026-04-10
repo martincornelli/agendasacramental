@@ -63,6 +63,7 @@ class MainActivity : FragmentActivity() {
                             numeroUnidad = unidad,
                             onIrAgendas = { currentScreen.value = Screen.ListaAgendas },
                             onIrPlanificacion = { currentScreen.value = Screen.Planificacion },
+                            onCambiarUnidad = { currentUnidad.value = ""; currentScreen.value = Screen.SeleccionUnidad },
                             onLogout = { logout() }
                         )
                         Screen.ListaAgendas -> ListaAgendasScreen(

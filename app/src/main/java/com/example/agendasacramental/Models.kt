@@ -24,6 +24,8 @@ data class Agenda(
     val anuncios: String = "",
     val primerHimnoNumero: Int = 0,
     val primerHimnoNombre: String = "",
+    val directorMusica: String = "",
+    val pianista: String = "",
     val himnoSacramentalNumero: Int = 0,
     val himnoSacramentalNombre: String = "",
     val himnoFinalNumero: Int = 0,
