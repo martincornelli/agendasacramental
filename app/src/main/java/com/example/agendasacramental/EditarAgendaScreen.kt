@@ -537,24 +537,16 @@ fun TablaAsuntos(
 ) {
     var asuntoFormula by remember { mutableStateOf<AsuntoEstacaBarrio?>(null) }
 
-    // Diálogo fórmula litúrgica
+    // Diálogo fórmula litúrgica — agrupa todos los del mismo tipo
     asuntoFormula?.let { asunto ->
-        val nombre = asunto.columna2.ifBlank { "[Nombre]" }
-        val cargo = asunto.columna3.ifBlank { "[Cargo]" }
-        val texto = when (asunto.tipo) {
-            TipoAsunto.RELEVO ->
-                "\"$nombre ha sido relevado como $cargo. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano.\""
-            TipoAsunto.SOSTENIMIENTO ->
-                "\"$nombre ha sido llamado como $cargo. Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\""
-        }
+        val delMismoTipo = asuntos.filter { it.tipo == asunto.tipo }
+        val titulo = "Fórmula — ${asunto.tipo.label}"
+        val texto = generarFormulaLiturgica(asunto.tipo, delMismoTipo)
         AlertDialog(
             onDismissRequest = { asuntoFormula = null },
-            title = { Text("Fórmula — ${asunto.tipo.label}") },
+            title = { Text(titulo) },
             text = {
-                Text(
-                    texto,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Text(texto, style = MaterialTheme.typography.bodyMedium)
             },
             confirmButton = {
                 TextButton(onClick = { asuntoFormula = null }) { Text("Cerrar") }
@@ -816,4 +808,33 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat): String {
     if (agenda.oracionFinal.isNotBlank()) sb.appendLine("🙏 Oración Final: ${agenda.oracionFinal}")
 
     return sb.toString()
+}
+
+fun generarFormulaLiturgica(tipo: TipoAsunto, asuntos: List<AsuntoEstacaBarrio>): String {
+    if (asuntos.isEmpty()) return ""
+
+    return if (asuntos.size == 1) {
+        // Singular
+        val nombre = asuntos[0].columna2.ifBlank { "[Nombre]" }
+        val cargo = asuntos[0].columna3.ifBlank { "[Cargo]" }
+        when (tipo) {
+            TipoAsunto.RELEVO ->
+                "\"$nombre ha sido relevado como $cargo. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano.\""
+            TipoAsunto.SOSTENIMIENTO ->
+                "\"$nombre ha sido llamado como $cargo. Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\""
+        }
+    } else {
+        // Plural — lista de nombre + cargo separados por coma
+        val lista = asuntos.joinToString(", ") { asunto ->
+            val nombre = asunto.columna2.ifBlank { "[Nombre]" }
+            val cargo = asunto.columna3.ifBlank { "[Cargo]" }
+            "$nombre como $cargo"
+        }
+        when (tipo) {
+            TipoAsunto.RELEVO ->
+                "Los siguientes hermanos/as han sido relevados de sus llamamientos: \"$lista. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano.\""
+            TipoAsunto.SOSTENIMIENTO ->
+                "Los siguientes hermanos/as han sido llamados a los siguientes llamamientos: \"$lista. Los que estén a favor de sostenerlos, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\""
+        }
+    }
 }

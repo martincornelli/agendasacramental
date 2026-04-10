@@ -439,105 +439,122 @@ fun HermanoRankingCard(
             }
         )
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (modoSeleccion) {
-                Checkbox(
-                    checked = estaSeleccionado,
-                    onCheckedChange = { onClick() },
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .background(colorReal.copy(alpha = alpha), shape = MaterialTheme.shapes.small)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        ranking.hermano.nombre,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+            // Fila principal: indicador + nombre + badge color
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (modoSeleccion) {
+                    Checkbox(
+                        checked = estaSeleccionado,
+                        onCheckedChange = { onClick() },
+                        modifier = Modifier.size(24.dp)
                     )
-                    if (inactivo) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                            shape = MaterialTheme.shapes.small
-                        ) {
-                            Text(
-                                "Inactivo",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
+                    Spacer(modifier = Modifier.width(8.dp))
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .background(colorReal.copy(alpha = alpha), shape = MaterialTheme.shapes.small)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                // Nombre e info — ocupa todo el espacio disponible
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            ranking.hermano.nombre,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (inactivo) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Text(
+                                    "Inactivo",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
                         }
                     }
-                }
-                Text(
-                    when {
-                        ultimaVez == null -> "Sin registros"
-                        dias < 0 -> "Dentro de ${-dias} día${if (-dias == 1L) "" else "s"}"
-                        dias == 0L -> "Hoy"
-                        else -> "Hace $dias día${if (dias == 1L) "" else "s"}"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
-                )
-                if (tab == 0 && ranking.vecesDiscurso90Dias > 0) {
                     Text(
-                        "${ranking.vecesDiscurso90Dias} vez/veces en los últimos 90 días",
-                        style = MaterialTheme.typography.labelSmall,
+                        when {
+                            ultimaVez == null -> "Sin registros"
+                            dias < 0 -> "Dentro de ${-dias} día${if (-dias == 1L) "" else "s"}"
+                            dias == 0L -> "Hoy"
+                            else -> "Hace $dias día${if (dias == 1L) "" else "s"}"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
                     )
-                } else if (tab == 1 && ranking.vecesOracion90Dias > 0) {
-                    Text(
-                        "${ranking.vecesOracion90Dias} vez/veces en los últimos 90 días",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
-                    )
+                    if (tab == 0 && ranking.vecesDiscurso90Dias > 0) {
+                        Text(
+                            "${ranking.vecesDiscurso90Dias} vez/veces en 90 días",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
+                        )
+                    } else if (tab == 1 && ranking.vecesOracion90Dias > 0) {
+                        Text(
+                            "${ranking.vecesOracion90Dias} vez/veces en 90 días",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
+                        )
+                    }
+                }
+
+                // Chip de color — siempre visible a la derecha, tamaño fijo
+                if (!inactivo) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Surface(
+                        color = colorReal.copy(alpha = 0.15f),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            color.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colorReal,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            maxLines = 1
+                        )
+                    }
                 }
             }
-            if (!inactivo) {
-                Surface(
-                    color = colorReal.copy(alpha = 0.15f),
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        color.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colorReal,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-            }
+
+            // Fila de botones — solo cuando no está en modo selección
             if (!modoSeleccion) {
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, "Editar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                IconButton(onClick = onToggleInactivo) {
-                    Icon(
-                        if (inactivo) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = if (inactivo) "Reactivar" else "Desactivar",
-                        tint = MaterialTheme.colorScheme.outline
-                    )
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Close, "Eliminar", tint = MaterialTheme.colorScheme.error)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Default.Edit, "Editar",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = onToggleInactivo, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            if (inactivo) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = if (inactivo) "Reactivar" else "Desactivar",
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Default.Close, "Eliminar",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp))
+                    }
                 }
             }
         }

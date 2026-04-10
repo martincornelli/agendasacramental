@@ -311,39 +311,46 @@ object GeneradorPDF {
         canvas.drawLine(MARGIN_LEFT, y, MARGIN_RIGHT, y, paintLinea)
         y += 16f
 
-        agenda.asuntosEstacaBarrio.forEachIndexed { index, asunto ->
-            if (y > PAGE_HEIGHT - 80f) return@forEachIndexed
+        // Agrupar por tipo
+        val grupos = agenda.asuntosEstacaBarrio.groupBy { it.tipo }
+        var grupoIndex = 0
 
-            val nombre = asunto.columna2.ifBlank { "[Nombre]" }
-            val cargo = asunto.columna3.ifBlank { "[Cargo]" }
+        listOf(TipoAsunto.SOSTENIMIENTO, TipoAsunto.RELEVO).forEach { tipo ->
+            val asuntosDelTipo = grupos[tipo] ?: return@forEach
+            if (y > PAGE_HEIGHT - 80f) return@forEach
 
-            val lineas = when (asunto.tipo) {
-                TipoAsunto.RELEVO -> listOf(
-                    "\"$nombre ha sido relevado como $cargo.",
-                    "Quienes deseen expresar agradecimiento por su servicio,",
-                    "sírvanse hacerlo levantando la mano.\""
-                )
-                TipoAsunto.SOSTENIMIENTO -> listOf(
-                    "\"$nombre ha sido llamado como $cargo.",
-                    "Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano.",
-                    "[Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\""
-                )
-            }
-
-            val tipoLabel = if (asunto.tipo == TipoAsunto.RELEVO) "RELEVO" else "SOSTENIMIENTO"
-            canvas.drawText("${index + 1}. $tipoLabel — $nombre", MARGIN_LEFT, y, paintSeccion)
+            val tipoLabel = if (tipo == TipoAsunto.RELEVO) "RELEVO" else "SOSTENIMIENTO"
+            canvas.drawText("${grupoIndex + 1}. $tipoLabel", MARGIN_LEFT, y, paintSeccion)
             y += 14f
 
-            lineas.forEach { linea ->
-                canvas.drawText(linea, MARGIN_LEFT + 12f, y, paintTexto)
+            // Generar fórmula agrupada
+            val formula = generarFormulaLiturgica(tipo, asuntosDelTipo)
+
+            // Dibujar línea por línea (wrap manual cada ~90 chars)
+            val palabras = formula.split(" ")
+            var lineaActual = ""
+            palabras.forEach { palabra ->
+                val candidata = if (lineaActual.isEmpty()) palabra else "$lineaActual $palabra"
+                if (candidata.length > 90) {
+                    canvas.drawText(lineaActual, MARGIN_LEFT + 12f, y, paintTexto)
+                    y += 13f
+                    lineaActual = palabra
+                } else {
+                    lineaActual = candidata
+                }
+            }
+            if (lineaActual.isNotEmpty()) {
+                canvas.drawText(lineaActual, MARGIN_LEFT + 12f, y, paintTexto)
                 y += 13f
             }
+
             y += 6f
 
-            if (index < agenda.asuntosEstacaBarrio.size - 1) {
+            if (grupoIndex < grupos.size - 1) {
                 canvas.drawLine(MARGIN_LEFT, y, MARGIN_RIGHT, y, paintLinea)
                 y += 10f
             }
+            grupoIndex++
         }
 
         // Nota al pie
