@@ -311,11 +311,11 @@ object GeneradorPDF {
         canvas.drawLine(MARGIN_LEFT, y, MARGIN_RIGHT, y, paintLinea)
         y += 16f
 
-        // Agrupar por tipo
+        // Agrupar por tipo — Relevos primero, luego Sostenimientos
         val grupos = agenda.asuntosEstacaBarrio.groupBy { it.tipo }
         var grupoIndex = 0
 
-        listOf(TipoAsunto.SOSTENIMIENTO, TipoAsunto.RELEVO).forEach { tipo ->
+        listOf(TipoAsunto.RELEVO, TipoAsunto.SOSTENIMIENTO).forEach { tipo ->
             val asuntosDelTipo = grupos[tipo] ?: return@forEach
             if (y > PAGE_HEIGHT - 80f) return@forEach
 

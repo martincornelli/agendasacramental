@@ -60,16 +60,14 @@ fun HomeScreen(
             // Módulo Agendas
             Card(
                 onClick = onIrAgendas,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp),
+                modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             ) {
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxWidth()
                         .padding(24.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -101,16 +99,14 @@ fun HomeScreen(
             // Módulo Planificación
             Card(
                 onClick = onIrPlanificacion,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp),
+                modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.secondaryContainer
                 )
             ) {
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxWidth()
                         .padding(24.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally

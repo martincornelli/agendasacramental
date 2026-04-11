@@ -12,8 +12,8 @@ android {
         applicationId = "com.martincornelli.agendasacramental"
         minSdk = 24
         targetSdk = 35
-        versionCode = 17
-        versionName = "1.0.3"
+        versionCode = 18
+        versionName = "1.0.4"
     }
 
     buildFeatures {

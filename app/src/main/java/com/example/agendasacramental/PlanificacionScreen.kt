@@ -2,6 +2,8 @@ package com.example.agendasacramental
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
 import com.google.firebase.Timestamp
 import androidx.compose.foundation.lazy.items
@@ -266,9 +268,11 @@ fun PlanificacionScreen(
             } else {
                 val filtrosActivos = if (selectedTab == 0) filtrosDiscurso else filtrosOracion
 
-                Row(
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     ColorRanking.values().forEach { color ->
                         val seleccionado = color in filtrosActivos
