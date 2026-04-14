@@ -7,6 +7,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +28,7 @@ import com.google.firebase.auth.*
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 
+
 class MainActivity : FragmentActivity() {
 
     private lateinit var auth: FirebaseAuth
@@ -31,6 +37,7 @@ class MainActivity : FragmentActivity() {
     private var currentScreen = mutableStateOf<Screen>(Screen.Login)
     private var currentUnidad = mutableStateOf<String>("")
     private var currentAgendaId = mutableStateOf<String?>(null)
+    private var currentModoLecturaAgenda = mutableStateOf<Agenda?>(null)
 
     // In-app update
     private val appUpdateManager by lazy { AppUpdateManagerFactory.create(this) }
@@ -62,11 +69,23 @@ class MainActivity : FragmentActivity() {
         verificarActualizacion()
 
         setContent {
-            MaterialTheme {
+            val context = LocalContext.current
+            val prefs = remember { context.getSharedPreferences("agenda_prefs", Context.MODE_PRIVATE) }
+            var tema by remember { mutableStateOf(prefs.getString("tema", "sistema") ?: "sistema") }
+            val sistemaOscuro = isSystemInDarkTheme()
+            val usarOscuro = when (tema) {
+                "oscuro" -> true
+                "claro" -> false
+                else -> sistemaOscuro
+            }
+            MaterialTheme(
+                colorScheme = if (usarOscuro) darkColorScheme() else lightColorScheme()
+            ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val screen by currentScreen
                     val unidad by currentUnidad
                     val agendaId by currentAgendaId
+                    val modoLecturaAgenda by currentModoLecturaAgenda
 
                     BackHandler(enabled = screen != Screen.Login && screen != Screen.SeleccionUnidad) {
                         when (screen) {
@@ -77,6 +96,7 @@ class MainActivity : FragmentActivity() {
                             Screen.ListaAgendas -> currentScreen.value = Screen.Home
                             Screen.EditarAgenda -> currentScreen.value = Screen.ListaAgendas
                             Screen.Planificacion -> currentScreen.value = Screen.Home
+                            Screen.ModoLectura -> currentScreen.value = Screen.ListaAgendas
                             else -> {}
                         }
                     }
@@ -96,6 +116,11 @@ class MainActivity : FragmentActivity() {
                         )
                         Screen.Home -> HomeScreen(
                             numeroUnidad = unidad,
+                            tema = tema,
+                            onTemaChange = { nuevoTema ->
+                                tema = nuevoTema
+                                prefs.edit().putString("tema", nuevoTema).apply()
+                            },
                             onIrAgendas = { currentScreen.value = Screen.ListaAgendas },
                             onIrPlanificacion = { currentScreen.value = Screen.Planificacion },
                             onCambiarUnidad = { currentUnidad.value = ""; currentScreen.value = Screen.SeleccionUnidad },
@@ -112,18 +137,32 @@ class MainActivity : FragmentActivity() {
                                 currentAgendaId.value = id
                                 currentScreen.value = Screen.EditarAgenda
                             },
+                            onModoLectura = { agenda ->
+                                currentModoLecturaAgenda.value = agenda
+                                currentScreen.value = Screen.ModoLectura
+                            },
                             onLogout = { currentScreen.value = Screen.Home }
                         )
                         Screen.EditarAgenda -> EditarAgendaScreen(
                             numeroUnidad = unidad,
                             agendaId = agendaId,
                             userEmail = auth.currentUser?.email ?: "",
-                            onBack = { currentScreen.value = Screen.ListaAgendas }
+                            onBack = { currentScreen.value = Screen.ListaAgendas },
+                            onModoLectura = { agenda ->
+                                currentModoLecturaAgenda.value = agenda
+                                currentScreen.value = Screen.ModoLectura
+                            }
                         )
                         Screen.Planificacion -> PlanificacionScreen(
                             numeroUnidad = unidad,
                             onBack = { currentScreen.value = Screen.Home }
                         )
+                        Screen.ModoLectura -> modoLecturaAgenda?.let { agenda ->
+                            ModoLecturaScreen(
+                                agenda = agenda,
+                                onBack = { currentScreen.value = Screen.ListaAgendas }
+                            )
+                        }
                     }
                 }
             }
@@ -207,4 +246,5 @@ sealed class Screen {
     object ListaAgendas : Screen()
     object EditarAgenda : Screen()
     object Planificacion : Screen()
+    object ModoLectura : Screen()
 }

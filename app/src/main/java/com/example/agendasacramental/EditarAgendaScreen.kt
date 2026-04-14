@@ -2,6 +2,7 @@ package com.example.agendasacramental
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,7 +28,8 @@ fun EditarAgendaScreen(
     numeroUnidad: String,
     agendaId: String?,
     userEmail: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onModoLectura: (Agenda) -> Unit
 ) {
     val repository = remember { AgendaRepository() }
     val scope = rememberCoroutineScope()
@@ -43,8 +45,8 @@ fun EditarAgendaScreen(
     var asistencia by remember { mutableStateOf("") }
     var preside by remember { mutableStateOf("") }
     var dirige by remember { mutableStateOf("") }
-    var reconocimientos by remember { mutableStateOf("") }
-    var anuncios by remember { mutableStateOf("") }
+    var reconocimientos by remember { mutableStateOf<List<String>>(emptyList()) }
+    var anuncios by remember { mutableStateOf<List<String>>(emptyList()) }
     var primerHimnoNumero by remember { mutableStateOf("") }
     var primerHimnoNombre by remember { mutableStateOf("") }
     var directorMusica by remember { mutableStateOf("") }
@@ -72,7 +74,9 @@ fun EditarAgendaScreen(
                 preside = agenda.preside
                 dirige = agenda.dirige
                 reconocimientos = agenda.reconocimientos
+                    .split(",").map { it.trim() }.filter { it.isNotBlank() }
                 anuncios = agenda.anuncios
+                    .split(",").map { it.trim() }.filter { it.isNotBlank() }
                 primerHimnoNumero = if (agenda.primerHimnoNumero > 0) agenda.primerHimnoNumero.toString() else ""
                 primerHimnoNombre = agenda.primerHimnoNombre
                 directorMusica = agenda.directorMusica
@@ -102,8 +106,8 @@ fun EditarAgendaScreen(
             asistencia = asistencia.toIntOrNull() ?: 0,
             preside = preside,
             dirige = dirige,
-            reconocimientos = reconocimientos,
-            anuncios = anuncios,
+            reconocimientos = reconocimientos.filter { it.isNotBlank() }.joinToString(", "),
+            anuncios = anuncios.filter { it.isNotBlank() }.joinToString(", "),
             primerHimnoNumero = primerHimnoNumero.toIntOrNull() ?: 0,
             primerHimnoNombre = primerHimnoNombre,
             directorMusica = directorMusica,
@@ -158,6 +162,9 @@ fun EditarAgendaScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { onModoLectura(buildAgenda()) }) {
+                        Icon(Icons.Default.MenuBook, "Modo Lectura")
+                    }
                     IconButton(onClick = { compartirWhatsApp(context) }) {
                         Icon(Icons.Default.Share, "Compartir WhatsApp")
                     }
@@ -273,18 +280,20 @@ fun EditarAgendaScreen(
                 }
 
                 item {
-                    OutlinedTextField(
-                        value = reconocimientos, onValueChange = { reconocimientos = it },
-                        label = { Text("Reconocimientos") },
-                        modifier = Modifier.fillMaxWidth(), minLines = 2
+                    ListaItemsEditor(
+                        titulo = "Reconocimientos",
+                        items = reconocimientos,
+                        onItemsChange = { reconocimientos = it },
+                        placeholder = "Agregar reconocimiento"
                     )
                 }
 
                 item {
-                    OutlinedTextField(
-                        value = anuncios, onValueChange = { anuncios = it },
-                        label = { Text("Anuncios") },
-                        modifier = Modifier.fillMaxWidth(), minLines = 2
+                    ListaItemsEditor(
+                        titulo = "Anuncios",
+                        items = anuncios,
+                        onItemsChange = { anuncios = it },
+                        placeholder = "Agregar anuncio"
                     )
                 }
 
@@ -511,21 +520,94 @@ fun CampoConAutocompletado(
         else sugerencias.filter { it.contains(valor, ignoreCase = true) && it != valor }
     }
 
-    ExposedDropdownMenuBox(
-        expanded = expanded && filtradas.isNotEmpty(),
-        onExpandedChange = { expanded = it }
-    ) {
-        OutlinedTextField(
-            value = valor, onValueChange = { onValorChange(it); expanded = true },
-            label = { Text(label) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(), singleLine = true
-        )
-        if (filtradas.isNotEmpty()) {
-            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                filtradas.take(5).forEach { sugerencia ->
-                    DropdownMenuItem(text = { Text(sugerencia) }, onClick = { onValorChange(sugerencia); expanded = false })
+    // Detectar nombre similar (misma normalización pero texto diferente)
+    val nombreSimilar = remember(valor, sugerencias) {
+        if (valor.isBlank()) null
+        else sugerencias.firstOrNull { s ->
+            normalizarNombre(s) == normalizarNombre(valor) && s != valor
+        }
+    }
+
+    Column {
+        ExposedDropdownMenuBox(
+            expanded = expanded && filtradas.isNotEmpty(),
+            onExpandedChange = { expanded = it }
+        ) {
+            OutlinedTextField(
+                value = valor, onValueChange = { onValorChange(it); expanded = true },
+                label = { Text(label) },
+                modifier = Modifier.fillMaxWidth().menuAnchor(), singleLine = true
+            )
+            if (filtradas.isNotEmpty()) {
+                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    filtradas.take(5).forEach { sugerencia ->
+                        DropdownMenuItem(text = { Text(sugerencia) }, onClick = { onValorChange(sugerencia); expanded = false })
+                    }
                 }
             }
+        }
+        if (nombreSimilar != null) {
+            Text(
+                "¿Quisiste decir \"$nombreSimilar\"?",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier
+                    .padding(start = 4.dp, top = 2.dp)
+                    .clickable { onValorChange(nombreSimilar); expanded = false }
+            )
+        }
+    }
+}
+
+@Composable
+fun ListaItemsEditor(
+    titulo: String,
+    items: List<String>,
+    onItemsChange: (List<String>) -> Unit,
+    placeholder: String = "Agregar ítem"
+) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                titulo,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = { onItemsChange(items + "") }) {
+                Icon(Icons.Default.Add, "Agregar")
+            }
+        }
+        items.forEachIndexed { index, item ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("•", modifier = Modifier.padding(end = 6.dp, top = 4.dp))
+                OutlinedTextField(
+                    value = item,
+                    onValueChange = { nuevo ->
+                        onItemsChange(items.toMutableList().also { it[index] = nuevo })
+                    },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text(placeholder) },
+                    singleLine = true
+                )
+                IconButton(onClick = {
+                    onItemsChange(items.toMutableList().also { it.removeAt(index) })
+                }) {
+                    Icon(Icons.Default.Close, "Eliminar", tint = MaterialTheme.colorScheme.error)
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+        if (items.isEmpty()) {
+            Text(
+                "Sin $titulo",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+            )
         }
     }
 }
@@ -772,8 +854,16 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat): String {
     if (agenda.asistencia > 0) sb.appendLine("👥 Asistencia: ${agenda.asistencia}")
     if (agenda.preside.isNotBlank()) sb.appendLine("👤 Preside: ${agenda.preside}")
     if (agenda.dirige.isNotBlank()) sb.appendLine("🎙 Dirige: ${agenda.dirige}")
-    if (agenda.reconocimientos.isNotBlank()) sb.appendLine("⭐ Reconocimientos: ${agenda.reconocimientos}")
-    if (agenda.anuncios.isNotBlank()) sb.appendLine("📣 Anuncios: ${agenda.anuncios}")
+    val reconocimientosStr = agenda.reconocimientos.split(",").map { it.trim() }.filter { it.isNotBlank() }
+    val anunciosStr = agenda.anuncios.split(",").map { it.trim() }.filter { it.isNotBlank() }
+    if (reconocimientosStr.isNotEmpty()) {
+        sb.appendLine("⭐ Reconocimientos:")
+        reconocimientosStr.forEach { sb.appendLine("  • $it") }
+    }
+    if (anunciosStr.isNotEmpty()) {
+        sb.appendLine("📣 Anuncios:")
+        anunciosStr.forEach { sb.appendLine("  • $it") }
+    }
     sb.appendLine()
     if (agenda.primerHimnoNumero > 0) sb.appendLine("🎵 Primer Himno: ${agenda.primerHimnoNumero} - ${agenda.primerHimnoNombre}")
     if (agenda.directorMusica.isNotBlank()) sb.appendLine("🎼 Director/a: ${agenda.directorMusica}")

@@ -418,6 +418,57 @@ class AgendaRepository {
         }
     }
 
+    // Actualiza el nombre en todas las agendas BORRADOR de la unidad
+    suspend fun renombrarEnAgendasFuturas(
+        numeroUnidad: String,
+        nombreAnterior: String,
+        nuevoNombre: String
+    ): Result<Int> {
+        return try {
+            val snapshot = agendasRef
+                .whereEqualTo("numeroUnidad", numeroUnidad)
+                .whereEqualTo("estado", EstadoAgenda.BORRADOR.name)
+                .get().await()
+
+            val anteriorNorm = normalizarNombre(nombreAnterior)
+            var actualizadas = 0
+
+            snapshot.documents.forEach { doc ->
+                val updates = mutableMapOf<String, Any>()
+
+                // Verificar y reemplazar en campos de oración
+                if (normalizarNombre(doc.getString("primeraOracion") ?: "") == anteriorNorm)
+                    updates["primeraOracion"] = nuevoNombre
+                if (normalizarNombre(doc.getString("oracionFinal") ?: "") == anteriorNorm)
+                    updates["oracionFinal"] = nuevoNombre
+                if (normalizarNombre(doc.getString("preside") ?: "") == anteriorNorm)
+                    updates["preside"] = nuevoNombre
+                if (normalizarNombre(doc.getString("dirige") ?: "") == anteriorNorm)
+                    updates["dirige"] = nuevoNombre
+
+                // Verificar y reemplazar en mensajes del evangelio
+                @Suppress("UNCHECKED_CAST")
+                val mensajes = doc.get("mensajesEvangelio") as? List<Map<String, Any>> ?: emptyList()
+                val mensajesActualizados = mensajes.map { m ->
+                    val nombre = m["nombre"] as? String ?: ""
+                    if (normalizarNombre(nombre) == anteriorNorm)
+                        m.toMutableMap().also { it["nombre"] = nuevoNombre }
+                    else m
+                }
+                if (mensajesActualizados != mensajes)
+                    updates["mensajesEvangelio"] = mensajesActualizados
+
+                if (updates.isNotEmpty()) {
+                    doc.reference.update(updates).await()
+                    actualizadas++
+                }
+            }
+            Result.success(actualizadas)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // Marca automáticamente como REALIZADA las agendas cuya fecha ya pasó
     suspend fun marcarAgendasPasadasComoRealizadas(numeroUnidad: String): Result<Unit> {
         return try {

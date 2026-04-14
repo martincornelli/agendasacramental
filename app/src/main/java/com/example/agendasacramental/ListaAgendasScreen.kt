@@ -26,6 +26,7 @@ fun ListaAgendasScreen(
     userEmail: String,
     onNuevaAgenda: () -> Unit,
     onEditarAgenda: (String) -> Unit,
+    onModoLectura: (Agenda) -> Unit,
     onLogout: () -> Unit
 ) {
     val repository = remember { AgendaRepository() }
@@ -62,10 +63,27 @@ fun ListaAgendasScreen(
             .minByOrNull { it.fecha.toDate() }
     }
 
+    // El próximo domingo participa en la búsqueda — solo se muestra si coincide
+    val proximoDomingoVisible = remember(proximoDomingo, searchQuery, filtrosActivos) {
+        val agenda = proximoDomingo ?: return@remember false
+        val pasaFiltroEstado = searchQuery.isNotBlank() || filtrosActivos.isEmpty() || agenda.estado in filtrosActivos
+        val pasaBusqueda = if (searchQuery.isBlank()) true else {
+            val fechaStr = dateFormat.format(agenda.fecha.toDate())
+            fechaStr.contains(searchQuery, ignoreCase = true) ||
+                    agenda.preside.contains(searchQuery, ignoreCase = true) ||
+                    agenda.dirige.contains(searchQuery, ignoreCase = true) ||
+                    agenda.primeraOracion.contains(searchQuery, ignoreCase = true) ||
+                    agenda.oracionFinal.contains(searchQuery, ignoreCase = true) ||
+                    agenda.mensajesEvangelio.any { it.nombre.contains(searchQuery, ignoreCase = true) }
+        }
+        pasaFiltroEstado && pasaBusqueda
+    }
+
     val agendasFiltradas = remember(agendas, searchQuery, filtrosActivos, proximoDomingo) {
         agendas
             .filter { it.id != proximoDomingo?.id } // excluir el próximo para mostrarlo separado
-            .filter { agenda -> filtrosActivos.isEmpty() || agenda.estado in filtrosActivos }
+            // Cuando hay búsqueda activa, ignorar filtros de estado
+            .filter { agenda -> searchQuery.isNotBlank() || filtrosActivos.isEmpty() || agenda.estado in filtrosActivos }
             .filter { agenda ->
                 if (searchQuery.isBlank()) true
                 else {
@@ -213,32 +231,31 @@ fun ListaAgendasScreen(
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Próximo domingo destacado
-                            proximoDomingo?.let { agenda ->
-                                if (filtrosActivos.contains(agenda.estado) || filtrosActivos.isEmpty()) {
-                                    item {
-                                        Text(
-                                            "PRÓXIMO DOMINGO",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(vertical = 4.dp)
-                                        )
-                                    }
-                                    item {
-                                        AgendaCard(
-                                            agenda = agenda,
-                                            dateFormat = dateFormat,
-                                            destacada = true,
-                                            onClick = { onEditarAgenda(agenda.id) },
-                                            onDelete = { agendaAEliminar = agenda }
-                                        )
-                                    }
-                                    item { Divider(modifier = Modifier.padding(vertical = 8.dp)) }
+                            // Próximo domingo destacado — solo si pasa el filtro y la búsqueda
+                            if (proximoDomingoVisible && proximoDomingo != null) {
+                                item {
+                                    Text(
+                                        "PRÓXIMO DOMINGO",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    )
                                 }
+                                item {
+                                    AgendaCard(
+                                        agenda = proximoDomingo,
+                                        dateFormat = dateFormat,
+                                        destacada = true,
+                                        onClick = { onEditarAgenda(proximoDomingo.id) },
+                                        onDelete = { agendaAEliminar = proximoDomingo },
+                                        onModoLectura = { onModoLectura(proximoDomingo) }
+                                    )
+                                }
+                                item { Divider(modifier = Modifier.padding(vertical = 8.dp)) }
                             }
 
-                            if (agendasFiltradas.isEmpty() && proximoDomingo == null) {
+                            if (agendasFiltradas.isEmpty() && !proximoDomingoVisible) {
                                 item {
                                     Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                                         Text(
@@ -260,12 +277,13 @@ fun ListaAgendasScreen(
                                         agenda = agenda,
                                         dateFormat = dateFormat,
                                         onClick = { onEditarAgenda(agenda.id) },
-                                        onDelete = { agendaAEliminar = agenda }
+                                        onDelete = { agendaAEliminar = agenda },
+                                        onModoLectura = { onModoLectura(agenda) }
                                     )
                                 }
                             }
 
-                            if (realizadas.isNotEmpty() && EstadoAgenda.REALIZADA in filtrosActivos) {
+                            if (realizadas.isNotEmpty() && (EstadoAgenda.REALIZADA in filtrosActivos || searchQuery.isNotBlank())) {
                                 item {
                                     Divider(modifier = Modifier.padding(vertical = 8.dp))
                                     Text(
@@ -281,7 +299,8 @@ fun ListaAgendasScreen(
                                         agenda = agenda,
                                         dateFormat = dateFormat,
                                         onClick = { onEditarAgenda(agenda.id) },
-                                        onDelete = { agendaAEliminar = agenda }
+                                        onDelete = { agendaAEliminar = agenda },
+                                        onModoLectura = { onModoLectura(agenda) }
                                     )
                                 }
                             }
@@ -375,7 +394,8 @@ fun AgendaCard(
     dateFormat: SimpleDateFormat,
     destacada: Boolean = false,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onModoLectura: () -> Unit
 ) {
     val estadoColor = when (agenda.estado) {
         EstadoAgenda.BORRADOR -> MaterialTheme.colorScheme.outline
@@ -440,6 +460,9 @@ fun AgendaCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+            IconButton(onClick = onModoLectura) {
+                Icon(Icons.Default.MenuBook, contentDescription = "Modo Lectura", tint = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)

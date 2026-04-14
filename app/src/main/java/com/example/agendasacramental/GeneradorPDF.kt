@@ -32,14 +32,6 @@ object GeneradorPDF {
 
         document.finishPage(page)
 
-        // Página 2: fórmulas litúrgicas (solo si hay asuntos)
-        if (agenda.asuntosEstacaBarrio.isNotEmpty()) {
-            val pageInfo2 = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, 2).create()
-            val page2 = document.startPage(pageInfo2)
-            dibujarFormulasLiturgicas(page2.canvas, agenda)
-            document.finishPage(page2)
-        }
-
         // Guardar en cache
         val fileName = "agenda_${dateFormat.format(agenda.fecha.toDate()).replace("/", "-")}.pdf"
         val file = File(context.cacheDir, fileName)
@@ -91,7 +83,7 @@ object GeneradorPDF {
 
         // --- Asistencia arriba a la derecha ---
         val paintLabel = Paint().apply {
-            color = Color.BLACK; textSize = 9f; isAntiAlias = true
+            color = Color.BLACK; textSize = 10f; isAntiAlias = true
         }
         val paintLinea = Paint().apply {
             color = Color.BLACK; strokeWidth = 0.5f
@@ -129,25 +121,42 @@ object GeneradorPDF {
         y += 16f
 
         // Preludio
-        canvas.drawText("Preludio  (10-15' antes del inicio de la reunión)", MARGIN_LEFT, y, paintLabel.apply { color = Color.GRAY; textSize = 8f })
+        canvas.drawText("Preludio  (10-15' antes del inicio de la reunión)", MARGIN_LEFT, y, paintLabel.apply { color = Color.GRAY; textSize = 9f })
         y += 14f
-        paintLabel.apply { color = Color.BLACK; textSize = 9f }
+        paintLabel.apply { color = Color.BLACK; textSize = 10f }
 
         // Bienvenida/reconocimientos
-        campo("Bienvenida y reconocimiento de autoridades:", agenda.reconocimientos, MARGIN_LEFT, y, COL_WIDTH)
-        y += 20f
+        val reconocimientosItems = agenda.reconocimientos.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        canvas.drawText("Bienvenida y reconocimiento de autoridades:", MARGIN_LEFT, y, paintLabel)
+        y += 13f
+        if (reconocimientosItems.isEmpty()) {
+            canvas.drawLine(MARGIN_LEFT, y, MARGIN_RIGHT, y, paintLinea)
+            y += 14f
+        } else {
+            reconocimientosItems.forEach { item ->
+                canvas.drawText("• $item", MARGIN_LEFT + 8f, y, paintLabel)
+                y += 13f
+            }
+        }
+        y += 6f
 
         // Anuncios
-        canvas.drawText("Anuncios  (Solamente los más importantes y urgentes):", MARGIN_LEFT, y, paintLabel.apply { color = Color.GRAY; textSize = 8f })
-        y += 12f
-        paintLabel.apply { color = Color.BLACK; textSize = 9f }
-        canvas.drawLine(MARGIN_LEFT, y, MARGIN_RIGHT, y, paintLinea)
-        if (agenda.anuncios.isNotBlank()) {
-            canvas.drawText(agenda.anuncios.take(100), MARGIN_LEFT + 2f, y - 2f, paintLabel)
+        canvas.drawText("Anuncios  (Solamente los más importantes y urgentes):", MARGIN_LEFT, y, paintLabel.apply { color = Color.GRAY; textSize = 9f })
+        y += 13f
+        paintLabel.apply { color = Color.BLACK; textSize = 10f }
+        val anunciosItems = agenda.anuncios.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        if (anunciosItems.isEmpty()) {
+            canvas.drawLine(MARGIN_LEFT, y, MARGIN_RIGHT, y, paintLinea)
+            y += 12f
+            canvas.drawLine(MARGIN_LEFT, y, MARGIN_RIGHT, y, paintLinea)
+            y += 14f
+        } else {
+            anunciosItems.forEach { item ->
+                canvas.drawText("• $item", MARGIN_LEFT + 8f, y, paintLabel)
+                y += 13f
+            }
+            y += 6f
         }
-        y += 12f
-        canvas.drawLine(MARGIN_LEFT, y, MARGIN_RIGHT, y, paintLinea)
-        y += 20f
 
         // Himno apertura
         val himnoAp = if (agenda.primerHimnoNumero > 0) "${agenda.primerHimnoNumero} - ${agenda.primerHimnoNombre}" else ""
@@ -169,57 +178,56 @@ object GeneradorPDF {
         campo("Primera oración:", agenda.primeraOracion, MARGIN_LEFT, y, COL_WIDTH)
         y += 16f
 
-        // --- Tabla Asuntos ---
-        val paintBold = Paint().apply { color = Color.BLACK; textSize = 9f; isFakeBoldText = true; isAntiAlias = true }
-        val paintSmall = Paint().apply { color = Color.GRAY; textSize = 7.5f; isAntiAlias = true; textAlign = Paint.Align.CENTER }
+        // --- Asuntos: fórmulas litúrgicas ---
+        val paintBold = Paint().apply { color = Color.BLACK; textSize = 10f; isFakeBoldText = true; isAntiAlias = true }
+        val paintTextoAsunto = Paint().apply { color = Color.BLACK; textSize = 9.5f; isAntiAlias = true }
+        val paintLineaGris = Paint().apply { color = Color.LTGRAY; strokeWidth = 0.5f }
 
-        canvas.drawText("Asuntos", MARGIN_LEFT, y, paintBold)
-        val asuntosDesc = "(Sostenimiento y relevo de oficiales y maestros...)"
-        val paintMini = Paint().apply { color = Color.GRAY; textSize = 7f; isAntiAlias = true }
-        canvas.drawText(asuntosDesc, MARGIN_LEFT + paintBold.measureText("Asuntos") + 4f, y, paintMini)
-        y += 6f
-
-        // Tabla header
-        val col1W = 140f; val col2W = 200f; val col3W = 175f
-        val tableLeft = MARGIN_LEFT
-        val tableRight = tableLeft + col1W + col2W + col3W
-
-        // Borde exterior
-        val paintBorde = Paint().apply { color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = 0.5f }
-        val rowH = 18f
-        val headerH = 20f
-
-        canvas.drawRect(tableLeft, y, tableRight, y + headerH, paintBorde)
-        canvas.drawLine(tableLeft + col1W, y, tableLeft + col1W, y + headerH, paintLinea)
-        canvas.drawLine(tableLeft + col1W + col2W, y, tableLeft + col1W + col2W, y + headerH, paintLinea)
-
-        paintSmall.textAlign = Paint.Align.CENTER
-        canvas.drawText("Asunto", tableLeft + col1W / 2, y + 8f, paintSmall)
-        canvas.drawText("Nombre", tableLeft + col1W + col2W / 2, y + 8f, paintSmall)
-        canvas.drawText("Detalle", tableLeft + col1W + col2W + col3W / 2, y + 8f, paintSmall)
-
-        // Nota en col 1
-        val paintMiniGray = Paint().apply { color = Color.GRAY; textSize = 6f; isAntiAlias = true; textAlign = Paint.Align.CENTER }
-        canvas.drawText("(Relevo, sostenimiento,", tableLeft + col1W / 2, y + 13f, paintMiniGray)
-        canvas.drawText("bendición, confirmación, reconocimiento)", tableLeft + col1W / 2, y + 18f, paintMiniGray)
-        y += headerH
-
-        // Filas de asuntos (mínimo 6 filas)
-        val numFilas = maxOf(agenda.asuntosEstacaBarrio.size, 6)
-        repeat(numFilas) { i ->
-            val asunto = agenda.asuntosEstacaBarrio.getOrNull(i)
-            canvas.drawRect(tableLeft, y, tableRight, y + rowH, paintBorde)
-            canvas.drawLine(tableLeft + col1W, y, tableLeft + col1W, y + rowH, paintLinea)
-            canvas.drawLine(tableLeft + col1W + col2W, y, tableLeft + col1W + col2W, y + rowH, paintLinea)
-            if (asunto != null) {
-                val paintRow = Paint().apply { color = Color.BLACK; textSize = 8f; isAntiAlias = true }
-                canvas.drawText(asunto.tipo.label, tableLeft + 4f, y + 12f, paintRow)
-                canvas.drawText(asunto.columna2, tableLeft + col1W + 4f, y + 12f, paintRow)
-                canvas.drawText(asunto.columna3, tableLeft + col1W + col2W + 4f, y + 12f, paintRow)
+        // Si no hay asuntos, dejar espacio en blanco similar a tabla vacía
+        if (agenda.asuntosEstacaBarrio.isEmpty()) {
+            // Espacio equivalente a tabla vacía
+            y += 6f
+            canvas.drawText("Asuntos", MARGIN_LEFT, y, paintBold)
+            y += 14f
+            repeat(3) {
+                canvas.drawLine(MARGIN_LEFT, y, MARGIN_RIGHT, y, paintLineaGris)
+                y += 16f
             }
-            y += rowH
+            y += 6f
+        } else {
+            val grupos = agenda.asuntosEstacaBarrio.groupBy { it.tipo }
+
+            listOf(TipoAsunto.RELEVO, TipoAsunto.SOSTENIMIENTO).forEach { tipo ->
+                val asuntosDelTipo = grupos[tipo] ?: return@forEach
+
+                val tipoLabel = if (tipo == TipoAsunto.RELEVO) "RELEVO" else "SOSTENIMIENTO"
+                canvas.drawText(tipoLabel, MARGIN_LEFT, y, paintBold)
+                y += 13f
+
+                val formula = generarFormulaLiturgica(tipo, asuntosDelTipo)
+                // Wrap manual ~90 chars por línea
+                val palabras = formula.split(" ")
+                var lineaActual = ""
+                palabras.forEach { palabra ->
+                    val candidata = if (lineaActual.isEmpty()) palabra else "$lineaActual $palabra"
+                    if (candidata.length > 88) {
+                        canvas.drawText(lineaActual, MARGIN_LEFT + 8f, y, paintTextoAsunto)
+                        y += 12f
+                        lineaActual = palabra
+                    } else {
+                        lineaActual = candidata
+                    }
+                }
+                if (lineaActual.isNotEmpty()) {
+                    canvas.drawText(lineaActual, MARGIN_LEFT + 8f, y, paintTextoAsunto)
+                    y += 12f
+                }
+                y += 8f
+            }
         }
-        y += 10f
+
+        // Margen antes del Himno Sacramental
+        y += 8f
 
         // --- Himno Sacramental ---
         val himnoSac = if (agenda.himnoSacramentalNumero > 0) "${agenda.himnoSacramentalNumero} - ${agenda.himnoSacramentalNombre}" else ""
@@ -237,9 +245,9 @@ object GeneradorPDF {
 
         // Caja grande para mensajes
         val msgBoxH = if (agenda.mensajesEvangelio.isEmpty()) 60f else (agenda.mensajesEvangelio.size * 16f + 16f).coerceAtLeast(60f)
-        canvas.drawRect(MARGIN_LEFT, y, MARGIN_RIGHT, y + msgBoxH, paintBorde)
+        canvas.drawRect(MARGIN_LEFT, y, MARGIN_RIGHT, y + msgBoxH, Paint().apply { color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = 0.5f })
 
-        val paintMsg = Paint().apply { color = Color.BLACK; textSize = 8.5f; isAntiAlias = true }
+        val paintMsg = Paint().apply { color = Color.BLACK; textSize = 9.5f; isAntiAlias = true }
         var msgY = y + 14f
         agenda.mensajesEvangelio.forEach { msg ->
             val texto = when (msg.tipo) {
@@ -262,7 +270,7 @@ object GeneradorPDF {
         y += 16f
 
         // Postludio
-        canvas.drawText("Postludio  (10 minutos - sólo música)", MARGIN_LEFT, y, paintLabel.apply { color = Color.GRAY; textSize = 8f })
+        canvas.drawText("Postludio  (10 minutos - sólo música)", MARGIN_LEFT, y, paintLabel.apply { color = Color.GRAY; textSize = 9f })
         y += 20f
 
         // Línea separadora

@@ -48,6 +48,8 @@ fun PlanificacionScreen(
     var hermanoAEliminar by remember { mutableStateOf<HermanoRanking?>(null) }
     var hermanoAEditar by remember { mutableStateOf<HermanoRanking?>(null) }
     var modoSeleccion by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
     var seleccionados by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showConfirmarBulkDelete by remember { mutableStateOf(false) }
 
@@ -78,6 +80,11 @@ fun PlanificacionScreen(
     BackHandler(enabled = modoSeleccion) {
         modoSeleccion = false
         seleccionados = emptySet()
+    }
+
+    BackHandler(enabled = showSearch) {
+        showSearch = false
+        searchQuery = ""
     }
 
     // Diálogo confirmar bulk delete
@@ -145,10 +152,14 @@ fun PlanificacionScreen(
             fechaDiscursoActual = ranking.hermano.ultimaVezDiscursoManual,
             fechaOracionActual = ranking.hermano.ultimaVezOracionManual,
             nombresExistentes = rankings.map { it.hermano.nombre }.filter { it != ranking.hermano.nombre },
-            onConfirm = { nuevoNombre, fechaDiscurso, fechaOracion ->
+            onConfirm = { nuevoNombre, fechaDiscurso, fechaOracion, actualizarAgendas ->
                 scope.launch {
-                    if (nuevoNombre != ranking.hermano.nombre) {
+                    val nombreAnterior = ranking.hermano.nombre
+                    if (nuevoNombre != nombreAnterior) {
                         repository.editarNombreHermano(ranking.hermano.id, nuevoNombre)
+                        if (actualizarAgendas) {
+                            repository.renombrarEnAgendasFuturas(numeroUnidad, nombreAnterior, nuevoNombre)
+                        }
                     }
                     repository.actualizarFechasManual(ranking.hermano.id, fechaDiscurso, fechaOracion)
                     recargar()
@@ -214,8 +225,8 @@ fun PlanificacionScreen(
 
     Scaffold(
         topBar = {
-            if (modoSeleccion) {
-                TopAppBar(
+            when {
+                modoSeleccion -> TopAppBar(
                     title = { Text("${seleccionados.size} seleccionado${if (seleccionados.size == 1) "" else "s"}") },
                     navigationIcon = {
                         IconButton(onClick = { modoSeleccion = false; seleccionados = emptySet() }) {
@@ -234,8 +245,23 @@ fun PlanificacionScreen(
                         containerColor = MaterialTheme.colorScheme.secondaryContainer
                     )
                 )
-            } else {
-                TopAppBar(
+                showSearch -> TopAppBar(
+                    title = {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Buscar hermano/a...") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { showSearch = false; searchQuery = "" }) {
+                            Icon(Icons.Default.ArrowBack, "Cancelar búsqueda")
+                        }
+                    }
+                )
+                else -> TopAppBar(
                     title = { Text("Planificación") },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
@@ -243,6 +269,9 @@ fun PlanificacionScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = { showSearch = true }) {
+                            Icon(Icons.Default.Search, "Buscar")
+                        }
                         IconButton(onClick = { showAgregarHermano = true }) {
                             Icon(Icons.Default.PersonAdd, "Agregar hermano")
                         }
@@ -303,6 +332,11 @@ fun PlanificacionScreen(
 
                 val listaFiltrada = rankings
                     .filter { ranking ->
+                        // Si hay búsqueda activa, ignorar filtros de color y mostrar todos los que coincidan
+                        if (searchQuery.isNotBlank()) {
+                            return@filter normalizarNombre(ranking.hermano.nombre)
+                                .contains(normalizarNombre(searchQuery))
+                        }
                         if (inactivoParaTab(ranking)) return@filter true
                         val color = if (selectedTab == 0)
                             calcularColor(ranking.ultimaVezDiscurso, config.diasVerdeDiscurso, config.diasAmarilloDiscurso)
@@ -583,12 +617,12 @@ fun AgregarHermanoDialog(
     val nombreNorm = normalizarNombre(nombre)
     val duplicado = nombresExistentes.firstOrNull { normalizarNombre(it) == nombreNorm && it.isNotBlank() }
 
+    // Date pickers como diálogos separados encima del diálogo principal
     if (showPickerDiscurso) {
         FechaSelectorDialog(
             onFechaSeleccionada = { fechaDiscurso = Timestamp(it); showPickerDiscurso = false },
             onDismiss = { showPickerDiscurso = false }
         )
-        return
     }
 
     if (showPickerOracion) {
@@ -596,7 +630,6 @@ fun AgregarHermanoDialog(
             onFechaSeleccionada = { fechaOracion = Timestamp(it); showPickerOracion = false },
             onDismiss = { showPickerOracion = false }
         )
-        return
     }
 
     if (showDuplicadoWarning) {
@@ -611,79 +644,80 @@ fun AgregarHermanoDialog(
                 TextButton(onClick = { showDuplicadoWarning = false }) { Text("Cancelar") }
             }
         )
-        return
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Agregar hermano/a") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = nombre, onValueChange = { nombre = it },
-                    label = { Text("Nombre completo") },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true
-                )
-                Text(
-                    "Opcional: última participación conocida",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedTextField(
-                    value = fechaDiscurso?.let { dateFormat.format(it.toDate()) } ?: "",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Último discurso") },
-                    placeholder = { Text("Sin datos") },
-                    trailingIcon = {
-                        Row {
-                            if (fechaDiscurso != null) {
-                                IconButton(onClick = { fechaDiscurso = null }) {
-                                    Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
+    if (!showPickerDiscurso && !showPickerOracion && !showDuplicadoWarning) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Agregar hermano/a") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = nombre, onValueChange = { nombre = it },
+                        label = { Text("Nombre completo") },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true
+                    )
+                    Text(
+                        "Opcional: última participación conocida",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = fechaDiscurso?.let { dateFormat.format(it.toDate()) } ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Último discurso") },
+                        placeholder = { Text("Sin datos") },
+                        trailingIcon = {
+                            Row {
+                                if (fechaDiscurso != null) {
+                                    IconButton(onClick = { fechaDiscurso = null }) {
+                                        Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                                IconButton(onClick = { showPickerDiscurso = true }) {
+                                    Icon(Icons.Default.DateRange, "Seleccionar")
                                 }
                             }
-                            IconButton(onClick = { showPickerDiscurso = true }) {
-                                Icon(Icons.Default.DateRange, "Seleccionar")
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = fechaOracion?.let { dateFormat.format(it.toDate()) } ?: "",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Última oración") },
-                    placeholder = { Text("Sin datos") },
-                    trailingIcon = {
-                        Row {
-                            if (fechaOracion != null) {
-                                IconButton(onClick = { fechaOracion = null }) {
-                                    Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = fechaOracion?.let { dateFormat.format(it.toDate()) } ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Última oración") },
+                        placeholder = { Text("Sin datos") },
+                        trailingIcon = {
+                            Row {
+                                if (fechaOracion != null) {
+                                    IconButton(onClick = { fechaOracion = null }) {
+                                        Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                                IconButton(onClick = { showPickerOracion = true }) {
+                                    Icon(Icons.Default.DateRange, "Seleccionar")
                                 }
                             }
-                            IconButton(onClick = { showPickerOracion = true }) {
-                                Icon(Icons.Default.DateRange, "Seleccionar")
-                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (nombre.isNotBlank()) {
+                            if (duplicado != null) { nombreDuplicado = duplicado; showDuplicadoWarning = true }
+                            else onConfirm(nombre.trim(), fechaDiscurso, fechaOracion)
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (nombre.isNotBlank()) {
-                        if (duplicado != null) { nombreDuplicado = duplicado; showDuplicadoWarning = true }
-                        else onConfirm(nombre.trim(), fechaDiscurso, fechaOracion)
-                    }
-                },
-                enabled = nombre.isNotBlank()
-            ) { Text("Agregar") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
-    )
+                    enabled = nombre.isNotBlank()
+                ) { Text("Agregar") }
+            },
+            dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+        )
+    }
 }
 
 @Composable
@@ -834,11 +868,12 @@ fun EditarHermanoDialog(
     fechaDiscursoActual: Timestamp?,
     fechaOracionActual: Timestamp?,
     nombresExistentes: List<String>,
-    onConfirm: (String, Timestamp?, Timestamp?) -> Unit,
+    onConfirm: (String, Timestamp?, Timestamp?, Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     var nombre by remember { mutableStateOf(nombreActual) }
     var showDuplicadoWarning by remember { mutableStateOf(false) }
+    var actualizarAgendas by remember { mutableStateOf(false) }
     var nombreDuplicado by remember { mutableStateOf("") }
     var fechaDiscurso by remember { mutableStateOf(fechaDiscursoActual) }
     var fechaOracion by remember { mutableStateOf(fechaOracionActual) }
@@ -854,7 +889,6 @@ fun EditarHermanoDialog(
             onFechaSeleccionada = { fechaDiscurso = Timestamp(it); showPickerDiscurso = false },
             onDismiss = { showPickerDiscurso = false }
         )
-        return
     }
 
     if (showPickerOracion) {
@@ -862,7 +896,6 @@ fun EditarHermanoDialog(
             onFechaSeleccionada = { fechaOracion = Timestamp(it); showPickerOracion = false },
             onDismiss = { showPickerOracion = false }
         )
-        return
     }
 
     if (showDuplicadoWarning) {
@@ -871,86 +904,104 @@ fun EditarHermanoDialog(
             title = { Text("¿Nombre duplicado?") },
             text = { Text("Ya existe \"$nombreDuplicado\" que parece el mismo nombre. ¿Querés guardarlo igual?") },
             confirmButton = {
-                TextButton(onClick = { onConfirm(nombre.trim(), fechaDiscurso, fechaOracion); showDuplicadoWarning = false }) { Text("Guardar igual") }
+                TextButton(onClick = { onConfirm(nombre.trim(), fechaDiscurso, fechaOracion, actualizarAgendas); showDuplicadoWarning = false }) { Text("Guardar igual") }
             },
             dismissButton = { TextButton(onClick = { showDuplicadoWarning = false }) { Text("Cancelar") } }
         )
-        return
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Editar hermano/a") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = nombre, onValueChange = { nombre = it },
-                    label = { Text("Nombre completo") },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true
-                )
-                Text(
-                    "Última participación conocida",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedTextField(
-                    value = fechaDiscurso?.let { dateFormat.format(it.toDate()) } ?: "",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Último discurso") },
-                    placeholder = { Text("Sin datos") },
-                    trailingIcon = {
-                        Row {
-                            if (fechaDiscurso != null) {
-                                IconButton(onClick = { fechaDiscurso = null }) {
-                                    Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
-                                }
-                            }
-                            IconButton(onClick = { showPickerDiscurso = true }) {
-                                Icon(Icons.Default.DateRange, "Seleccionar")
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = fechaOracion?.let { dateFormat.format(it.toDate()) } ?: "",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Última oración") },
-                    placeholder = { Text("Sin datos") },
-                    trailingIcon = {
-                        Row {
-                            if (fechaOracion != null) {
-                                IconButton(onClick = { fechaOracion = null }) {
-                                    Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
-                                }
-                            }
-                            IconButton(onClick = { showPickerOracion = true }) {
-                                Icon(Icons.Default.DateRange, "Seleccionar")
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (nombre.isNotBlank()) {
-                        if (nombre.trim() != nombreActual && duplicado != null) {
-                            nombreDuplicado = duplicado; showDuplicadoWarning = true
-                        } else {
-                            onConfirm(nombre.trim(), fechaDiscurso, fechaOracion)
+    if (!showPickerDiscurso && !showPickerOracion && !showDuplicadoWarning) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Editar hermano/a") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = nombre, onValueChange = { nombre = it },
+                        label = { Text("Nombre completo") },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true
+                    )
+                    // Checkbox actualizar agendas — solo si cambió el nombre
+                    if (nombre.trim() != nombreActual && nombre.isNotBlank()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Checkbox(
+                                checked = actualizarAgendas,
+                                onCheckedChange = { actualizarAgendas = it }
+                            )
+                            Text(
+                                "Actualizar en agendas borrador",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
                         }
                     }
-                },
-                enabled = nombre.isNotBlank()
-            ) { Text("Guardar") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
-    )
+                    Text(
+                        "Última participación conocida",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = fechaDiscurso?.let { dateFormat.format(it.toDate()) } ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Último discurso") },
+                        placeholder = { Text("Sin datos") },
+                        trailingIcon = {
+                            Row {
+                                if (fechaDiscurso != null) {
+                                    IconButton(onClick = { fechaDiscurso = null }) {
+                                        Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                                IconButton(onClick = { showPickerDiscurso = true }) {
+                                    Icon(Icons.Default.DateRange, "Seleccionar")
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = fechaOracion?.let { dateFormat.format(it.toDate()) } ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Última oración") },
+                        placeholder = { Text("Sin datos") },
+                        trailingIcon = {
+                            Row {
+                                if (fechaOracion != null) {
+                                    IconButton(onClick = { fechaOracion = null }) {
+                                        Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                                IconButton(onClick = { showPickerOracion = true }) {
+                                    Icon(Icons.Default.DateRange, "Seleccionar")
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (nombre.isNotBlank()) {
+                            if (nombre.trim() != nombreActual && duplicado != null) {
+                                nombreDuplicado = duplicado; showDuplicadoWarning = true
+                            } else {
+                                onConfirm(nombre.trim(), fechaDiscurso, fechaOracion, actualizarAgendas)
+                            }
+                        }
+                    },
+                    enabled = nombre.isNotBlank()
+                ) { Text("Guardar") }
+            },
+            dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+        )
+    } // end if !showPicker && !showDuplicado
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

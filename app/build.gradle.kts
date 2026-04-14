@@ -12,12 +12,13 @@ android {
         applicationId = "com.martincornelli.agendasacramental"
         minSdk = 24
         targetSdk = 35
-        versionCode = 18
-        versionName = "1.0.4"
+        versionCode = 21
+        versionName = "1.0.7"
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
