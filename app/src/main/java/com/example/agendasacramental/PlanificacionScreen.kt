@@ -12,6 +12,9 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -245,22 +248,30 @@ fun PlanificacionScreen(
                         containerColor = MaterialTheme.colorScheme.secondaryContainer
                     )
                 )
-                showSearch -> TopAppBar(
-                    title = {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = { Text("Buscar hermano/a...") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { showSearch = false; searchQuery = "" }) {
-                            Icon(Icons.Default.ArrowBack, "Cancelar búsqueda")
-                        }
+                showSearch -> {
+                    val focusRequester = remember { FocusRequester() }
+                    val keyboard = LocalSoftwareKeyboardController.current
+                    LaunchedEffect(Unit) {
+                        focusRequester.requestFocus()
+                        keyboard?.show()
                     }
-                )
+                    TopAppBar(
+                        title = {
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text("Buscar hermano/a...") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
+                            )
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = { showSearch = false; searchQuery = "" }) {
+                                Icon(Icons.Default.ArrowBack, "Cancelar búsqueda")
+                            }
+                        }
+                    )
+                }
                 else -> TopAppBar(
                     title = { Text("Planificación") },
                     navigationIcon = {

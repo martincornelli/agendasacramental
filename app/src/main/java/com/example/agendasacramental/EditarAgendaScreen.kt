@@ -29,7 +29,7 @@ fun EditarAgendaScreen(
     agendaId: String?,
     userEmail: String,
     onBack: () -> Unit,
-    onModoLectura: (Agenda) -> Unit
+    onModoLectura: (Agenda) -> Unit = {}
 ) {
     val repository = remember { AgendaRepository() }
     val scope = rememberCoroutineScope()
@@ -38,6 +38,7 @@ fun EditarAgendaScreen(
     var isLoading by remember { mutableStateOf(agendaId != null) }
     var isSaving by remember { mutableStateOf(false) }
     var errorGuardado by remember { mutableStateOf("") }
+    var showSolicitudDialog by remember { mutableStateOf(false) }
     var nombresUsados by remember { mutableStateOf<List<String>>(emptyList()) }
 
     var fechaDate by remember { mutableStateOf(Date()) }
@@ -145,6 +146,15 @@ fun EditarAgendaScreen(
         }
     }
 
+    if (showSolicitudDialog) {
+        SolicitudRecomendacionesDialog(
+            agenda = buildAgenda(),
+            dateFormat = dateFormat,
+            context = context,
+            onDismiss = { showSolicitudDialog = false }
+        )
+    }
+
     if (isLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
@@ -165,11 +175,31 @@ fun EditarAgendaScreen(
                     IconButton(onClick = { onModoLectura(buildAgenda()) }) {
                         Icon(Icons.Default.MenuBook, "Modo Lectura")
                     }
-                    IconButton(onClick = { compartirWhatsApp(context) }) {
-                        Icon(Icons.Default.Share, "Compartir WhatsApp")
-                    }
-                    IconButton(onClick = { GeneradorPDF.generarYCompartir(context, buildAgenda()) }) {
-                        Icon(Icons.Default.PictureAsPdf, "Exportar PDF")
+                    Box {
+                        var showCompartirMenu by remember { mutableStateOf(false) }
+                        IconButton(onClick = { showCompartirMenu = true }) {
+                            Icon(Icons.Default.Share, "Compartir")
+                        }
+                        DropdownMenu(
+                            expanded = showCompartirMenu,
+                            onDismissRequest = { showCompartirMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Enviar agenda") },
+                                leadingIcon = { Icon(Icons.Default.Share, null) },
+                                onClick = { compartirWhatsApp(context); showCompartirMenu = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Exportar PDF") },
+                                leadingIcon = { Icon(Icons.Default.PictureAsPdf, null) },
+                                onClick = { GeneradorPDF.generarYCompartir(context, buildAgenda()); showCompartirMenu = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Pedir sugerencias") },
+                                leadingIcon = { Icon(Icons.Default.GroupAdd, null) },
+                                onClick = { showSolicitudDialog = true; showCompartirMenu = false }
+                            )
+                        }
                     }
                     IconButton(
                         onClick = {
@@ -927,4 +957,144 @@ fun generarFormulaLiturgica(tipo: TipoAsunto, asuntos: List<AsuntoEstacaBarrio>)
                 "Los siguientes hermanos/as han sido llamados a los siguientes llamamientos: \"$lista. Los que estén a favor de sostenerlos, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\""
         }
     }
+}
+@Composable
+fun SolicitudRecomendacionesDialog(
+    agenda: Agenda,
+    dateFormat: java.text.SimpleDateFormat,
+    context: android.content.Context,
+    onDismiss: () -> Unit
+) {
+    var himnoApertura by remember { mutableStateOf(false) }
+    var himnoSacramental by remember { mutableStateOf(false) }
+    var himnoIntermedio by remember { mutableStateOf(false) }
+    var himnoFinal by remember { mutableStateOf(false) }
+    var oracionPrimera by remember { mutableStateOf(false) }
+    var oracionFinal by remember { mutableStateOf(false) }
+    var discursos by remember { mutableStateOf(false) }
+    var cantidadDiscursos by remember { mutableStateOf(1) }
+
+    val hayAlgoSeleccionado = himnoApertura || himnoSacramental || himnoIntermedio ||
+            himnoFinal || oracionPrimera || oracionFinal || discursos
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pedir sugerencias") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "Seleccioná qué necesitás para el ${dateFormat.format(agenda.fecha.toDate())}:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text("🎵 Himnos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                listOf(
+                    "Apertura" to himnoApertura,
+                    "Sacramental" to himnoSacramental,
+                    "Intermedio" to himnoIntermedio,
+                    "Final" to himnoFinal
+                ).forEachIndexed { i, (label, checked) ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = checked, onCheckedChange = { v ->
+                            when (i) {
+                                0 -> himnoApertura = v
+                                1 -> himnoSacramental = v
+                                2 -> himnoIntermedio = v
+                                3 -> himnoFinal = v
+                            }
+                        })
+                        Text(label, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text("🙏 Oraciones", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                listOf(
+                    "Primera oración" to oracionPrimera,
+                    "Oración final" to oracionFinal
+                ).forEachIndexed { i, (label, checked) ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = checked, onCheckedChange = { v ->
+                            when (i) {
+                                0 -> oracionPrimera = v
+                                1 -> oracionFinal = v
+                            }
+                        })
+                        Text(label, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text("🎤 Discursos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = discursos, onCheckedChange = { discursos = it })
+                    Text("Discursos", style = MaterialTheme.typography.bodyMedium)
+                }
+                if (discursos) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(start = 48.dp)
+                    ) {
+                        IconButton(onClick = { if (cantidadDiscursos > 1) cantidadDiscursos-- }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Remove, "Menos")
+                        }
+                        Text("$cantidadDiscursos", style = MaterialTheme.typography.titleMedium)
+                        IconButton(onClick = { if (cantidadDiscursos < 10) cantidadDiscursos++ }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Add, "Más")
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val fecha = dateFormat.format(agenda.fecha.toDate())
+                    val sb = StringBuilder()
+                    sb.appendLine("*Agenda del domingo $fecha*")
+                    sb.appendLine("Queridos hermanos del obispado: Necesitamos recomendaciones para las siguientes asignaciones:")
+                    sb.appendLine()
+                    val himnos = mutableListOf<String>()
+                    if (himnoApertura) himnos.add("Apertura")
+                    if (himnoSacramental) himnos.add("Sacramental")
+                    if (himnoIntermedio) himnos.add("Intermedio")
+                    if (himnoFinal) himnos.add("Final")
+                    if (himnos.isNotEmpty()) sb.appendLine("🎵 Himnos: ${himnos.joinToString(", ")}")
+                    val oraciones = mutableListOf<String>()
+                    if (oracionPrimera) oraciones.add("Primera oración")
+                    if (oracionFinal) oraciones.add("Oración final")
+                    if (oraciones.isNotEmpty()) sb.appendLine("🙏 Oraciones: ${oraciones.joinToString(", ")}")
+                    if (discursos) {
+                        val texto = if (cantidadDiscursos == 1) "1 discurso" else "$cantidadDiscursos discursos"
+                        sb.appendLine("🎤 Discursos: $texto")
+                    }
+                    sb.appendLine()
+                    sb.append("Por favor envíen sugerencias por acá lo antes posible. Gracias.")
+
+                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, sb.toString())
+                        setPackage("com.whatsapp")
+                    }
+                    try {
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        val intentGeneral = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_TEXT, sb.toString())
+                        }
+                        context.startActivity(android.content.Intent.createChooser(intentGeneral, "Enviar solicitud"))
+                    }
+                    onDismiss()
+                },
+                enabled = hayAlgoSeleccionado
+            ) { Text("Enviar") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
 }
