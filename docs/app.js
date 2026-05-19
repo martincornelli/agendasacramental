@@ -40,6 +40,11 @@ const UNIT_STORAGE_KEY = "agenda_sacramental_web_unit";
 const THEME_STORAGE_KEY = "agenda_sacramental_web_theme";
 const GITHUB_PAGES_DOMAIN = "martincornelli.github.io";
 const AGENDA_STATES = ["BORRADOR", "CONFIRMADA", "REALIZADA"];
+const AGENDA_GROUPS = [
+  { state: "BORRADOR", label: "Borrador", defaultOpen: true },
+  { state: "CONFIRMADA", label: "Confirmadas", defaultOpen: true },
+  { state: "REALIZADA", label: "Realizadas", defaultOpen: false }
+];
 const BUSINESS_TYPES = ["RELEVO", "SOSTENIMIENTO", "OTROS"];
 const MESSAGE_TYPES = ["DISCURSO", "TESTIMONIO", "HIMNO_INTERMEDIO"];
 const defaultConfig = {
@@ -149,12 +154,7 @@ function bindChrome() {
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.addEventListener("click", () => navigate(button.dataset.route));
   });
-  document.querySelector("#change-unit").addEventListener("click", () => {
-    state.unitNumber = "";
-    localStorage.removeItem(UNIT_STORAGE_KEY);
-    cleanupSubscriptions();
-    render();
-  });
+  document.querySelector("#change-unit").addEventListener("click", openChangeUnitDialog);
   document.querySelector("#sign-out").addEventListener("click", async () => {
     await signOut(auth);
     state.unitNumber = "";
@@ -352,22 +352,60 @@ function renderUnitAccess() {
     await withToastError(async () => {
       const unitNumber = screen.querySelector("#unit-number").value.trim();
       const password = screen.querySelector("#unit-password").value;
-      if (!unitNumber || !password) throw new Error("Ingresa unidad y contraseña.");
-      const unitDoc = await getDoc(unitRef(unitNumber));
-      const passwordHash = await hashPassword(password);
-      if (!unitDoc.exists()) {
-        if (!confirm(`La unidad ${unitNumber} no existe. ¿Deseas crearla?`)) return;
-        await setDoc(unitRef(unitNumber), {
-          numeroUnidad: unitNumber,
-          passwordHash,
-          creadoPor: userEmail(),
-          creadoEn: serverTimestamp()
-        });
-      } else if (unitDoc.data().passwordHash !== passwordHash) {
-        throw new Error("Contraseña incorrecta.");
-      }
+      const canAccess = await ensureUnitAccess(unitNumber, password);
+      if (!canAccess) return;
       activateUnit(unitNumber);
     });
+  });
+}
+
+async function ensureUnitAccess(unitNumber, password) {
+  if (!unitNumber || !password) throw new Error("Ingresa unidad y contraseña.");
+  const unitDoc = await getDoc(unitRef(unitNumber));
+  const passwordHash = await hashPassword(password);
+  if (!unitDoc.exists()) {
+    if (!confirm(`La unidad ${unitNumber} no existe. ¿Deseas crearla?`)) return false;
+    await setDoc(unitRef(unitNumber), {
+      numeroUnidad: unitNumber,
+      passwordHash,
+      creadoPor: userEmail(),
+      creadoEn: serverTimestamp()
+    });
+  } else if (unitDoc.data().passwordHash !== passwordHash) {
+    throw new Error("Contraseña incorrecta.");
+  }
+  return true;
+}
+
+function openChangeUnitDialog() {
+  openModal({
+    title: "Cambiar unidad",
+    body: `
+      <form id="change-unit-form" class="form-grid">
+        <p class="muted">Unidad actual: <strong>${escapeHtml(state.unitNumber)}</strong></p>
+        <div class="inline-fields">
+          ${field("change-unit-number", "Número de unidad", `<input id="change-unit-number" class="input" inputmode="numeric" autocomplete="off" value="${escapeAttr(state.unitNumber)}" required>`)}
+          ${field("change-unit-password", "Contraseña", `<input id="change-unit-password" class="input" type="password" autocomplete="current-password" required>`)}
+        </div>
+      </form>
+    `,
+    footer: `
+      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
+      <button class="primary-button" form="change-unit-form" type="submit">Entrar</button>
+    `,
+    bind: (dialog) => {
+      dialog.querySelector("#change-unit-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await withToastError(async () => {
+          const unitNumber = dialog.querySelector("#change-unit-number").value.trim();
+          const password = dialog.querySelector("#change-unit-password").value;
+          const canAccess = await ensureUnitAccess(unitNumber, password);
+          if (!canAccess) return;
+          closeModal();
+          activateUnit(unitNumber);
+        });
+      });
+    }
   });
 }
 
@@ -380,12 +418,10 @@ function activateUnit(unitNumber) {
 
 function renderAgendas() {
   const searchValue = "";
-  const nextAgenda = upcomingAgenda();
-  const stats = agendaStats();
   screen.innerHTML = `
     <div class="toolbar">
       <div class="toolbar-left">
-        <input id="agenda-search" class="input" type="search" placeholder="Buscar por fecha, nombre, himno..." style="width: min(420px, 100%);">
+        <input id="agenda-search" class="input" type="search" placeholder="Buscar por fecha, nombre, himno..." style="width: min(420px, 100%);" value="${escapeAttr(searchValue)}">
         ${stateFilter("all", "Todas", true)}
         ${stateFilter("BORRADOR", "Borrador")}
         ${stateFilter("CONFIRMADA", "Confirmada")}
@@ -397,28 +433,7 @@ function renderAgendas() {
       </div>
     </div>
 
-    <div class="screen-grid">
-      <section class="panel prominent">
-        ${sectionTitle("Resumen", "A", "")}
-        <div class="metric-grid">
-          ${metricPill("Total", stats.total)}
-          ${metricPill("Borrador", stats.draft)}
-          ${metricPill("Confirmadas", stats.confirmed)}
-        </div>
-      </section>
-
-      ${nextAgenda ? `
-        <section class="panel">
-          ${sectionTitle("Proximo domingo", "P", `<button class="text-button" data-open="${escapeAttr(nextAgenda.id)}" type="button">Abrir</button>`)}
-          ${agendaCard(nextAgenda)}
-        </section>
-      ` : ""}
-
-      <section class="panel">
-        ${sectionTitle("Agendas", "L", "")}
-        <div id="agenda-list" class="agenda-list">${renderAgendaList(searchValue, "all")}</div>
-      </section>
-    </div>
+    <div id="agenda-content" class="screen-grid">${renderAgendaDashboard(searchValue, "all")}</div>
   `;
   screen.querySelector("#new-agenda").addEventListener("click", () => openEditor(null));
   screen.querySelector("#create-sundays").addEventListener("click", openCreateSundaysDialog);
@@ -426,7 +441,7 @@ function renderAgendas() {
   const filters = [...screen.querySelectorAll("[data-filter-state]")];
   const rerender = () => {
     const active = filters.find((button) => button.classList.contains("active"))?.dataset.filterState || "all";
-    screen.querySelector("#agenda-list").innerHTML = renderAgendaList(searchInput.value, active);
+    screen.querySelector("#agenda-content").innerHTML = renderAgendaDashboard(searchInput.value, active);
     bindAgendaListActions();
   };
   searchInput.addEventListener("input", rerender);
@@ -440,32 +455,95 @@ function renderAgendas() {
   bindAgendaListActions();
 }
 
+function renderAgendaDashboard(searchValue, filterState) {
+  const stats = agendaStats();
+  const nextAgenda = upcomingAgenda();
+  const showNextAgenda = nextAgenda &&
+    agendaMatchesState(nextAgenda, filterState) &&
+    agendaMatchesSearch(nextAgenda, searchValue);
+  return `
+    <section class="panel prominent">
+      ${sectionTitle("Resumen", "", "")}
+      <div class="metric-grid">
+        ${metricPill("Total", stats.total)}
+        ${metricPill("Borrador", stats.draft)}
+        ${metricPill("Confirmadas", stats.confirmed)}
+      </div>
+    </section>
+
+    ${showNextAgenda ? `
+      <section class="panel">
+        ${sectionTitle("Próximo domingo", "", `<button class="text-button" data-open="${escapeAttr(nextAgenda.id)}" type="button">Abrir</button>`)}
+        ${agendaCard(nextAgenda)}
+      </section>
+    ` : ""}
+
+    <section class="panel">
+      ${sectionTitle("Agendas", "", "")}
+      <div id="agenda-list" class="agenda-list grouped">${renderAgendaList(searchValue, filterState)}</div>
+    </section>
+  `;
+}
+
 function stateFilter(value, label, active = false) {
   return `<button class="filter-chip ${active ? "active" : ""}" data-filter-state="${escapeAttr(value)}" type="button">${escapeHtml(label)}</button>`;
 }
 
 function renderAgendaList(searchValue, filterState) {
-  const normalizedSearch = normalizeText(searchValue);
-  const items = state.agendas.filter((agenda) => {
-    const passesState = filterState === "all" || agenda.estado === filterState;
-    const haystack = normalizeText([
-      formatDateLong(agenda.fecha),
-      agenda.preside,
-      agenda.dirige,
-      agenda.primeraOracion,
-      agenda.oracionFinal,
-      agenda.primerHimnoNombre,
-      agenda.himnoSacramentalNombre,
-      agenda.himnoFinalNombre,
-      agenda.primerHimnoNumero,
-      agenda.himnoSacramentalNumero,
-      agenda.himnoFinalNumero,
-      agenda.mensajesEvangelio.map((item) => `${item.nombre} ${item.himnoNombre} ${item.himnoNumero}`).join(" ")
-    ].join(" "));
-    return passesState && (!normalizedSearch || haystack.includes(normalizedSearch));
-  });
+  const items = state.agendas.filter((agenda) =>
+    agendaMatchesState(agenda, filterState) &&
+    agendaMatchesSearch(agenda, searchValue)
+  );
   if (!items.length) return emptyState("No hay agendas para mostrar.");
-  return items.map(agendaCard).join("");
+
+  return AGENDA_GROUPS
+    .filter((group) => filterState === "all" || group.state === filterState)
+    .map((group) => {
+      const groupItems = items
+        .filter((agenda) => agenda.estado === group.state)
+        .sort((a, b) => compareAgendasForGroup(a, b, group.state));
+      if (!groupItems.length) return "";
+      const shouldOpen = group.defaultOpen || Boolean(normalizeText(searchValue)) || filterState !== "all";
+      return `
+        <details class="agenda-group" ${shouldOpen ? "open" : ""}>
+          <summary>
+            <span>${escapeHtml(group.label)}</span>
+            <strong>${groupItems.length}</strong>
+          </summary>
+          <div class="agenda-list">${groupItems.map(agendaCard).join("")}</div>
+        </details>
+      `;
+    })
+    .join("");
+}
+
+function agendaMatchesState(agenda, filterState) {
+  return filterState === "all" || agenda.estado === filterState;
+}
+
+function agendaMatchesSearch(agenda, searchValue) {
+  const normalizedSearch = normalizeText(searchValue);
+  if (!normalizedSearch) return true;
+  const haystack = normalizeText([
+    formatDateLong(agenda.fecha),
+    labelState(agenda.estado),
+    agenda.preside,
+    agenda.dirige,
+    agenda.primeraOracion,
+    agenda.oracionFinal,
+    agenda.primerHimnoNombre,
+    agenda.himnoSacramentalNombre,
+    agenda.himnoFinalNombre,
+    agenda.primerHimnoNumero,
+    agenda.himnoSacramentalNumero,
+    agenda.himnoFinalNumero,
+    agenda.mensajesEvangelio.map((item) => `${item.nombre} ${item.himnoNombre} ${item.himnoNumero}`).join(" ")
+  ].join(" "));
+  return haystack.includes(normalizedSearch);
+}
+
+function compareAgendasForGroup(a, b, groupState) {
+  return groupState === "REALIZADA" ? b.fecha - a.fecha : a.fecha - b.fecha;
 }
 
 function agendaCard(agenda) {
@@ -474,7 +552,7 @@ function agendaCard(agenda) {
       <div class="agenda-card-header">
         <div>
           <h3>${escapeHtml(formatDateLong(agenda.fecha))}</h3>
-          <p class="item-meta">${agenda.reunionTestimonios ? "Reunion de ayuno y testimonios" : "Reunion sacramental"}</p>
+          <p class="item-meta">${agenda.reunionTestimonios ? "Reunión de ayuno y testimonios" : "Reunión sacramental"}</p>
         </div>
         <span class="status-pill status-${escapeAttr(agenda.estado)}">${escapeHtml(labelState(agenda.estado))}</span>
       </div>
@@ -504,7 +582,7 @@ function bindAgendaListActions() {
   });
   screen.querySelectorAll("[data-delete-agenda]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!confirm("Eliminar esta agenda?")) return;
+      if (!confirm("¿Eliminar esta agenda?")) return;
       await withToastError(async () => {
         await deleteDoc(agendaRef(button.dataset.deleteAgenda));
         toastMessage("Agenda eliminada");
@@ -530,7 +608,7 @@ function renderAgendaEditor() {
     ? state.agendas.find((item) => item.id === state.activeAgendaId)
     : createBlankAgenda(nextSunday());
   if (!agenda) {
-    screen.innerHTML = emptyPanel("No se encontro la agenda.");
+      screen.innerHTML = emptyPanel("No se encontró la agenda.");
     return;
   }
   screen.innerHTML = `
@@ -561,18 +639,18 @@ function renderAgendaEditor() {
       </section>
 
       <section class="panel">
-        ${sectionTitle("Himnos y musica", "H", "")}
+        ${sectionTitle("Himnos y música", "H", "")}
         <div class="form-grid">
           ${hymnFields("primerHimno", "Primer himno", agenda.primerHimnoNumero, agenda.primerHimnoNombre)}
           ${hymnFields("himnoSacramental", "Himno sacramental", agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre)}
           ${hymnFields("himnoFinal", "Himno final", agenda.himnoFinalNumero, agenda.himnoFinalNombre)}
           <div class="inline-fields">
-            ${field("directorMusica", "Director/a de musica", textInput("directorMusica", agenda.directorMusica, "names-list"))}
+            ${field("directorMusica", "Director/a de música", textInput("directorMusica", agenda.directorMusica, "names-list"))}
             ${field("pianista", "Pianista", textInput("pianista", agenda.pianista, "names-list"))}
           </div>
           <div class="inline-fields">
-            ${field("primeraOracion", "Primera oracion", textInput("primeraOracion", agenda.primeraOracion, "names-list"))}
-            ${field("oracionFinal", "Oracion final", textInput("oracionFinal", agenda.oracionFinal, "names-list"))}
+            ${field("primeraOracion", "Primera oración", textInput("primeraOracion", agenda.primeraOracion, "names-list"))}
+            ${field("oracionFinal", "Oración final", textInput("oracionFinal", agenda.oracionFinal, "names-list"))}
           </div>
         </div>
       </section>
@@ -586,11 +664,11 @@ function renderAgendaEditor() {
         ${sectionTitle("Mensajes del Evangelio", "M", `<button class="secondary-button" id="add-message" type="button">Agregar</button>`)}
         <label class="checkbox-line">
           <input id="reunionTestimonios" type="checkbox" ${agenda.reunionTestimonios ? "checked" : ""}>
-          Reunion de ayuno y testimonios
+          Reunión de ayuno y testimonios
         </label>
         <div id="message-list" class="dynamic-list">${agenda.mensajesEvangelio.map(messageRow).join("")}</div>
         <div class="field">
-          <label for="testimonios">Testimonios o nombres, uno por linea</label>
+          <label for="testimonios">Testimonios o nombres, uno por línea</label>
           <textarea id="testimonios" class="textarea">${escapeHtml((agenda.testimonios || []).join("\n"))}</textarea>
         </div>
       </section>
@@ -616,6 +694,18 @@ function renderAgendaEditor() {
 
 function field(id, label, control) {
   return `<div class="field"><label for="${escapeAttr(id)}">${escapeHtml(label)}</label>${control}</div>`;
+}
+
+function configColorField(id, label, colorClass, value) {
+  return `
+    <div class="field">
+      <label class="config-color-label" for="${escapeAttr(id)}">
+        <span class="config-swatch ${escapeAttr(colorClass)}"></span>
+        ${escapeHtml(label)}
+      </label>
+      <input id="${escapeAttr(id)}" class="input" type="number" min="1" value="${Number(value)}">
+    </div>
+  `;
 }
 
 function textInput(id, value, list = "") {
@@ -699,9 +789,7 @@ function bindMessageHymnRow(row) {
 function fillHymnName(number, target) {
   if (!target) return;
   const hymn = hymnName(number);
-  if (hymn && (!target.value || confirm("Reemplazar el nombre del himno con el sugerido?"))) {
-    target.value = hymn;
-  }
+  if (hymn) target.value = hymn;
 }
 
 async function saveAgendaFromForm(event) {
@@ -714,14 +802,17 @@ async function saveAgendaFromForm(event) {
     );
     if (duplicate) throw new Error("Ya existe una agenda para esa fecha.");
     const data = agendaToFirestore(agenda, oldAgenda);
+    let savedAgenda = agenda;
     if (agenda.id) {
       await setDoc(agendaRef(agenda.id), data);
       toastMessage("Agenda guardada");
     } else {
       const ref = await addDoc(collection(db, "agendas"), data);
       state.activeAgendaId = ref.id;
+      savedAgenda = { ...agenda, id: ref.id };
       toastMessage("Agenda creada");
     }
+    await syncAgendaParticipants(savedAgenda);
     navigate("agendas");
   });
 }
@@ -809,11 +900,71 @@ function agendaToFirestore(agenda, oldAgenda = null) {
   };
 }
 
+async function syncAgendaParticipants(agenda) {
+  const cache = hermanoCache();
+  const talkNames = agenda.mensajesEvangelio
+    .filter((item) => item.tipo !== "HIMNO_INTERMEDIO")
+    .map((item) => item.nombre?.trim())
+    .filter(Boolean);
+  const prayerNames = [agenda.primeraOracion, agenda.oracionFinal]
+    .map((item) => item?.trim())
+    .filter(Boolean);
+
+  for (const name of talkNames) {
+    await syncHermanoParticipation(name, agenda.fecha, "talks", cache);
+  }
+  for (const name of prayerNames) {
+    await syncHermanoParticipation(name, agenda.fecha, "prayers", cache);
+  }
+}
+
+function hermanoCache() {
+  return new Map(
+    state.hermanos
+      .filter((item) => item.excluido !== true)
+      .map((item) => [normalizeName(item.nombre), { ...item }])
+  );
+}
+
+async function syncHermanoParticipation(name, date, tab, cache = hermanoCache()) {
+  const cleanName = name?.trim();
+  if (!cleanName) return;
+  const participationDate = toDate(date);
+  if (!participationDate) return;
+
+  const key = normalizeName(cleanName);
+  const fieldName = tab === "talks" ? "ultimaVezDiscursoManual" : "ultimaVezOracionManual";
+  const timestamp = Timestamp.fromDate(participationDate);
+  const existing = cache.get(key);
+  const currentDate = toDate(existing?.[fieldName]);
+  if (currentDate && participationDate <= currentDate) return;
+
+  if (existing?.id) {
+    await updateDoc(hermanoRef(existing.id), { [fieldName]: timestamp });
+    cache.set(key, { ...existing, [fieldName]: timestamp });
+    return;
+  }
+
+  const data = {
+    numeroUnidad: state.unitNumber,
+    nombre: cleanName,
+    agregadoManualmente: false,
+    excluido: false,
+    inactivoDiscurso: false,
+    inactivoOracion: false,
+    ultimaVezDiscursoManual: tab === "talks" ? timestamp : null,
+    ultimaVezOracionManual: tab === "prayers" ? timestamp : null,
+    creadoEn: serverTimestamp()
+  };
+  const ref = await addDoc(collection(db, "hermanos"), data);
+  cache.set(key, { ...data, id: ref.id });
+}
+
 function renderReadingMode() {
   const agenda = state.draftReadingAgenda || state.agendas.find((item) => item.id === state.activeAgendaId);
   state.draftReadingAgenda = null;
   if (!agenda) {
-    screen.innerHTML = emptyPanel("No se encontro la agenda.");
+    screen.innerHTML = emptyPanel("No se encontró la agenda.");
     return;
   }
   screen.innerHTML = `
@@ -847,7 +998,7 @@ function readingHtml(agenda) {
     }).join("");
   return `
     <div class="reading-title">
-      <h2>Agenda Reunion Sacramental</h2>
+      <h2>Agenda Reunión Sacramental</h2>
       <p>${escapeHtml(formatDateLong(agenda.fecha))}</p>
     </div>
     ${readingLine("Preside", agenda.preside)}
@@ -858,12 +1009,12 @@ function readingHtml(agenda) {
     ${readingLine("Himno de apertura", hymnLabel(agenda.primerHimnoNumero, agenda.primerHimnoNombre))}
     ${readingLine("Director/a", agenda.directorMusica)}
     ${readingLine("Pianista", agenda.pianista)}
-    ${readingLine("Primera oracion", agenda.primeraOracion)}
+    ${readingLine("Primera oración", agenda.primeraOracion)}
     ${agenda.asuntosEstacaBarrio.length ? `<section class="reading-section"><strong>Asuntos Estaca/Barrio</strong><ul>${agenda.asuntosEstacaBarrio.map((item) => `<li>${escapeHtml(labelBusiness(item.tipo))}: ${escapeHtml([item.columna2, item.columna3].filter(Boolean).join(" - "))}</li>`).join("")}</ul></section>` : ""}
     ${readingLine("Himno Sacramental", hymnLabel(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre))}
-    <section class="reading-section"><strong>${agenda.reunionTestimonios ? "Reunion de testimonios" : "Mensajes del Evangelio"}</strong>${messages ? `<ul>${messages}</ul>` : "<p>Sin datos</p>"}</section>
+    <section class="reading-section"><strong>${agenda.reunionTestimonios ? "Reunión de testimonios" : "Mensajes del Evangelio"}</strong>${messages ? `<ul>${messages}</ul>` : "<p>Sin datos</p>"}</section>
     ${readingLine("Himno final", hymnLabel(agenda.himnoFinalNumero, agenda.himnoFinalNombre))}
-    ${readingLine("Oracion final", agenda.oracionFinal)}
+    ${readingLine("Oración final", agenda.oracionFinal)}
   `;
 }
 
@@ -916,7 +1067,7 @@ function renderPlanning() {
 function renderBrotherList(items, tab, searchValue) {
   const q = normalizeText(searchValue);
   const filtered = items.filter((item) => !q || normalizeText(item.hermano.nombre).includes(q));
-  if (!filtered.length) return emptyState("No hay hermanos en esta categoria.");
+  if (!filtered.length) return emptyState("No hay hermanos en esta categoría.");
   return filtered.map((item) => brotherRow(item, tab)).join("");
 }
 
@@ -929,7 +1080,7 @@ function brotherRow(item, tab) {
     <article class="brother-item">
       <div>
         <p class="item-title"><span class="rank-dot ${escapeAttr(color)}"></span>${escapeHtml(item.hermano.nombre)}</p>
-        <p class="item-meta">${inactive ? "Inactivo · " : ""}${last ? `Ultima participacion: ${formatDateShort(last)} (${daysSince(last)} dias)` : "Sin registros"}${count ? ` · ${count} vez/veces en 90 dias` : ""}</p>
+        <p class="item-meta">${inactive ? "Inactivo · " : ""}${last ? `Última participación: ${formatDateShort(last)} (${daysSince(last)} días)` : "Sin registros"}${count ? ` · ${count} vez/veces en 90 días` : ""}</p>
       </div>
       <div class="item-actions">
         <button class="secondary-button" data-assign="${escapeAttr(item.key)}" type="button">Asignar</button>
@@ -966,8 +1117,8 @@ function openBrotherDialog(ranking = null) {
       <form id="brother-form" class="form-grid">
         ${field("brother-name", "Nombre", `<input id="brother-name" class="input" value="${escapeAttr(hermano.nombre || "")}" required>`)}
         <div class="inline-fields">
-          ${field("last-talk", "Ultimo discurso conocido", `<input id="last-talk" class="input" type="date" value="${dateInputValue(toDate(hermano.ultimaVezDiscursoManual))}">`)}
-          ${field("last-prayer", "Ultima oracion conocida", `<input id="last-prayer" class="input" type="date" value="${dateInputValue(toDate(hermano.ultimaVezOracionManual))}">`)}
+          ${field("last-talk", "Último discurso conocido", `<input id="last-talk" class="input" type="date" value="${dateInputValue(ranking?.ultimaVezDiscurso || toDate(hermano.ultimaVezDiscursoManual))}">`)}
+          ${field("last-prayer", "Última oración conocida", `<input id="last-prayer" class="input" type="date" value="${dateInputValue(ranking?.ultimaVezOracion || toDate(hermano.ultimaVezOracionManual))}">`)}
         </div>
       </form>
     `,
@@ -1016,7 +1167,7 @@ function openAssignDialog(ranking) {
     body: `
       <form id="assign-form" class="form-grid">
         ${field("assign-agenda", "Agenda", `<select id="assign-agenda" class="select">${candidateAgendas.map((agenda) => option(agenda.id, formatDateLong(agenda.fecha), candidateAgendas[0].id)).join("")}</select>`)}
-        ${tab === "prayers" ? field("assign-field", "Tipo de oracion", `<select id="assign-field" class="select"><option value="primeraOracion">Primera oracion</option><option value="oracionFinal">Oracion final</option></select>`) : `<input id="assign-field" type="hidden" value="NUEVO_DISCURSO">`}
+        ${tab === "prayers" ? field("assign-field", "Tipo de oración", `<select id="assign-field" class="select"><option value="primeraOracion">Primera oración</option><option value="oracionFinal">Oración final</option></select>`) : `<input id="assign-field" type="hidden" value="NUEVO_DISCURSO">`}
       </form>
     `,
     footer: `
@@ -1028,11 +1179,12 @@ function openAssignDialog(ranking) {
         event.preventDefault();
         await withToastError(async () => {
           const last = tab === "talks" ? ranking.ultimaVezDiscurso : ranking.ultimaVezOracion;
-          if (last && rankColor(last, tab) === "rank-red" && !confirm(`${ranking.hermano.nombre} participo hace solo ${daysSince(last)} dias. Asignar igual?`)) return;
+          if (last && rankColor(last, tab) === "rank-red" && !confirm(`${ranking.hermano.nombre} participó hace solo ${daysSince(last)} días. ¿Asignar igual?`)) return;
           const agendaId = dialog.querySelector("#assign-agenda").value;
           const fieldName = dialog.querySelector("#assign-field").value;
+          const agenda = state.agendas.find((item) => item.id === agendaId);
+          if (!agenda) throw new Error("No se encontró la agenda.");
           if (fieldName === "NUEVO_DISCURSO") {
-            const agenda = state.agendas.find((item) => item.id === agendaId);
             await updateDoc(agendaRef(agendaId), {
               mensajesEvangelio: [...agenda.mensajesEvangelio, { tipo: "DISCURSO", nombre: ranking.hermano.nombre, himnoNumero: 0, himnoNombre: "" }],
               ultimaEdicionPor: userEmail(),
@@ -1045,6 +1197,7 @@ function openAssignDialog(ranking) {
               ultimaEdicionEn: serverTimestamp()
             });
           }
+          await syncHermanoParticipation(ranking.hermano.nombre, agenda.fecha, tab);
           closeModal();
           toastMessage("Asignado");
         });
@@ -1076,7 +1229,7 @@ async function toggleInactive(ranking) {
 }
 
 async function deleteBrother(ranking) {
-  if (!ranking || !confirm(`Eliminar a ${ranking.hermano.nombre} del planificador?`)) return;
+  if (!ranking || !confirm(`¿Eliminar a ${ranking.hermano.nombre} del planificador?`)) return;
   await withToastError(async () => {
     if (ranking.hermano.id) {
       await deleteDoc(hermanoRef(ranking.hermano.id));
@@ -1099,12 +1252,12 @@ function openPlanningConfigDialog() {
     body: `
       <form id="planning-config-form" class="form-grid">
         <div class="inline-fields">
-          ${field("green-talk", "Discursos: verde desde dias", `<input id="green-talk" class="input" type="number" min="1" value="${Number(state.config.diasVerdeDiscurso)}">`)}
-          ${field("yellow-talk", "Discursos: amarillo desde dias", `<input id="yellow-talk" class="input" type="number" min="1" value="${Number(state.config.diasAmarilloDiscurso)}">`)}
+          ${configColorField("green-talk", "Discursos: verde desde días", "rank-green", state.config.diasVerdeDiscurso)}
+          ${configColorField("yellow-talk", "Discursos: amarillo desde días", "rank-yellow", state.config.diasAmarilloDiscurso)}
         </div>
         <div class="inline-fields">
-          ${field("green-prayer", "Oraciones: verde desde dias", `<input id="green-prayer" class="input" type="number" min="1" value="${Number(state.config.diasVerdeOracion)}">`)}
-          ${field("yellow-prayer", "Oraciones: amarillo desde dias", `<input id="yellow-prayer" class="input" type="number" min="1" value="${Number(state.config.diasAmarilloOracion)}">`)}
+          ${configColorField("green-prayer", "Oraciones: verde desde días", "rank-green", state.config.diasVerdeOracion)}
+          ${configColorField("yellow-prayer", "Oraciones: amarillo desde días", "rank-yellow", state.config.diasAmarilloOracion)}
         </div>
       </form>
     `,
@@ -1230,10 +1383,6 @@ function renderSettings() {
           <button class="filter-chip ${state.theme === "dark" ? "active" : ""}" data-theme="dark" type="button">Oscuro</button>
         </div>
       </section>
-      <section class="panel">
-        ${sectionTitle("Publicacion web", "W", "")}
-        <p class="muted">Si Google bloquea el inicio de sesión, agrega el dominio de GitHub Pages en Firebase Authentication > Authorized domains.</p>
-      </section>
     </div>
   `;
   screen.querySelector("#password-form").addEventListener("submit", async (event) => {
@@ -1326,7 +1475,6 @@ function sectionTitle(title, icon, trailing) {
   return `
     <div class="section-title">
       <div class="section-title-left">
-        <span class="soft-badge">${escapeHtml(icon)}</span>
         <h3>${escapeHtml(title)}</h3>
       </div>
       <div>${trailing || ""}</div>
@@ -1498,19 +1646,19 @@ function labelMessage(value) {
 
 function agendaText(agenda) {
   const lines = [
-    `Agenda Reunion Sacramental - ${formatDateLong(agenda.fecha)}`,
+    `Agenda Reunión Sacramental - ${formatDateLong(agenda.fecha)}`,
     `Preside: ${agenda.preside || "Sin datos"}`,
     `Dirige: ${agenda.dirige || "Sin datos"}`,
     agenda.reconocimientos ? `Reconocimientos: ${agenda.reconocimientos}` : "",
     agenda.anuncios ? `Anuncios: ${agenda.anuncios}` : "",
     `Himno de apertura: ${hymnLabel(agenda.primerHimnoNumero, agenda.primerHimnoNombre)}`,
-    `Primera oracion: ${agenda.primeraOracion || "Sin datos"}`,
+    `Primera oración: ${agenda.primeraOracion || "Sin datos"}`,
     `Himno Sacramental: ${hymnLabel(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre)}`,
     agenda.reunionTestimonios
       ? `Testimonios: ${(agenda.testimonios || []).join(", ") || "Sin datos"}`
       : `Mensajes: ${agenda.mensajesEvangelio.map((item) => item.tipo === "HIMNO_INTERMEDIO" ? hymnLabel(item.himnoNumero, item.himnoNombre) : `${labelMessage(item.tipo)} - ${item.nombre}`).join("; ") || "Sin datos"}`,
     `Himno final: ${hymnLabel(agenda.himnoFinalNumero, agenda.himnoFinalNombre)}`,
-    `Oracion final: ${agenda.oracionFinal || "Sin datos"}`
+    `Oración final: ${agenda.oracionFinal || "Sin datos"}`
   ].filter(Boolean);
   return lines.join("\n");
 }

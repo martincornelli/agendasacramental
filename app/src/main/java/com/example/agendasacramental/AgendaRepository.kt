@@ -12,6 +12,7 @@ class AgendaRepository {
     private val db = FirebaseFirestore.getInstance()
     private val unidadesRef = db.collection("unidades")
     private val agendasRef = db.collection("agendas")
+    private val hermanosRef = db.collection("hermanos")
 
     private fun hashPassword(password: String): String {
         val bytes = MessageDigest.getInstance("SHA-256").digest(password.toByteArray())
@@ -153,6 +154,7 @@ class AgendaRepository {
                 agendasRef.document(agenda.id).set(data).await()
                 agenda.id
             }
+            sincronizarParticipantesAgenda(agenda.copy(id = id))
             Result.success(id)
         } catch (e: Exception) {
             Result.failure(e)
@@ -378,18 +380,19 @@ class AgendaRepository {
 
     suspend fun asignarHermanoAAgenda(agendaId: String, campo: String, nombre: String): Result<Unit> {
         return try {
-            when (campo) {
-                "Primera Oración" -> {
+            val doc = agendasRef.document(agendaId).get().await()
+            val agenda = doc.toObject(Agenda::class.java)?.copy(id = doc.id)
+                ?: return Result.failure(Exception("Agenda no encontrada"))
+            when (normalizarNombre(campo)) {
+                "primera oracion", "opening prayer" -> {
                     agendasRef.document(agendaId).update("primeraOracion", nombre).await()
+                    actualizarFechaParticipacionManual(agenda.numeroUnidad, nombre, agenda.fecha, esDiscurso = false)
                 }
-                "Oración Final" -> {
+                "oracion final", "closing prayer" -> {
                     agendasRef.document(agendaId).update("oracionFinal", nombre).await()
+                    actualizarFechaParticipacionManual(agenda.numeroUnidad, nombre, agenda.fecha, esDiscurso = false)
                 }
-                "NUEVO_DISCURSO" -> {
-                    // Leer agenda actual y agregar nuevo mensaje al final
-                    val doc = agendasRef.document(agendaId).get().await()
-                    val agenda = doc.toObject(Agenda::class.java)?.copy(id = doc.id)
-                        ?: return Result.failure(Exception("Agenda no encontrada"))
+                "nuevo_discurso" -> {
                     val mensajes = agenda.mensajesEvangelio.toMutableList()
                     mensajes.add(MensajeEvangelio(tipo = TipoMensaje.DISCURSO, nombre = nombre))
                     val mensajesData = mensajes.map {
@@ -397,11 +400,73 @@ class AgendaRepository {
                             "himnoNumero" to it.himnoNumero, "himnoNombre" to it.himnoNombre)
                     }
                     agendasRef.document(agendaId).update("mensajesEvangelio", mensajesData).await()
+                    actualizarFechaParticipacionManual(agenda.numeroUnidad, nombre, agenda.fecha, esDiscurso = true)
                 }
+                else -> return Result.failure(Exception("Campo no reconocido"))
             }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    private suspend fun sincronizarParticipantesAgenda(agenda: Agenda) {
+        val discursos = agenda.mensajesEvangelio
+            .filter { it.tipo != TipoMensaje.HIMNO_INTERMEDIO }
+            .map { it.nombre.trim() }
+            .filter { it.isNotBlank() }
+
+        val oraciones = listOf(agenda.primeraOracion, agenda.oracionFinal)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
+        discursos.forEach { nombre ->
+            actualizarFechaParticipacionManual(agenda.numeroUnidad, nombre, agenda.fecha, esDiscurso = true)
+        }
+        oraciones.forEach { nombre ->
+            actualizarFechaParticipacionManual(agenda.numeroUnidad, nombre, agenda.fecha, esDiscurso = false)
+        }
+    }
+
+    private suspend fun actualizarFechaParticipacionManual(
+        numeroUnidad: String,
+        nombre: String,
+        fecha: Timestamp,
+        esDiscurso: Boolean
+    ) {
+        val nombreLimpio = nombre.trim()
+        if (nombreLimpio.isBlank()) return
+
+        val snapshot = hermanosRef
+            .whereEqualTo("numeroUnidad", numeroUnidad)
+            .get()
+            .await()
+
+        val nombreNorm = normalizarNombre(nombreLimpio)
+        val hermanoDoc = snapshot.documents.firstOrNull {
+            it.getBoolean("excluido") != true &&
+                    normalizarNombre(it.getString("nombre") ?: "") == nombreNorm
+        }
+
+        val campoFecha = if (esDiscurso) "ultimaVezDiscursoManual" else "ultimaVezOracionManual"
+        val fechaActual = hermanoDoc?.getTimestamp(campoFecha)
+        if (fechaActual != null && !fecha.toDate().after(fechaActual.toDate())) return
+
+        if (hermanoDoc != null) {
+            hermanoDoc.reference.update(campoFecha, fecha).await()
+        } else {
+            val data = mutableMapOf<String, Any?>(
+                "numeroUnidad" to numeroUnidad,
+                "nombre" to nombreLimpio,
+                "agregadoManualmente" to false,
+                "excluido" to false,
+                "inactivoDiscurso" to false,
+                "inactivoOracion" to false,
+                "ultimaVezDiscursoManual" to if (esDiscurso) fecha else null,
+                "ultimaVezOracionManual" to if (esDiscurso) null else fecha,
+                "creadoEn" to Timestamp.now()
+            )
+            hermanosRef.add(data).await()
         }
     }
 

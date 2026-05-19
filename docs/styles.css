@@ -7,6 +7,7 @@
   --on-danger: #ffffff;
   --gold: #c6943e;
   --gold-container: #f9ead0;
+  --on-gold-container: #6b4a00;
   --red: #b3261e;
   --red-container: #ffdad6;
   --green: #237a50;
@@ -38,6 +39,7 @@
   --on-danger: #3a0907;
   --gold: #f2c166;
   --gold-container: #4b3513;
+  --on-gold-container: #ffe3a3;
   --red: #ffb4ab;
   --red-container: #5f1411;
   --green: #72d99a;
@@ -497,6 +499,45 @@ h3 {
   gap: 12px;
 }
 
+.agenda-list.grouped {
+  gap: 14px;
+}
+
+.agenda-group {
+  border: 1px solid var(--outline-soft);
+  border-radius: 8px;
+  background: var(--surface-high);
+  overflow: hidden;
+}
+
+.agenda-group summary {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.agenda-group summary strong {
+  min-width: 30px;
+  min-height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.agenda-group > .agenda-list {
+  padding: 12px;
+  border-top: 1px solid var(--outline-soft);
+}
+
 .agenda-card {
   display: grid;
   gap: 14px;
@@ -535,7 +576,7 @@ h3 {
 
 .status-BORRADOR {
   background: var(--gold-container);
-  color: #6b4a00;
+  color: var(--on-gold-container);
 }
 
 .status-CONFIRMADA {
@@ -631,6 +672,10 @@ h3 {
   background: var(--green);
 }
 
+.rank-green {
+  background: var(--green);
+}
+
 .rank-yellow {
   background: var(--yellow);
 }
@@ -641,6 +686,20 @@ h3 {
 
 .rank-muted {
   background: var(--outline);
+}
+
+.config-color-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.config-swatch {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--outline-soft);
 }
 
 .reading-page {

@@ -155,8 +155,8 @@ fun PlanificacionScreen(
     hermanoAEditar?.let { ranking ->
         EditarHermanoDialog(
             nombreActual = ranking.hermano.nombre,
-            fechaDiscursoActual = ranking.hermano.ultimaVezDiscursoManual,
-            fechaOracionActual = ranking.hermano.ultimaVezOracionManual,
+            fechaDiscursoActual = ranking.ultimaVezDiscurso ?: ranking.hermano.ultimaVezDiscursoManual,
+            fechaOracionActual = ranking.ultimaVezOracion ?: ranking.hermano.ultimaVezOracionManual,
             nombresExistentes = rankings.map { it.hermano.nombre }.filter { it != ranking.hermano.nombre },
             onConfirm = { nuevoNombre, fechaDiscurso, fechaOracion, actualizarAgendas ->
                 scope.launch {
@@ -421,7 +421,7 @@ fun PlanificacionScreen(
                                                     normalizarNombre(it.nombre) == normalizarNombre(ranking.hermano.nombre) && it.id.isNotBlank()
                                                 }
                                                 if (nuevo != null) {
-                                                    hermanoAEditar = HermanoRanking(hermano = nuevo)
+                                                    hermanoAEditar = ranking.copy(hermano = nuevo)
                                                 }
                                             }
                                         }
