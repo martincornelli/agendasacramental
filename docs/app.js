@@ -38,6 +38,7 @@ let where;
 
 const UNIT_STORAGE_KEY = "agenda_sacramental_web_unit";
 const THEME_STORAGE_KEY = "agenda_sacramental_web_theme";
+const GITHUB_PAGES_DOMAIN = "martincornelli.github.io";
 const AGENDA_STATES = ["BORRADOR", "CONFIRMADA", "REALIZADA"];
 const BUSINESS_TYPES = ["RELEVO", "SOSTENIMIENTO", "OTROS"];
 const MESSAGE_TYPES = ["DISCURSO", "TESTIMONIO", "HIMNO_INTERMEDIO"];
@@ -80,7 +81,7 @@ boot();
 setTimeout(() => {
   if (state.isBooting) {
     state.isBooting = false;
-    state.fatalError = new Error("Firebase no respondio a tiempo. Revisa la conexion o intenta recargar la pagina.");
+    state.fatalError = new Error("Firebase no respondió a tiempo. Revisa la conexión o intenta recargar la página.");
     render();
   }
 }, 9000);
@@ -277,13 +278,13 @@ function renderChrome() {
       ? "Sin unidad activa"
       : state.isBooting
         ? "Conectando..."
-        : "Sin sesion";
+        : "Sin sesión";
   topbarEyebrow.textContent = state.unitNumber ? `Unidad ${state.unitNumber}` : "Agenda Sacramental";
   topbarTitle.textContent = routeTitle();
 }
 
 function routeTitle() {
-  if (state.route === "planning") return "Planificacion";
+  if (state.route === "planning") return "Planificación";
   if (state.route === "settings") return "Ajustes";
   if (state.route === "edit") return state.activeAgendaId ? "Editar agenda" : "Nueva agenda";
   if (state.route === "reading") return "Modo lectura";
@@ -300,7 +301,7 @@ function renderLogin() {
         <h2>Entrar con Google</h2>
         <p class="muted">Usa la misma cuenta y la misma unidad que en Android para trabajar sobre los datos existentes.</p>
         <div class="button-row">
-          <button id="google-login" class="primary-button" type="button">Iniciar sesion con Google</button>
+          <button id="google-login" class="primary-button" type="button">Iniciar sesión con Google</button>
         </div>
       </section>
     </div>
@@ -312,7 +313,7 @@ function renderLogin() {
       if (error?.code === "auth/popup-blocked" || error?.code === "auth/operation-not-supported-in-this-environment") {
         await signInWithRedirect(auth, googleProvider);
       } else {
-        toastMessage(error?.message || "No se pudo iniciar sesion.");
+        toastMessage(formatErrorMessage(error) || "No se pudo iniciar sesión.", 7000);
       }
     }
   });
@@ -325,15 +326,15 @@ function renderUnitAccess() {
       <section class="setup-panel">
         <p class="eyebrow">${escapeHtml(userEmail())}</p>
         <h2>Acceso a unidad</h2>
-        <p class="muted">Ingresa el numero de unidad y su contrasena. Si la unidad no existe, podras crearla con esa contrasena.</p>
+        <p class="muted">Ingresa el número de unidad y su contraseña. Si la unidad no existe, podrás crearla con esa contraseña.</p>
         <form id="unit-form" class="form-grid">
           <div class="inline-fields">
             <div class="field">
-              <label for="unit-number">Numero de unidad</label>
+              <label for="unit-number">Número de unidad</label>
               <input id="unit-number" class="input" inputmode="numeric" autocomplete="off" required>
             </div>
             <div class="field">
-              <label for="unit-password">Contrasena</label>
+              <label for="unit-password">Contraseña</label>
               <input id="unit-password" class="input" type="password" autocomplete="current-password" required>
             </div>
           </div>
@@ -351,11 +352,11 @@ function renderUnitAccess() {
     await withToastError(async () => {
       const unitNumber = screen.querySelector("#unit-number").value.trim();
       const password = screen.querySelector("#unit-password").value;
-      if (!unitNumber || !password) throw new Error("Ingresa unidad y contrasena.");
+      if (!unitNumber || !password) throw new Error("Ingresa unidad y contraseña.");
       const unitDoc = await getDoc(unitRef(unitNumber));
       const passwordHash = await hashPassword(password);
       if (!unitDoc.exists()) {
-        if (!confirm(`La unidad ${unitNumber} no existe. Deseas crearla?`)) return;
+        if (!confirm(`La unidad ${unitNumber} no existe. ¿Deseas crearla?`)) return;
         await setDoc(unitRef(unitNumber), {
           numeroUnidad: unitNumber,
           passwordHash,
@@ -363,7 +364,7 @@ function renderUnitAccess() {
           creadoEn: serverTimestamp()
         });
       } else if (unitDoc.data().passwordHash !== passwordHash) {
-        throw new Error("Contrasena incorrecta.");
+        throw new Error("Contraseña incorrecta.");
       }
       activateUnit(unitNumber);
     });
@@ -888,7 +889,7 @@ function renderPlanning() {
         <input id="planning-search" class="input" type="search" placeholder="Buscar hermano/a..." style="width: min(340px, 100%);">
       </div>
       <div class="toolbar-right">
-        <button id="planning-config" class="secondary-button" type="button">Configuracion</button>
+        <button id="planning-config" class="secondary-button" type="button">Configuración</button>
         <button id="add-brother" class="primary-button" type="button">Agregar hermano</button>
       </div>
     </div>
@@ -1094,7 +1095,7 @@ async function deleteBrother(ranking) {
 
 function openPlanningConfigDialog() {
   openModal({
-    title: "Configuracion de colores",
+    title: "Configuración de colores",
     body: `
       <form id="planning-config-form" class="form-grid">
         <div class="inline-fields">
@@ -1125,7 +1126,7 @@ function openPlanningConfigDialog() {
           if (state.configId) await setDoc(configRef(state.configId), data);
           else await addDoc(collection(db, "configuracion"), data);
           closeModal();
-          toastMessage("Configuracion guardada");
+          toastMessage("Configuración guardada");
         });
       });
     }
@@ -1217,8 +1218,8 @@ function renderSettings() {
         ${sectionTitle("Unidad", "U", "")}
         <p class="muted">Unidad activa: <strong>${escapeHtml(state.unitNumber)}</strong></p>
         <form id="password-form" class="form-grid">
-          ${field("new-password", "Nueva contrasena", `<input id="new-password" class="input" type="password" minlength="4" required>`)}
-          <button class="primary-button" type="submit">Cambiar contrasena</button>
+          ${field("new-password", "Nueva contraseña", `<input id="new-password" class="input" type="password" minlength="4" required>`)}
+          <button class="primary-button" type="submit">Cambiar contraseña</button>
         </form>
       </section>
       <section class="panel">
@@ -1231,7 +1232,7 @@ function renderSettings() {
       </section>
       <section class="panel">
         ${sectionTitle("Publicacion web", "W", "")}
-        <p class="muted">Si Google bloquea el inicio de sesion, agrega el dominio de GitHub Pages en Firebase Authentication > Authorized domains.</p>
+        <p class="muted">Si Google bloquea el inicio de sesión, agrega el dominio de GitHub Pages en Firebase Authentication > Authorized domains.</p>
       </section>
     </div>
   `;
@@ -1239,9 +1240,9 @@ function renderSettings() {
     event.preventDefault();
     await withToastError(async () => {
       const password = screen.querySelector("#new-password").value;
-      if (password.length < 4) throw new Error("La contrasena debe tener al menos 4 caracteres.");
+      if (password.length < 4) throw new Error("La contraseña debe tener al menos 4 caracteres.");
       await updateDoc(unitRef(state.unitNumber), { passwordHash: await hashPassword(password) });
-      toastMessage("Contrasena actualizada");
+      toastMessage("Contraseña actualizada");
       event.target.reset();
     });
   });
@@ -1355,12 +1356,13 @@ function loadingPanel(text) {
 }
 
 function renderFatalError(error) {
+  const message = formatErrorMessage(error) || "Revisa Firebase y los permisos de Firestore.";
   appShell.classList.add("setup-mode");
   screen.innerHTML = `
     <div class="setup-wrap">
       <section class="setup-panel">
         <h2>No se pudo conectar</h2>
-        <p class="muted">${escapeHtml(error?.message || "Revisa Firebase y los permisos de Firestore.")}</p>
+        <p class="muted">${escapeHtml(message)}</p>
       </section>
     </div>
   `;
@@ -1371,15 +1373,24 @@ async function withToastError(task) {
     await task();
   } catch (error) {
     console.error(error);
-    toastMessage(error?.message || "No se pudo completar la accion.");
+    toastMessage(formatErrorMessage(error) || "No se pudo completar la acción.", 7000);
   }
 }
 
-function toastMessage(message) {
+function formatErrorMessage(error) {
+  if (error?.code === "auth/unauthorized-domain") {
+    return `Este dominio no está autorizado en Firebase. Agrega ${GITHUB_PAGES_DOMAIN} en Authentication > Settings > Authorized domains.`;
+  }
+  if (error?.code === "auth/popup-closed-by-user") return "Inicio de sesión cancelado.";
+  if (error?.code === "permission-denied") return "Firebase rechazó la operación. Revisa las reglas de Firestore.";
+  return error?.message || "";
+}
+
+function toastMessage(message, duration = 2800) {
   toast.textContent = message;
   toast.classList.add("visible");
   clearTimeout(toastMessage.timeoutId);
-  toastMessage.timeoutId = setTimeout(() => toast.classList.remove("visible"), 2800);
+  toastMessage.timeoutId = setTimeout(() => toast.classList.remove("visible"), duration);
 }
 
 function normalizeAgenda(id, data) {
