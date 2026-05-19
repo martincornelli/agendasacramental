@@ -155,9 +155,7 @@ class MainActivity : AppCompatActivity() {
                                 currentScreen.value = Screen.Home
                                 AgendaNotificationWorker.programar(this@MainActivity)
                                 // Guardar próxima agenda en prefs para notificaciones
-                                CoroutineScope(Dispatchers.IO).launch {
-                                    AgendaRepository().guardarProximaAgendaEnPrefs(numeroUnidad, this@MainActivity)
-                                }
+                                sincronizarDatosUnidad(numeroUnidad)
                             },
                             onLogout = { logout() }
                         )
@@ -228,6 +226,14 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
+        }
+    }
+
+    private fun sincronizarDatosUnidad(numeroUnidad: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val repository = AgendaRepository()
+            repository.sincronizarFechasParticipacionDesdeHistorial(numeroUnidad)
+            repository.guardarProximaAgendaEnPrefs(numeroUnidad, this@MainActivity)
         }
     }
 

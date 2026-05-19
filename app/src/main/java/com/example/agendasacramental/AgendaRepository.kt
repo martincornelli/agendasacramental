@@ -513,6 +513,116 @@ class AgendaRepository {
         }
     }
 
+    suspend fun sincronizarFechasParticipacionDesdeHistorial(numeroUnidad: String): Result<Int> {
+        return try {
+            val agendasSnap = agendasRef
+                .whereEqualTo("numeroUnidad", numeroUnidad)
+                .get()
+                .await()
+
+            data class Participacion(val nombre: String, val fecha: Timestamp)
+
+            val ultimosDiscursos = mutableMapOf<String, Participacion>()
+            val ultimasOraciones = mutableMapOf<String, Participacion>()
+
+            fun registrar(
+                destino: MutableMap<String, Participacion>,
+                nombre: String?,
+                fecha: Timestamp
+            ) {
+                val nombreLimpio = nombre?.trim().orEmpty()
+                if (nombreLimpio.isBlank()) return
+                val key = normalizarNombre(nombreLimpio)
+                val actual = destino[key]?.fecha
+                if (actual == null || fecha.toDate().after(actual.toDate())) {
+                    destino[key] = Participacion(nombreLimpio, fecha)
+                }
+            }
+
+            agendasSnap.documents.forEach { doc ->
+                val fecha = doc.getTimestamp("fecha") ?: return@forEach
+                registrar(ultimasOraciones, doc.getString("primeraOracion"), fecha)
+                registrar(ultimasOraciones, doc.getString("oracionFinal"), fecha)
+
+                @Suppress("UNCHECKED_CAST")
+                val mensajes = doc.get("mensajesEvangelio") as? List<Map<String, Any>> ?: emptyList()
+                mensajes.forEach { mensaje ->
+                    if (mensaje["tipo"] as? String != TipoMensaje.HIMNO_INTERMEDIO.name) {
+                        registrar(ultimosDiscursos, mensaje["nombre"] as? String, fecha)
+                    }
+                }
+            }
+
+            val hermanosSnap = hermanosRef
+                .whereEqualTo("numeroUnidad", numeroUnidad)
+                .get()
+                .await()
+
+            val excluidos = hermanosSnap.documents
+                .filter { it.getBoolean("excluido") == true }
+                .map { normalizarNombre(it.getString("nombre") ?: "") }
+                .toSet()
+
+            val hermanosPorNombre = hermanosSnap.documents
+                .filter { it.getBoolean("excluido") != true }
+                .filter { normalizarNombre(it.getString("nombre") ?: "").isNotBlank() }
+                .groupBy { normalizarNombre(it.getString("nombre") ?: "") }
+
+            var cambios = 0
+            val nombres = (ultimosDiscursos.keys + ultimasOraciones.keys).filter { it !in excluidos }.toSet()
+            nombres.forEach { key ->
+                val ultimoDiscurso = ultimosDiscursos[key]
+                val ultimaOracion = ultimasOraciones[key]
+                val hermanos = hermanosPorNombre[key].orEmpty()
+
+                if (hermanos.isEmpty()) {
+                    val nombre = ultimoDiscurso?.nombre ?: ultimaOracion?.nombre ?: return@forEach
+                    hermanosRef.add(
+                        mapOf(
+                            "numeroUnidad" to numeroUnidad,
+                            "nombre" to nombre,
+                            "agregadoManualmente" to false,
+                            "excluido" to false,
+                            "inactivoDiscurso" to false,
+                            "inactivoOracion" to false,
+                            "ultimaVezDiscursoManual" to ultimoDiscurso?.fecha,
+                            "ultimaVezOracionManual" to ultimaOracion?.fecha,
+                            "creadoEn" to Timestamp.now()
+                        )
+                    ).await()
+                    cambios++
+                } else {
+                    hermanos.forEach { hermano ->
+                        val updates = mutableMapOf<String, Any>()
+                        val fechaDiscursoActual = hermano.getTimestamp("ultimaVezDiscursoManual")
+                        val fechaOracionActual = hermano.getTimestamp("ultimaVezOracionManual")
+
+                        if (ultimoDiscurso != null &&
+                            (fechaDiscursoActual == null || ultimoDiscurso.fecha.toDate().after(fechaDiscursoActual.toDate()))
+                        ) {
+                            updates["ultimaVezDiscursoManual"] = ultimoDiscurso.fecha
+                        }
+
+                        if (ultimaOracion != null &&
+                            (fechaOracionActual == null || ultimaOracion.fecha.toDate().after(fechaOracionActual.toDate()))
+                        ) {
+                            updates["ultimaVezOracionManual"] = ultimaOracion.fecha
+                        }
+
+                        if (updates.isNotEmpty()) {
+                            hermano.reference.update(updates).await()
+                            cambios++
+                        }
+                    }
+                }
+            }
+
+            Result.success(cambios)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun editarNombreHermano(hermanoId: String, nuevoNombre: String): Result<Unit> {
         return try {
             db.collection("hermanos").document(hermanoId)
