@@ -11,6 +11,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -32,6 +34,7 @@ fun ListaAgendasScreen(
     onModoLectura: (Agenda) -> Unit,
     onLogout: () -> Unit
 ) {
+    val context = LocalContext.current
     val repository = remember { AgendaRepository() }
     val scope = rememberCoroutineScope()
 
@@ -121,8 +124,8 @@ fun ListaAgendasScreen(
     agendaAEliminar?.let { agenda ->
         AlertDialog(
             onDismissRequest = { agendaAEliminar = null },
-            title = { Text("Eliminar agenda") },
-            text = { Text("¿Está seguro que desea eliminar la agenda del ${dateFormat.format(agenda.fecha.toDate())}?") },
+            title = { Text(LocalContext.current.getString(R.string.agendas_eliminar_titulo)) },
+            text = { Text(LocalContext.current.getString(R.string.agendas_eliminar_conf, dateFormat.format(agenda.fecha.toDate()))) },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
@@ -130,10 +133,10 @@ fun ListaAgendasScreen(
                         agendas = agendas.filter { it.id != agenda.id }
                         agendaAEliminar = null
                     }
-                }) { Text("Eliminar", color = MaterialTheme.colorScheme.error) }
+                }) { Text(LocalContext.current.getString(R.string.btn_eliminar), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { agendaAEliminar = null }) { Text("Cancelar") }
+                TextButton(onClick = { agendaAEliminar = null }) { Text(LocalContext.current.getString(R.string.btn_cancelar)) }
             }
         )
     }
@@ -173,29 +176,29 @@ fun ListaAgendasScreen(
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text("Buscar por fecha, nombre, himno...") },
+                            placeholder = { Text(LocalContext.current.getString(R.string.agendas_buscar)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
                         )
                     },
                     navigationIcon = {
                         IconButton(onClick = { showSearch = false; searchQuery = "" }) {
-                            Icon(Icons.Default.ArrowBack, "Volver")
+                            Icon(Icons.Default.ArrowBack, LocalContext.current.getString(R.string.btn_volver))
                         }
                     }
                 )
             } else {
                 TopAppBar(
-                    title = { Text("Unidad $numeroUnidad") },
+                    title = { Text(LocalContext.current.getString(R.string.agendas_titulo, numeroUnidad)) },
                     actions = {
                         IconButton(onClick = { showCrearDomingos = true }) {
-                            Icon(Icons.Default.CalendarMonth, "Crear domingos")
+                            Icon(Icons.Default.CalendarMonth, LocalContext.current.getString(R.string.agendas_crear_domingos))
                         }
                         IconButton(onClick = { showSearch = true }) {
-                            Icon(Icons.Default.Search, "Buscar")
+                            Icon(Icons.Default.Search, LocalContext.current.getString(R.string.agendas_buscar))
                         }
                         IconButton(onClick = onLogout) {
-                            Icon(Icons.Default.ArrowBack, "Volver al menú")
+                            Icon(Icons.Default.ArrowBack, LocalContext.current.getString(R.string.btn_volver_menu))
                         }
                     }
                 )
@@ -203,7 +206,7 @@ fun ListaAgendasScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onNuevaAgenda) {
-                Icon(Icons.Default.Add, "Nueva agenda")
+                Icon(Icons.Default.Add, LocalContext.current.getString(R.string.agendas_nueva))
             }
         }
     ) { paddingValues ->
@@ -223,7 +226,7 @@ fun ListaAgendasScreen(
                         onClick = {
                             filtrosActivos = if (seleccionado) filtrosActivos - estado else filtrosActivos + estado
                         },
-                        label = { Text(estado.label) },
+                        label = { Text(LocalContext.current.getString(estado.stringResId)) },
                         leadingIcon = if (seleccionado) {
                             { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
                         } else null
@@ -244,7 +247,7 @@ fun ListaAgendasScreen(
                             if (proximoDomingoVisible && proximoDomingo != null) {
                                 item {
                                     Text(
-                                        "PRÓXIMO DOMINGO",
+                                        LocalContext.current.getString(R.string.agendas_proximo_domingo),
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary,
@@ -268,7 +271,7 @@ fun ListaAgendasScreen(
                                 item {
                                     Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                                         Text(
-                                            "No hay agendas aún.\nToque + para crear una.",
+                                            LocalContext.current.getString(R.string.agendas_sin_agendas),
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -296,7 +299,7 @@ fun ListaAgendasScreen(
                                 item {
                                     Divider(modifier = Modifier.padding(vertical = 8.dp))
                                     Text(
-                                        "REALIZADAS",
+                                        LocalContext.current.getString(R.string.agendas_realizadas),
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -327,6 +330,7 @@ fun CrearDomingosDialog(
     onConfirm: (Date) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     var selectedDate by remember {
         // Default: 3 meses desde hoy
         val cal = Calendar.getInstance()
@@ -357,20 +361,20 @@ fun CrearDomingosDialog(
                         selectedDate = localCal.time
                     }
                     showDatePicker = false
-                }) { Text("Aceptar") }
+                }) { Text(LocalContext.current.getString(R.string.btn_aceptar)) }
             },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") } }
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text(LocalContext.current.getString(R.string.btn_cancelar)) } }
         ) { DatePicker(state = datePickerState) }
         return
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Crear domingos en blanco") },
+        title = { Text(LocalContext.current.getString(R.string.agendas_crear_domingos_titulo)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Se crearán agendas en blanco para todos los domingos desde hoy hasta la fecha elegida. Las fechas que ya tengan agenda serán ignoradas.",
+                    LocalContext.current.getString(R.string.agendas_crear_domingos_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -378,10 +382,10 @@ fun CrearDomingosDialog(
                     value = dateFormat.format(selectedDate),
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Hasta el domingo") },
+                    label = { Text(LocalContext.current.getString(R.string.agendas_hasta_domingo)) },
                     trailingIcon = {
                         IconButton(onClick = { showDatePicker = true }) {
-                            Icon(Icons.Default.DateRange, "Seleccionar fecha")
+                            Icon(Icons.Default.DateRange, LocalContext.current.getString(R.string.editar_seleccionar_fecha))
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -389,10 +393,10 @@ fun CrearDomingosDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(selectedDate) }) { Text("Crear") }
+            TextButton(onClick = { onConfirm(selectedDate) }) { Text(LocalContext.current.getString(R.string.btn_crear)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
+            TextButton(onClick = onDismiss) { Text(LocalContext.current.getString(R.string.btn_cancelar)) }
         }
     )
 }
@@ -406,6 +410,7 @@ fun AgendaCard(
     onDelete: () -> Unit,
     onModoLectura: () -> Unit
 ) {
+    val context = LocalContext.current
     val estadoColor = when (agenda.estado) {
         EstadoAgenda.BORRADOR -> MaterialTheme.colorScheme.outline
         EstadoAgenda.CONFIRMADA -> MaterialTheme.colorScheme.primary
@@ -438,7 +443,7 @@ fun AgendaCard(
                         shape = MaterialTheme.shapes.small
                     ) {
                         Text(
-                            text = agenda.estado.label,
+                            text = LocalContext.current.getString(agenda.estado.stringResId),
                             style = MaterialTheme.typography.labelSmall,
                             color = estadoColor,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -456,7 +461,7 @@ fun AgendaCard(
                 if (agenda.preside.isNotBlank()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Preside: ${agenda.preside}",
+                        text = "${context.getString(R.string.editar_preside)}: ${agenda.preside}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -471,10 +476,10 @@ fun AgendaCard(
                 }
             }
             IconButton(onClick = onModoLectura) {
-                Icon(Icons.Default.MenuBook, contentDescription = "Modo Lectura", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.MenuBook, contentDescription = LocalContext.current.getString(R.string.editar_modo_lectura), tint = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
+                Icon(Icons.Default.Delete, contentDescription = LocalContext.current.getString(R.string.btn_eliminar), tint = MaterialTheme.colorScheme.error)
             }
         }
     }

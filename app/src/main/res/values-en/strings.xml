@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/values-en/strings.xml — English -->
+<resources>
+    <!-- App -->
+    <string name="app_name">Sacrament Meeting Agenda LDS</string>
+    <string name="app_subtitle">The Church of Jesus Christ of\nLatter-day Saints</string>
+    <string name="version">v1.2.3</string>
+
+    <!-- Common buttons -->
+    <string name="btn_aceptar">Accept</string>
+    <string name="btn_cancelar">Cancel</string>
+    <string name="btn_cerrar">Close</string>
+    <string name="btn_guardar">Save</string>
+    <string name="btn_guardar_igual">Save anyway</string>
+    <string name="btn_agregar">Add</string>
+    <string name="btn_agregar_igual">Add anyway</string>
+    <string name="btn_eliminar">Delete</string>
+    <string name="btn_enviar">Send</string>
+    <string name="btn_crear">Create</string>
+    <string name="btn_ingresar">Enter</string>
+    <string name="btn_volver">Back</string>
+    <string name="btn_volver_menu">Back to menu</string>
+    <string name="btn_ir_ajustes">Go to Settings</string>
+    <string name="btn_si_crear">Yes, create</string>
+    <string name="btn_si_asignar">Yes, assign</string>
+    <string name="btn_asignar">Assign</string>
+
+    <!-- Login -->
+    <string name="login_titulo">Sacrament Meeting Agenda</string>
+    <string name="login_iniciar_google">Sign in with Google</string>
+
+    <!-- Unit selection -->
+    <string name="unidad_acceso">Unit Access</string>
+    <string name="unidad_numero">Unit Number</string>
+    <string name="unidad_ingrese_numero">Enter unit number</string>
+    <string name="unidad_ingrese_numero_primero">Enter unit number first</string>
+    <string name="unidad_nueva">New unit</string>
+    <string name="unidad_crear">Create unit</string>
+    <string name="unidad_confirmacion_crear">Unit %s does not exist. Would you like to create it?</string>
+    <string name="unidad_primera_contrasena">You will be the first to set the password for this unit.</string>
+    <string name="unidad_error_crear">Error creating unit. Please try again.</string>
+
+    <!-- Password -->
+    <string name="contrasena">Password</string>
+    <string name="contrasena_ingrese">Enter password</string>
+    <string name="contrasena_nueva">New password</string>
+    <string name="contrasena_confirmar">Confirm password</string>
+    <string name="contrasena_confirmar_nueva">Confirm new password</string>
+    <string name="contrasena_crear">Create password</string>
+    <string name="contrasena_cambiar">Change password</string>
+    <string name="contrasena_olvide">Forgot my password</string>
+    <string name="contrasena_incorrecta">Incorrect password</string>
+    <string name="contrasena_minimo">Password must be at least 4 characters</string>
+    <string name="contrasena_no_coinciden">Passwords do not match</string>
+    <string name="contrasena_actualizada">Password updated successfully.</string>
+    <string name="contrasena_error">Error changing password. Please try again.</string>
+    <string name="contrasena_mostrar">Show</string>
+    <string name="contrasena_ocultar">Hide</string>
+    <string name="contrasena_usar">Use password</string>
+
+    <!-- Biometrics -->
+    <string name="biometria_usar">Use fingerprint</string>
+    <string name="biometria_autenticar">Authenticate with your fingerprint</string>
+    <string name="biometria_no_reconocida">Fingerprint not recognized. Try again.</string>
+    <string name="biometria_recordar">Remember on this device (fingerprint)</string>
+    <string name="recordar_unidad">Remember unit number</string>
+    <string name="cerrar_sesion_google">Sign out of Google</string>
+
+    <!-- Home -->
+    <string name="home_que_deseas">What would you like to do?</string>
+    <string name="home_agendas">Agendas</string>
+    <string name="home_agendas_desc">Create and manage meetings</string>
+    <string name="home_planificacion">Planning</string>
+    <string name="home_planificacion_desc">Speaker and prayer ranking</string>
+
+    <!-- Settings menu -->
+    <string name="ajustes">Settings</string>
+    <string name="ajustes_tema">Theme</string>
+    <string name="ajustes_tema_sistema">Follow system</string>
+    <string name="ajustes_tema_claro">Light</string>
+    <string name="ajustes_tema_oscuro">Dark</string>
+    <string name="ajustes_notificaciones">Notifications</string>
+    <string name="ajustes_idioma">Language</string>
+    <string name="ajustes_cerrar_sesion">Sign out</string>
+
+    <!-- Agenda list -->
+    <string name="agendas_titulo">Unit %s</string>
+    <string name="agendas_nueva">New agenda</string>
+    <string name="agendas_proximo_domingo">NEXT SUNDAY</string>
+    <string name="agendas_realizadas">COMPLETED</string>
+    <string name="agendas_sin_agendas">No agendas yet.\nTap + to create one.</string>
+    <string name="agendas_eliminar_titulo">Delete agenda</string>
+    <string name="agendas_eliminar_conf">Are you sure you want to delete the agenda for %s?</string>
+    <string name="agendas_crear_domingos">Create Sundays</string>
+    <string name="agendas_crear_domingos_titulo">Create blank Sundays</string>
+    <string name="agendas_crear_domingos_desc">Blank agendas will be created for all Sundays from today until the chosen date. Dates that already have an agenda will be skipped.</string>
+    <string name="agendas_hasta_domingo">Until Sunday</string>
+    <string name="agendas_no_hay_borrador">No draft agendas</string>
+    <string name="agendas_buscar">Search by date, name, hymn...</string>
+    <string name="agendas_cambiar_unidad">Change unit</string>
+
+    <!-- Edit agenda -->
+    <string name="editar_agenda_titulo">Edit Agenda</string>
+    <string name="editar_agenda_nueva">New Agenda</string>
+    <string name="editar_agenda_titulo_card">Sacrament Meeting Agenda</string>
+    <string name="editar_cita_dc">D&amp;C 46:2: But notwithstanding those things which are written, it always has been given to the elders of my church from the beginning, and ever shall be, to conduct all meetings as they are directed and guided by the Holy Spirit.</string>
+    <string name="editar_fecha">Date</string>
+    <string name="editar_asistencia">Att.</string>
+    <string name="editar_estado">Status</string>
+    <string name="editar_preside">Presiding</string>
+    <string name="editar_dirige">Conducting</string>
+    <string name="editar_reconocimientos">Recognitions</string>
+    <string name="editar_agregar_reconocimiento">Add recognition</string>
+    <string name="editar_anuncios">Announcements</string>
+    <string name="editar_agregar_anuncio">Add announcement</string>
+    <string name="editar_primer_himno">Opening Hymn</string>
+    <string name="editar_himno_sacramental">Sacrament Hymn</string>
+    <string name="editar_himno_final">Closing Hymn</string>
+    <string name="editar_himno_numero">No.</string>
+    <string name="editar_himno_nombre">Hymn name</string>
+    <string name="editar_director_musica">Music director</string>
+    <string name="editar_pianista">Pianist</string>
+    <string name="editar_primera_oracion">Opening Prayer</string>
+    <string name="editar_oracion_final">Closing Prayer</string>
+    <string name="editar_asuntos">Ward/Stake Business</string>
+    <string name="editar_mensajes">Gospel Messages</string>
+    <string name="editar_reunion_testimonios">Fast and testimony meeting</string>
+    <string name="editar_agregar_testimonio">Add name</string>
+    <string name="editar_guardado_ok">✓ Saved successfully.</string>
+    <string name="editar_error_guardar">Error saving. Please try again.</string>
+    <string name="editar_fecha_duplicada">An agenda already exists for that date.</string>
+    <string name="editar_nombre_duplicado">Duplicate name?</string>
+    <string name="editar_modo_lectura">Reading Mode</string>
+    <string name="editar_compartir">Share</string>
+    <string name="editar_enviar_agenda">Send agenda</string>
+    <string name="editar_exportar_pdf">Export PDF</string>
+    <string name="editar_pedir_sugerencias">Request suggestions</string>
+    <string name="editar_actualizar_agendas">Update in draft agendas</string>
+    <string name="editar_sin_datos">No data</string>
+    <string name="editar_nombre">Name</string>
+    <string name="editar_cargo">Role / Detail</string>
+    <string name="editar_texto_libre">Free text</string>
+    <string name="editar_otros_placeholder">Write the text exactly as it should appear</string>
+    <string name="editar_nombre_completo">Full name</string>
+    <string name="editar_discursante">Speaker</string>
+    <string name="editar_seleccionar_fecha">Select date</string>
+    <string name="editar_ver_formula">View formula</string>
+    <string name="editar_subir">Move up</string>
+    <string name="editar_bajar">Move down</string>
+
+    <!-- Request suggestions -->
+    <string name="solicitud_titulo">Request suggestions</string>
+    <string name="solicitud_selecciona">Select what you need for %s:</string>
+    <string name="solicitud_himnos">🎵 Hymns</string>
+    <string name="solicitud_oraciones">🙏 Prayers</string>
+    <string name="solicitud_discursos">🎤 Talks</string>
+    <string name="solicitud_apertura">Opening</string>
+    <string name="solicitud_sacramental">Sacrament</string>
+    <string name="solicitud_intermedio">Intermediate</string>
+    <string name="solicitud_final">Closing</string>
+    <string name="solicitud_primera_oracion">Opening prayer</string>
+    <string name="solicitud_oracion_final">Closing prayer</string>
+    <string name="solicitud_mas">More</string>
+    <string name="solicitud_menos">Less</string>
+    <string name="solicitud_mensaje_intro">*Agenda for Sunday %s*</string>
+    <string name="solicitud_mensaje_cuerpo">Dear bishopric members: We need recommendations for the following assignments:</string>
+    <string name="solicitud_mensaje_cierre">Please send your suggestions here as soon as possible. Thank you.</string>
+    <string name="solicitud_enviar_titulo">Send request</string>
+
+    <!-- Reading mode -->
+    <string name="lectura_preside">Presiding</string>
+    <string name="lectura_dirige">Conducting</string>
+    <string name="lectura_reconocimientos">Recognitions</string>
+    <string name="lectura_anuncios">Announcements</string>
+    <string name="lectura_himno_apertura">Opening Hymn</string>
+    <string name="lectura_director">Chorister</string>
+    <string name="lectura_pianista">Pianist</string>
+    <string name="lectura_primera_oracion">Opening Prayer</string>
+    <string name="lectura_asuntos">Ward Business</string>
+    <string name="lectura_himno_sacramental">Sacrament Hymn</string>
+    <string name="lectura_mensajes">Gospel Messages</string>
+    <string name="lectura_himno_final">Closing Hymn</string>
+    <string name="lectura_oracion_final">Closing Prayer</string>
+    <string name="lectura_testimonio">Testimony</string>
+    <string name="lectura_discurso">Talk</string>
+
+    <!-- Planning -->
+    <string name="plan_titulo">Planning</string>
+    <string name="plan_discursos">Talks</string>
+    <string name="plan_oraciones">Prayers</string>
+    <string name="plan_agregar_hermano">Add member</string>
+    <string name="plan_configuracion">Settings</string>
+    <string name="plan_buscar">Search member...</string>
+    <string name="plan_agregar_hermano_titulo">Add member</string>
+    <string name="plan_editar_hermano_titulo">Edit member</string>
+    <string name="plan_eliminar_hermano_titulo">Remove member</string>
+    <string name="plan_eliminar_hermanos_titulo">Remove members</string>
+    <string name="plan_sin_hermanos">No members in this category.</string>
+    <string name="plan_sin_registros">No records</string>
+    <string name="plan_ultimo_discurso">Last talk</string>
+    <string name="plan_ultima_oracion">Last prayer</string>
+    <string name="plan_ultima_participacion">Last known participation</string>
+    <string name="plan_opcional_participacion">Optional: last known participation</string>
+    <string name="plan_inactivo">Inactive</string>
+    <string name="plan_reactivar">Reactivate</string>
+    <string name="plan_desactivar">Deactivate</string>
+    <string name="plan_hermano_reciente">⚠️ Recent member</string>
+    <string name="plan_conf_eliminar">Are you sure you want to remove %s from the planner?</string>
+    <string name="plan_conf_eliminar_varios">Are you sure you want to remove %d member(s) from the planner?</string>
+    <string name="plan_asignar_titulo">Assign %s</string>
+    <string name="plan_se_asignara_discurso">Will be added as a speaker</string>
+    <string name="plan_se_asignara_oracion">Will be assigned as prayer</string>
+    <string name="plan_tipo_oracion">Prayer type</string>
+    <string name="plan_participacion_reciente">%s participated only %d days ago. Do you still want to assign them?</string>
+    <string name="plan_conf_colores">Color settings</string>
+    <string name="plan_leyenda_colores">🟢 = more than X days  🟡 = between X and Y days  🔴 = less than Y days</string>
+    <string name="plan_cancelar_seleccion">Cancel selection</string>
+    <string name="plan_eliminar_seleccionados">Delete selected</string>
+    <string name="plan_dias_verde">🟢 days</string>
+    <string name="plan_dias_amarillo">🟡 days</string>
+    <string name="plan_reunion_borrador">Meeting (draft)</string>
+    <string name="plan_nueva_discurso">NEW_TALK</string>
+
+    <!-- Notifications -->
+    <string name="notif_titulo">Notifications</string>
+    <string name="notif_recordatorio">Weekly reminder</string>
+    <string name="notif_avisa">Reminds you before each sacrament meeting</string>
+    <string name="notif_bloqueadas_titulo">Notifications blocked</string>
+    <string name="notif_bloqueadas_desc">Notifications are blocked for this app. To enable them, go to Settings → Apps → Sacrament Agenda → Notifications.</string>
+    <string name="notif_hora_aviso">Reminder time</string>
+    <string name="notif_cuando_avisar">When to remind?</string>
+    <string name="notif_cambiar_hora">Change</string>
+    <string name="notif_resumen">You will receive a reminder every %s at %s when there is a sacrament meeting on Sunday.</string>
+    <string name="notif_sabado">Saturday (1 day before)</string>
+    <string name="notif_viernes">Friday (2 days before)</string>
+    <string name="notif_jueves">Thursday (3 days before)</string>
+    <string name="notif_miercoles">Wednesday (4 days before)</string>
+    <string name="notif_martes">Tuesday (5 days before)</string>
+    <string name="notif_lunes">Monday (6 days before)</string>
+    <string name="notif_domingo">Sunday (7 days before)</string>
+    <string name="notif_push_titulo">Sacrament Agenda</string>
+    <string name="notif_push_confirmada">Agenda for %s confirmed ✓</string>
+    <string name="notif_push_no_confirmada">Agenda for %s not confirmed</string>
+    <string name="notif_canal_nombre">Sacrament Agenda</string>
+    <string name="notif_canal_desc">Sacrament meeting reminder</string>
+
+    <!-- Liturgical formulas -->
+    <string name="formula_relevo">RELEASES</string>
+    <string name="formula_sostenimiento">CALLINGS</string>
+    <string name="formula_otros">OTHER</string>
+    <string name="pdf_como">as</string>
+
+    <!-- PDF -->
+    <string name="pdf_titulo">SACRAMENT MEETING AGENDA</string>
+    <string name="pdf_subtitulo">A Spiritual Experience</string>
+    <string name="pdf_asistencia">Attendance</string>
+    <string name="pdf_fecha">Date:</string>
+    <string name="pdf_dirige">Conducting:</string>
+    <string name="pdf_preside">Presiding:</string>
+    <string name="pdf_preludio">Prelude  (10-15\' before meeting starts)</string>
+    <string name="pdf_bienvenida">Welcome and recognition of authorities:</string>
+    <string name="pdf_anuncios">Announcements  (Only the most important and urgent):</string>
+    <string name="pdf_himno_apertura">Opening Hymn:</string>
+    <string name="pdf_director">Chorister:</string>
+    <string name="pdf_pianista">Pianist:</string>
+    <string name="pdf_primera_oracion">Opening Prayer:</string>
+    <string name="pdf_himno_sacramental">Sacrament Hymn:</string>
+    <string name="pdf_bendicion">Blessing and Passing of the Sacrament</string>
+    <string name="pdf_mensajes">Gospel messages, congregational singing, and special musical numbers</string>
+    <string name="pdf_reunion_testimonios">Testimony Meeting</string>
+    <string name="pdf_himno_final">Closing Hymn:</string>
+    <string name="pdf_oracion_final">Closing Prayer:</string>
+    <string name="pdf_postludio">Postlude  (10 minutes - music only)</string>
+    <string name="pdf_cita">\"But notwithstanding those things which are written, it always has been given to the elders of my church from the beginning, and ever shall be, to conduct all meetings as they are directed and guided by the Holy Spirit.\"  D&amp;C 46:2</string>
+    <string name="pdf_relevo_singular">\"%s has been released as %s. Those who would like to express thanks for [his or her] service may show it by the uplifted hand.\"</string>
+    <string name="pdf_sostenimiento_singular">\"%s has been called as %s. Those in favor of sustaining [him or her]may show it by the uplifted hand. [Pause briefly]. Those opposed, if any, may also show it. [Pause briefly].\"</string>
+    <string name="plan_hoy">Today</string>
+    <string name="plan_hace_dias">%s day(s) ago</string>
+    <string name="plan_dentro_de">In %s day(s)</string>
+    <string name="plan_nombre_similar">"%s" already exists and looks like the same name. Do you still want to add it?</string>
+    <!-- Agenda statuses -->
+    <string name="estado_borrador">Draft</string>
+    <string name="estado_confirmada">Confirmed</string>
+    <string name="estado_realizada">Completed</string>
+
+    <!-- Planning additional -->
+    <string name="plan_seleccionados">%d selected</string>
+
+    <!-- PDF liturgical formulas plural -->
+    <string name="pdf_relevo_plural">The following members have been released from their callings: \"%s. Those who would like to express thanks for [his or her] service may show it by the uplifted hand.\"</string>
+    <string name="pdf_sostenimiento_plural">The following members have been called to the following callings: \"%s. Those in favor of sustaining [him or her]may show it by the uplifted hand. [Pause briefly]. Those opposed, if any, may also show it. [Pause briefly].\"</string>
+    <!-- Business types -->
+    <string name="tipo_relevo">Release</string>
+    <string name="tipo_sostenimiento">Calling</string>
+    <string name="tipo_otros">Other</string>
+
+    <!-- Ranking colors -->
+    <string name="color_sugerido">Suggested</string>
+    <string name="color_posible">Possible</string>
+    <string name="color_reciente">Recent</string>
+
+    <string name="plan_veces_90_dias">%d time(s) in 90 days</string>
+    <string name="plan_un_discurso">1 talk</string>
+    <string name="plan_n_discursos">%d talks</string>
+    <string name="solicitud_himnos_label">Hymns</string>
+    <string name="solicitud_oraciones_label">Prayers</string>
+    <string name="pdf_formulas_titulo">Calling and Releasing Formulas</string>
+    <string name="pdf_formulas_subtitulo">Reference for use during the meeting</string>
+    <string name="pdf_formulas_nota">Suggested text according to the General Handbook of The Church of Jesus Christ of Latter-day Saints.</string>
+
+    <!-- Disclaimer -->
+    <string name="disclaimer">This is an unofficial app. It is not affiliated with or endorsed by The Church of Jesus Christ of Latter-day Saints.</string>
+</resources>

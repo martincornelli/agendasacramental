@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
 import java.util.*
@@ -41,7 +42,7 @@ fun ModoLecturaScreen(
                 title = { Text(dateFormat.format(agenda.fecha.toDate())) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Volver")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.btn_volver))
                     }
                 }
             )
@@ -57,16 +58,16 @@ fun ModoLecturaScreen(
         ) {
             // Preside / Dirige
             item {
-                CampoLectura("Preside", agenda.preside)
+                CampoLectura(stringResource(R.string.lectura_preside), agenda.preside)
             }
             item {
-                CampoLectura("Dirige", agenda.dirige)
+                CampoLectura(stringResource(R.string.lectura_dirige), agenda.dirige)
             }
 
             // Reconocimientos
             item {
                 val items = agenda.reconocimientos.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                SeccionLectura("Reconocimientos") {
+                SeccionLectura(stringResource(R.string.lectura_reconocimientos)) {
                     if (items.isEmpty()) {
                         Text("—", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
@@ -78,7 +79,7 @@ fun ModoLecturaScreen(
             // Anuncios
             item {
                 val items = agenda.anuncios.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                SeccionLectura("Anuncios") {
+                SeccionLectura(stringResource(R.string.lectura_anuncios)) {
                     if (items.isEmpty()) {
                         Text("—", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
@@ -91,31 +92,33 @@ fun ModoLecturaScreen(
             item {
                 val himno = if (agenda.primerHimnoNumero > 0)
                     "${agenda.primerHimnoNumero} - ${agenda.primerHimnoNombre}" else "—"
-                CampoLectura("Himno de apertura", himno)
+                CampoLectura(stringResource(R.string.lectura_himno_apertura), himno)
             }
 
             // Director / Pianista
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    Box(modifier = Modifier.weight(1f)) { CampoLectura("Director/a", agenda.directorMusica.ifBlank { "—" }) }
-                    Box(modifier = Modifier.weight(1f)) { CampoLectura("Pianista", agenda.pianista.ifBlank { "—" }) }
+                    Box(modifier = Modifier.weight(1f)) { CampoLectura(stringResource(R.string.lectura_director), agenda.directorMusica.ifBlank { "—" }) }
+                    Box(modifier = Modifier.weight(1f)) { CampoLectura(stringResource(R.string.lectura_pianista), agenda.pianista.ifBlank { "—" }) }
                 }
             }
 
             // Primera oración
             item {
-                CampoLectura("Primera oración", agenda.primeraOracion)
+                CampoLectura(stringResource(R.string.lectura_primera_oracion), agenda.primeraOracion)
             }
 
             // Asuntos
             if (agenda.asuntosEstacaBarrio.isNotEmpty()) {
                 item {
-                    SeccionLectura("Asuntos") {
+                    SeccionLectura(stringResource(R.string.lectura_asuntos)) {
                         agenda.asuntosEstacaBarrio.forEach { asunto ->
-                            Text(
-                                "• ${asunto.tipo.label}: ${asunto.columna2} — ${asunto.columna3}",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
+                            val texto = if (asunto.tipo == TipoAsunto.OTROS) {
+                                "• ${context.getString(asunto.tipo.stringResId)}:\n${asunto.columna2}"
+                            } else {
+                                "• ${context.getString(asunto.tipo.stringResId)}: ${asunto.columna2} — ${asunto.columna3}"
+                            }
+                            Text(texto, style = MaterialTheme.typography.bodyLarge)
                         }
                     }
                 }
@@ -125,22 +128,36 @@ fun ModoLecturaScreen(
             item {
                 val himno = if (agenda.himnoSacramentalNumero > 0)
                     "${agenda.himnoSacramentalNumero} - ${agenda.himnoSacramentalNombre}" else "—"
-                CampoLectura("Himno Sacramental", himno)
+                CampoLectura(stringResource(R.string.lectura_himno_sacramental), himno)
             }
 
             // Mensajes del evangelio
             item {
-                SeccionLectura("Mensajes del Evangelio") {
+                SeccionLectura(stringResource(R.string.lectura_mensajes)) {
                     if (agenda.mensajesEvangelio.isEmpty()) {
                         Text("—", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
                         agenda.mensajesEvangelio.forEach { msg ->
                             val texto = when (msg.tipo) {
                                 TipoMensaje.HIMNO_INTERMEDIO -> "🎵 Himno: ${msg.himnoNumero} - ${msg.himnoNombre}"
-                                TipoMensaje.TESTIMONIO -> "Testimonio: ${msg.nombre}"
-                                else -> "Discurso: ${msg.nombre}"
+                                TipoMensaje.TESTIMONIO -> stringResource(R.string.lectura_testimonio) + ": ${msg.nombre}"
+                                else -> stringResource(R.string.lectura_discurso) + ": ${msg.nombre}"
                             }
                             Text("• $texto", style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+            }
+
+            if (agenda.reunionTestimonios) {
+                item {
+                    SeccionLectura(stringResource(R.string.pdf_reunion_testimonios)) {
+                        if (agenda.testimonios.isEmpty()) {
+                            Text("—", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        } else {
+                            agenda.testimonios.forEach { nombre ->
+                                Text("• $nombre", style = MaterialTheme.typography.bodyLarge)
+                            }
                         }
                     }
                 }
@@ -150,12 +167,12 @@ fun ModoLecturaScreen(
             item {
                 val himno = if (agenda.himnoFinalNumero > 0)
                     "${agenda.himnoFinalNumero} - ${agenda.himnoFinalNombre}" else "—"
-                CampoLectura("Himno Final", himno)
+                CampoLectura(stringResource(R.string.lectura_himno_final), himno)
             }
 
             // Oración final
             item {
-                CampoLectura("Oración Final", agenda.oracionFinal)
+                CampoLectura(stringResource(R.string.lectura_oracion_final), agenda.oracionFinal)
             }
         }
     }

@@ -12,6 +12,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -37,6 +39,7 @@ fun PlanificacionScreen(
     numeroUnidad: String,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val repository = remember { AgendaRepository() }
     val scope = rememberCoroutineScope()
 
@@ -94,8 +97,8 @@ fun PlanificacionScreen(
     if (showConfirmarBulkDelete) {
         AlertDialog(
             onDismissRequest = { showConfirmarBulkDelete = false },
-            title = { Text("Eliminar hermanos") },
-            text = { Text("¿Estás seguro que querés eliminar ${seleccionados.size} hermano${if (seleccionados.size == 1) "" else "s"} del planificador?") },
+            title = { Text(LocalContext.current.getString(R.string.plan_eliminar_hermanos_titulo)) },
+            text = { Text(context.getString(R.string.plan_conf_eliminar_varios, seleccionados.size)) },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
@@ -117,10 +120,10 @@ fun PlanificacionScreen(
                         modoSeleccion = false
                         showConfirmarBulkDelete = false
                     }
-                }) { Text("Eliminar", color = MaterialTheme.colorScheme.error) }
+                }) { Text(LocalContext.current.getString(R.string.btn_eliminar), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirmarBulkDelete = false }) { Text("Cancelar") }
+                TextButton(onClick = { showConfirmarBulkDelete = false }) { Text(LocalContext.current.getString(R.string.btn_cancelar)) }
             }
         )
     }
@@ -128,8 +131,8 @@ fun PlanificacionScreen(
     hermanoAEliminar?.let { ranking ->
         AlertDialog(
             onDismissRequest = { hermanoAEliminar = null },
-            title = { Text("Eliminar hermano/a") },
-            text = { Text("¿Estás seguro que querés eliminar a ${ranking.hermano.nombre} del planificador?") },
+            title = { Text(LocalContext.current.getString(R.string.plan_eliminar_hermano_titulo)) },
+            text = { Text(LocalContext.current.getString(R.string.plan_conf_eliminar, ranking.hermano.nombre)) },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
@@ -141,10 +144,10 @@ fun PlanificacionScreen(
                         recargar()
                         hermanoAEliminar = null
                     }
-                }) { Text("Eliminar", color = MaterialTheme.colorScheme.error) }
+                }) { Text(LocalContext.current.getString(R.string.btn_eliminar), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { hermanoAEliminar = null }) { Text("Cancelar") }
+                TextButton(onClick = { hermanoAEliminar = null }) { Text(LocalContext.current.getString(R.string.btn_cancelar)) }
             }
         )
     }
@@ -230,10 +233,10 @@ fun PlanificacionScreen(
         topBar = {
             when {
                 modoSeleccion -> TopAppBar(
-                    title = { Text("${seleccionados.size} seleccionado${if (seleccionados.size == 1) "" else "s"}") },
+                    title = { Text(context.getString(R.string.plan_seleccionados, seleccionados.size)) },
                     navigationIcon = {
                         IconButton(onClick = { modoSeleccion = false; seleccionados = emptySet() }) {
-                            Icon(Icons.Default.Close, "Cancelar selección")
+                            Icon(Icons.Default.Close, LocalContext.current.getString(R.string.plan_cancelar_seleccion))
                         }
                     },
                     actions = {
@@ -241,7 +244,7 @@ fun PlanificacionScreen(
                             onClick = { showConfirmarBulkDelete = true },
                             enabled = seleccionados.isNotEmpty()
                         ) {
-                            Icon(Icons.Default.Delete, "Eliminar seleccionados", tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.Default.Delete, LocalContext.current.getString(R.string.plan_eliminar_seleccionados), tint = MaterialTheme.colorScheme.error)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -260,34 +263,34 @@ fun PlanificacionScreen(
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
-                                placeholder = { Text("Buscar hermano/a...") },
+                                placeholder = { Text(LocalContext.current.getString(R.string.plan_buscar)) },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
                             )
                         },
                         navigationIcon = {
                             IconButton(onClick = { showSearch = false; searchQuery = "" }) {
-                                Icon(Icons.Default.ArrowBack, "Cancelar búsqueda")
+                                Icon(Icons.Default.ArrowBack, LocalContext.current.getString(R.string.plan_cancelar_seleccion))
                             }
                         }
                     )
                 }
                 else -> TopAppBar(
-                    title = { Text("Planificación") },
+                    title = { Text(LocalContext.current.getString(R.string.plan_titulo)) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.Default.ArrowBack, "Volver")
+                            Icon(Icons.Default.ArrowBack, LocalContext.current.getString(R.string.btn_volver))
                         }
                     },
                     actions = {
                         IconButton(onClick = { showSearch = true }) {
-                            Icon(Icons.Default.Search, "Buscar")
+                            Icon(Icons.Default.Search, LocalContext.current.getString(R.string.plan_buscar))
                         }
                         IconButton(onClick = { showAgregarHermano = true }) {
-                            Icon(Icons.Default.PersonAdd, "Agregar hermano")
+                            Icon(Icons.Default.PersonAdd, LocalContext.current.getString(R.string.plan_agregar_hermano))
                         }
                         IconButton(onClick = { showConfiguracion = true }) {
-                            Icon(Icons.Default.Settings, "Configuración")
+                            Icon(Icons.Default.Settings, LocalContext.current.getString(R.string.plan_configuracion))
                         }
                     }
                 )
@@ -297,8 +300,8 @@ fun PlanificacionScreen(
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
 
             TabRow(selectedTabIndex = selectedTab) {
-                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Discursos") })
-                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Oraciones") })
+                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text(LocalContext.current.getString(R.string.plan_discursos)) })
+                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(LocalContext.current.getString(R.string.plan_oraciones)) })
             }
 
             if (isLoading) {
@@ -325,7 +328,7 @@ fun PlanificacionScreen(
                                     filtrosOracion = if (seleccionado) filtrosOracion - color else filtrosOracion + color
                                 }
                             },
-                            label = { Text(color.label) },
+                            label = { Text(context.getString(color.stringResId)) },
                             leadingIcon = if (seleccionado) {
                                 { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
                             } else null,
@@ -365,7 +368,7 @@ fun PlanificacionScreen(
 
                 if (listaFiltrada.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No hay hermanos en esta categoría.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(LocalContext.current.getString(R.string.plan_sin_hermanos), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
                     LazyColumn(
@@ -463,6 +466,7 @@ fun HermanoRankingCard(
     onEdit: () -> Unit,
     onToggleInactivo: () -> Unit
 ) {
+    val context = LocalContext.current
     val ultimaVez = if (tab == 0) ranking.ultimaVezDiscurso else ranking.ultimaVezOracion
     val dias = diasDesde(ultimaVez)
     val color = if (tab == 0)
@@ -529,7 +533,7 @@ fun HermanoRankingCard(
                                 shape = MaterialTheme.shapes.small
                             ) {
                                 Text(
-                                    "Inactivo",
+                                    LocalContext.current.getString(R.string.plan_inactivo),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.outline,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -539,23 +543,23 @@ fun HermanoRankingCard(
                     }
                     Text(
                         when {
-                            ultimaVez == null -> "Sin registros"
-                            dias < 0 -> "Dentro de ${-dias} día${if (-dias == 1L) "" else "s"}"
-                            dias == 0L -> "Hoy"
-                            else -> "Hace $dias día${if (dias == 1L) "" else "s"}"
+                            ultimaVez == null -> LocalContext.current.getString(R.string.plan_sin_registros)
+                            dias < 0 -> context.getString(R.string.plan_dentro_de, (-dias).toString())
+                            dias == 0L -> context.getString(R.string.plan_hoy)
+                            else -> context.getString(R.string.plan_hace_dias, dias.toString())
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
                     )
                     if (tab == 0 && ranking.vecesDiscurso90Dias > 0) {
                         Text(
-                            "${ranking.vecesDiscurso90Dias} vez/veces en 90 días",
+                            context.getString(R.string.plan_veces_90_dias, ranking.vecesDiscurso90Dias),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
                         )
                     } else if (tab == 1 && ranking.vecesOracion90Dias > 0) {
                         Text(
-                            "${ranking.vecesOracion90Dias} vez/veces en 90 días",
+                            context.getString(R.string.plan_veces_90_dias, ranking.vecesOracion90Dias),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
                         )
@@ -570,7 +574,7 @@ fun HermanoRankingCard(
                         shape = MaterialTheme.shapes.small
                     ) {
                         Text(
-                            color.label,
+                            context.getString(color.stringResId),
                             style = MaterialTheme.typography.labelSmall,
                             color = colorReal,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -587,20 +591,20 @@ fun HermanoRankingCard(
                     horizontalArrangement = Arrangement.End
                 ) {
                     IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Default.Edit, "Editar",
+                        Icon(Icons.Default.Edit, LocalContext.current.getString(R.string.btn_agregar),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp))
                     }
                     IconButton(onClick = onToggleInactivo, modifier = Modifier.size(36.dp)) {
                         Icon(
                             if (inactivo) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = if (inactivo) "Reactivar" else "Desactivar",
+                            contentDescription = if (inactivo) LocalContext.current.getString(R.string.plan_reactivar) else LocalContext.current.getString(R.string.plan_desactivar),
                             tint = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.size(18.dp)
                         )
                     }
                     IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Default.Close, "Eliminar",
+                        Icon(Icons.Default.Close, LocalContext.current.getString(R.string.btn_eliminar),
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(18.dp))
                     }
@@ -616,6 +620,7 @@ fun AgregarHermanoDialog(
     onConfirm: (String, Timestamp?, Timestamp?) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     var nombre by remember { mutableStateOf("") }
     var showDuplicadoWarning by remember { mutableStateOf(false) }
     var nombreDuplicado by remember { mutableStateOf("") }
@@ -646,13 +651,13 @@ fun AgregarHermanoDialog(
     if (showDuplicadoWarning) {
         AlertDialog(
             onDismissRequest = { showDuplicadoWarning = false },
-            title = { Text("¿Nombre duplicado?") },
-            text = { Text("Ya existe \"$nombreDuplicado\" que parece el mismo nombre. ¿Querés agregarlo igual?") },
+            title = { Text(LocalContext.current.getString(R.string.editar_nombre_duplicado)) },
+            text = { Text(context.getString(R.string.plan_nombre_similar, nombreDuplicado)) },
             confirmButton = {
-                TextButton(onClick = { onConfirm(nombre.trim(), fechaDiscurso, fechaOracion); showDuplicadoWarning = false }) { Text("Agregar igual") }
+                TextButton(onClick = { onConfirm(nombre.trim(), fechaDiscurso, fechaOracion); showDuplicadoWarning = false }) { Text(LocalContext.current.getString(R.string.btn_agregar_igual)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDuplicadoWarning = false }) { Text("Cancelar") }
+                TextButton(onClick = { showDuplicadoWarning = false }) { Text(LocalContext.current.getString(R.string.btn_cancelar)) }
             }
         )
     }
@@ -660,16 +665,16 @@ fun AgregarHermanoDialog(
     if (!showPickerDiscurso && !showPickerOracion && !showDuplicadoWarning) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Agregar hermano/a") },
+            title = { Text(LocalContext.current.getString(R.string.plan_agregar_hermano_titulo)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = nombre, onValueChange = { nombre = it },
-                        label = { Text("Nombre completo") },
+                        label = { Text(LocalContext.current.getString(R.string.editar_nombre_completo)) },
                         modifier = Modifier.fillMaxWidth(), singleLine = true
                     )
                     Text(
-                        "Opcional: última participación conocida",
+                        LocalContext.current.getString(R.string.plan_opcional_participacion),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -677,17 +682,17 @@ fun AgregarHermanoDialog(
                         value = fechaDiscurso?.let { dateFormat.format(it.toDate()) } ?: "",
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Último discurso") },
-                        placeholder = { Text("Sin datos") },
+                        label = { Text(LocalContext.current.getString(R.string.plan_ultimo_discurso)) },
+                        placeholder = { Text(LocalContext.current.getString(R.string.editar_sin_datos)) },
                         trailingIcon = {
                             Row {
                                 if (fechaDiscurso != null) {
                                     IconButton(onClick = { fechaDiscurso = null }) {
-                                        Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
                                     }
                                 }
                                 IconButton(onClick = { showPickerDiscurso = true }) {
-                                    Icon(Icons.Default.DateRange, "Seleccionar")
+                                    Icon(Icons.Default.DateRange, LocalContext.current.getString(R.string.btn_aceptar))
                                 }
                             }
                         },
@@ -697,17 +702,17 @@ fun AgregarHermanoDialog(
                         value = fechaOracion?.let { dateFormat.format(it.toDate()) } ?: "",
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Última oración") },
-                        placeholder = { Text("Sin datos") },
+                        label = { Text(LocalContext.current.getString(R.string.plan_ultima_oracion)) },
+                        placeholder = { Text(LocalContext.current.getString(R.string.editar_sin_datos)) },
                         trailingIcon = {
                             Row {
                                 if (fechaOracion != null) {
                                     IconButton(onClick = { fechaOracion = null }) {
-                                        Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
                                     }
                                 }
                                 IconButton(onClick = { showPickerOracion = true }) {
-                                    Icon(Icons.Default.DateRange, "Seleccionar")
+                                    Icon(Icons.Default.DateRange, LocalContext.current.getString(R.string.btn_aceptar))
                                 }
                             }
                         },
@@ -724,9 +729,9 @@ fun AgregarHermanoDialog(
                         }
                     },
                     enabled = nombre.isNotBlank()
-                ) { Text("Agregar") }
+                ) { Text(LocalContext.current.getString(R.string.btn_agregar)) }
             },
-            dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+            dismissButton = { TextButton(onClick = onDismiss) { Text(LocalContext.current.getString(R.string.btn_cancelar)) } }
         )
     }
 }
@@ -737,6 +742,7 @@ fun ConfiguracionDialog(
     onConfirm: (ConfiguracionPlanificacion) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     var diasVerdeDiscurso by remember { mutableStateOf(config.diasVerdeDiscurso.toString()) }
     var diasAmarilloDiscurso by remember { mutableStateOf(config.diasAmarilloDiscurso.toString()) }
     var diasVerdeOracion by remember { mutableStateOf(config.diasVerdeOracion.toString()) }
@@ -744,20 +750,20 @@ fun ConfiguracionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Configuración de colores") },
+        title = { Text(LocalContext.current.getString(R.string.plan_conf_colores)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Discursos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(LocalContext.current.getString(R.string.plan_discursos), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = diasVerdeDiscurso, onValueChange = { diasVerdeDiscurso = it }, label = { Text("🟢 días") }, modifier = Modifier.weight(1f), singleLine = true)
-                    OutlinedTextField(value = diasAmarilloDiscurso, onValueChange = { diasAmarilloDiscurso = it }, label = { Text("🟡 días") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = diasVerdeDiscurso, onValueChange = { diasVerdeDiscurso = it }, label = { Text(LocalContext.current.getString(R.string.plan_dias_verde)) }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = diasAmarilloDiscurso, onValueChange = { diasAmarilloDiscurso = it }, label = { Text(LocalContext.current.getString(R.string.plan_dias_amarillo)) }, modifier = Modifier.weight(1f), singleLine = true)
                 }
-                Text("Oraciones", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(LocalContext.current.getString(R.string.plan_oraciones), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = diasVerdeOracion, onValueChange = { diasVerdeOracion = it }, label = { Text("🟢 días") }, modifier = Modifier.weight(1f), singleLine = true)
-                    OutlinedTextField(value = diasAmarilloOracion, onValueChange = { diasAmarilloOracion = it }, label = { Text("🟡 días") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = diasVerdeOracion, onValueChange = { diasVerdeOracion = it }, label = { Text(LocalContext.current.getString(R.string.plan_dias_verde)) }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = diasAmarilloOracion, onValueChange = { diasAmarilloOracion = it }, label = { Text(LocalContext.current.getString(R.string.plan_dias_amarillo)) }, modifier = Modifier.weight(1f), singleLine = true)
                 }
-                Text("🟢 = más de X días  🟡 = entre X y Y días  🔴 = menos de Y días", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(LocalContext.current.getString(R.string.plan_leyenda_colores), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         confirmButton = {
@@ -768,9 +774,9 @@ fun ConfiguracionDialog(
                     diasVerdeOracion = diasVerdeOracion.toIntOrNull() ?: config.diasVerdeOracion,
                     diasAmarilloOracion = diasAmarilloOracion.toIntOrNull() ?: config.diasAmarilloOracion
                 ))
-            }) { Text("Guardar") }
+            }) { Text(LocalContext.current.getString(R.string.btn_guardar)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(LocalContext.current.getString(R.string.btn_cancelar)) } }
     )
 }
 
@@ -784,6 +790,7 @@ fun AsignarAgendaDialog(
     onConfirm: (String, String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     val dateFormat = remember { java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()) }
     var agendaSeleccionada by remember { mutableStateOf<Agenda?>(null) }
     var expandedAgenda by remember { mutableStateOf(false) }
@@ -797,46 +804,46 @@ fun AsignarAgendaDialog(
     else
         calcularColor(ultimaVez, config.diasVerdeOracion, config.diasAmarilloOracion)
 
-    val camposOracion = listOf("Primera Oración", "Oración Final")
-    val campoFinal = if (tab == 0) "NUEVO_DISCURSO" else campoOracion
+    val camposOracion = listOf(LocalContext.current.getString(R.string.editar_primera_oracion), LocalContext.current.getString(R.string.editar_oracion_final))
+    val campoFinal = if (tab == 0) LocalContext.current.getString(R.string.plan_nueva_discurso) else campoOracion
     val puedeConfirmar = agendaSeleccionada != null && (tab == 0 || campoOracion.isNotBlank())
 
     if (showAdvertencia) {
         AlertDialog(
             onDismissRequest = { showAdvertencia = false },
-            title = { Text("⚠️ Hermano/a reciente") },
+            title = { Text(LocalContext.current.getString(R.string.plan_hermano_reciente)) },
             text = { Text("${ranking.hermano.nombre} participó hace solo ${diasDesde(ultimaVez)} días. ¿Deseas asignarlo/a de todas formas?") },
             confirmButton = {
-                TextButton(onClick = { agendaSeleccionada?.let { onConfirm(it.id, campoFinal) }; showAdvertencia = false }) { Text("Sí, asignar") }
+                TextButton(onClick = { agendaSeleccionada?.let { onConfirm(it.id, campoFinal) }; showAdvertencia = false }) { Text(LocalContext.current.getString(R.string.btn_si_asignar)) }
             },
-            dismissButton = { TextButton(onClick = { showAdvertencia = false }) { Text("Cancelar") } }
+            dismissButton = { TextButton(onClick = { showAdvertencia = false }) { Text(LocalContext.current.getString(R.string.btn_cancelar)) } }
         )
         return
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Asignar ${ranking.hermano.nombre}") },
+        title = { Text(LocalContext.current.getString(R.string.plan_asignar_titulo, ranking.hermano.nombre)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    if (tab == 0) "Se agregará como discursante" else "Se asignará como oración",
+                    if (tab == 0) LocalContext.current.getString(R.string.plan_se_asignara_discurso) else LocalContext.current.getString(R.string.plan_se_asignara_oracion),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 ExposedDropdownMenuBox(expanded = expandedAgenda, onExpandedChange = { expandedAgenda = it }) {
                     OutlinedTextField(
                         value = agendaSeleccionada?.let { dateFormat.format(it.fecha.toDate()) } ?: "",
                         onValueChange = {}, readOnly = true,
-                        label = { Text("Reunión (borrador)") },
+                        label = { Text(LocalContext.current.getString(R.string.plan_reunion_borrador)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedAgenda) },
                         modifier = Modifier.fillMaxWidth().menuAnchor(),
-                        placeholder = { Text("Seleccionar fecha") }
+                        placeholder = { Text(LocalContext.current.getString(R.string.editar_seleccionar_fecha)) }
                     )
                     ExposedDropdownMenu(expanded = expandedAgenda, onDismissRequest = { expandedAgenda = false }) {
                         if (agendas.isEmpty()) {
-                            DropdownMenuItem(text = { Text("No hay agendas borrador") }, onClick = { expandedAgenda = false }, enabled = false)
+                            DropdownMenuItem(text = { Text(LocalContext.current.getString(R.string.agendas_no_hay_borrador)) }, onClick = { expandedAgenda = false }, enabled = false)
                         } else {
-                            agendas.forEach { agenda ->
+                            agendas.sortedBy { it.fecha.toDate() }.forEach { agenda ->
                                 DropdownMenuItem(text = { Text(dateFormat.format(agenda.fecha.toDate())) }, onClick = { agendaSeleccionada = agenda; expandedAgenda = false })
                             }
                         }
@@ -846,10 +853,10 @@ fun AsignarAgendaDialog(
                     ExposedDropdownMenuBox(expanded = expandedOracion, onExpandedChange = { expandedOracion = it }) {
                         OutlinedTextField(
                             value = campoOracion, onValueChange = {}, readOnly = true,
-                            label = { Text("Tipo de oración") },
+                            label = { Text(LocalContext.current.getString(R.string.plan_tipo_oracion)) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedOracion) },
                             modifier = Modifier.fillMaxWidth().menuAnchor(),
-                            placeholder = { Text("Seleccionar") }
+                            placeholder = { Text(LocalContext.current.getString(R.string.btn_aceptar)) }
                         )
                         ExposedDropdownMenu(expanded = expandedOracion, onDismissRequest = { expandedOracion = false }) {
                             camposOracion.forEach { campo ->
@@ -867,9 +874,9 @@ fun AsignarAgendaDialog(
                     else agendaSeleccionada?.let { onConfirm(it.id, campoFinal) }
                 },
                 enabled = puedeConfirmar
-            ) { Text("Asignar") }
+            ) { Text(LocalContext.current.getString(R.string.btn_asignar)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(LocalContext.current.getString(R.string.btn_cancelar)) } }
     )
 }
 
@@ -882,6 +889,7 @@ fun EditarHermanoDialog(
     onConfirm: (String, Timestamp?, Timestamp?, Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     var nombre by remember { mutableStateOf(nombreActual) }
     var showDuplicadoWarning by remember { mutableStateOf(false) }
     var actualizarAgendas by remember { mutableStateOf(false) }
@@ -912,24 +920,24 @@ fun EditarHermanoDialog(
     if (showDuplicadoWarning) {
         AlertDialog(
             onDismissRequest = { showDuplicadoWarning = false },
-            title = { Text("¿Nombre duplicado?") },
-            text = { Text("Ya existe \"$nombreDuplicado\" que parece el mismo nombre. ¿Querés guardarlo igual?") },
+            title = { Text(LocalContext.current.getString(R.string.editar_nombre_duplicado)) },
+            text = { Text(context.getString(R.string.plan_nombre_similar, nombreDuplicado)) },
             confirmButton = {
-                TextButton(onClick = { onConfirm(nombre.trim(), fechaDiscurso, fechaOracion, actualizarAgendas); showDuplicadoWarning = false }) { Text("Guardar igual") }
+                TextButton(onClick = { onConfirm(nombre.trim(), fechaDiscurso, fechaOracion, actualizarAgendas); showDuplicadoWarning = false }) { Text(LocalContext.current.getString(R.string.btn_guardar_igual)) }
             },
-            dismissButton = { TextButton(onClick = { showDuplicadoWarning = false }) { Text("Cancelar") } }
+            dismissButton = { TextButton(onClick = { showDuplicadoWarning = false }) { Text(LocalContext.current.getString(R.string.btn_cancelar)) } }
         )
     }
 
     if (!showPickerDiscurso && !showPickerOracion && !showDuplicadoWarning) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Editar hermano/a") },
+            title = { Text(LocalContext.current.getString(R.string.plan_editar_hermano_titulo)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = nombre, onValueChange = { nombre = it },
-                        label = { Text("Nombre completo") },
+                        label = { Text(LocalContext.current.getString(R.string.editar_nombre_completo)) },
                         modifier = Modifier.fillMaxWidth(), singleLine = true
                     )
                     // Checkbox actualizar agendas — solo si cambió el nombre
@@ -943,14 +951,14 @@ fun EditarHermanoDialog(
                                 onCheckedChange = { actualizarAgendas = it }
                             )
                             Text(
-                                "Actualizar en agendas borrador",
+                                LocalContext.current.getString(R.string.editar_actualizar_agendas),
                                 style = MaterialTheme.typography.bodySmall,
                                 modifier = Modifier.padding(start = 4.dp)
                             )
                         }
                     }
                     Text(
-                        "Última participación conocida",
+                        LocalContext.current.getString(R.string.plan_ultima_participacion),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -958,17 +966,17 @@ fun EditarHermanoDialog(
                         value = fechaDiscurso?.let { dateFormat.format(it.toDate()) } ?: "",
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Último discurso") },
-                        placeholder = { Text("Sin datos") },
+                        label = { Text(LocalContext.current.getString(R.string.plan_ultimo_discurso)) },
+                        placeholder = { Text(LocalContext.current.getString(R.string.editar_sin_datos)) },
                         trailingIcon = {
                             Row {
                                 if (fechaDiscurso != null) {
                                     IconButton(onClick = { fechaDiscurso = null }) {
-                                        Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
                                     }
                                 }
                                 IconButton(onClick = { showPickerDiscurso = true }) {
-                                    Icon(Icons.Default.DateRange, "Seleccionar")
+                                    Icon(Icons.Default.DateRange, LocalContext.current.getString(R.string.btn_aceptar))
                                 }
                             }
                         },
@@ -978,17 +986,17 @@ fun EditarHermanoDialog(
                         value = fechaOracion?.let { dateFormat.format(it.toDate()) } ?: "",
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Última oración") },
-                        placeholder = { Text("Sin datos") },
+                        label = { Text(LocalContext.current.getString(R.string.plan_ultima_oracion)) },
+                        placeholder = { Text(LocalContext.current.getString(R.string.editar_sin_datos)) },
                         trailingIcon = {
                             Row {
                                 if (fechaOracion != null) {
                                     IconButton(onClick = { fechaOracion = null }) {
-                                        Icon(Icons.Default.Close, "Borrar", modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
                                     }
                                 }
                                 IconButton(onClick = { showPickerOracion = true }) {
-                                    Icon(Icons.Default.DateRange, "Seleccionar")
+                                    Icon(Icons.Default.DateRange, LocalContext.current.getString(R.string.btn_aceptar))
                                 }
                             }
                         },
@@ -1008,9 +1016,9 @@ fun EditarHermanoDialog(
                         }
                     },
                     enabled = nombre.isNotBlank()
-                ) { Text("Guardar") }
+                ) { Text(LocalContext.current.getString(R.string.btn_guardar)) }
             },
-            dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+            dismissButton = { TextButton(onClick = onDismiss) { Text(LocalContext.current.getString(R.string.btn_cancelar)) } }
         )
     } // end if !showPicker && !showDuplicado
 }
@@ -1021,6 +1029,7 @@ fun FechaSelectorDialog(
     onFechaSeleccionada: (java.util.Date) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
             .apply { set(java.util.Calendar.HOUR_OF_DAY, 12) }.timeInMillis
@@ -1037,9 +1046,9 @@ fun FechaSelectorDialog(
                     }
                     onFechaSeleccionada(calLocal.time)
                 }
-            }) { Text("Aceptar") }
+            }) { Text(LocalContext.current.getString(R.string.btn_aceptar)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(LocalContext.current.getString(R.string.btn_cancelar)) } }
     ) { DatePicker(state = datePickerState) }
 }
 

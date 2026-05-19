@@ -1,21 +1,22 @@
 package com.example.agendasacramental
 
 import android.app.Activity
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.ui.platform.LocalContext
 import android.content.Context
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.fragment.app.FragmentActivity
+import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.auth.api.signin.*
 import com.google.android.gms.common.api.ApiException
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
@@ -25,11 +26,13 @@ import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.InstallStatus
 import com.google.android.play.core.install.model.UpdateAvailability
 import com.google.firebase.auth.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 
-
-class MainActivity : FragmentActivity() {
+class MainActivity : AppCompatActivity() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var googleSignInClient: GoogleSignInClient
@@ -51,6 +54,11 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    override fun attachBaseContext(newBase: Context) {
+        // Aplicar idioma para API < 33
+        super.attachBaseContext(LocaleHelper.aplicarIdioma(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -62,8 +70,33 @@ class MainActivity : FragmentActivity() {
             .build()
         googleSignInClient = GoogleSignIn.getClient(this, gso)
 
+        // Aplicar idioma al arrancar (API 33+)
+        LocaleHelper.aplicarAlArrancar(this)
+
         if (auth.currentUser != null) {
             currentScreen.value = Screen.SeleccionUnidad
+        }
+
+        // Restaurar pantalla si venimos de un cambio de idioma
+        val prefsRestore = getSharedPreferences("agenda_prefs", android.content.Context.MODE_PRIVATE)
+        val pantallaGuardada = prefsRestore.getString("pantalla_actual", null)
+        if (pantallaGuardada != null && auth.currentUser != null) {
+            val unidadGuardada = prefsRestore.getString("unidad_recreate", "") ?: ""
+            if (unidadGuardada.isNotBlank()) currentUnidad.value = unidadGuardada
+            currentScreen.value = when (pantallaGuardada) {
+                "Home" -> Screen.Home
+                "Login" -> Screen.Login
+                else -> Screen.SeleccionUnidad
+            }
+            prefsRestore.edit().remove("pantalla_actual").remove("unidad_recreate").apply()
+        }
+
+        // Abrir agenda directamente si viene de una notificación
+        intent.getStringExtra("open_agenda_id")?.let { agendaId ->
+            if (agendaId.isNotBlank() && auth.currentUser != null) {
+                currentAgendaId.value = agendaId
+                currentScreen.value = Screen.EditarAgenda
+            }
         }
 
         verificarActualizacion()
@@ -72,6 +105,7 @@ class MainActivity : FragmentActivity() {
             val context = LocalContext.current
             val prefs = remember { context.getSharedPreferences("agenda_prefs", Context.MODE_PRIVATE) }
             var tema by remember { mutableStateOf(prefs.getString("tema", "sistema") ?: "sistema") }
+            var idioma by remember { mutableStateOf(LocaleHelper.getIdiomaGuardado(context)) }
             val sistemaOscuro = isSystemInDarkTheme()
             val usarOscuro = when (tema) {
                 "oscuro" -> true
@@ -97,13 +131,21 @@ class MainActivity : FragmentActivity() {
                             Screen.EditarAgenda -> currentScreen.value = Screen.ListaAgendas
                             Screen.Planificacion -> currentScreen.value = Screen.Home
                             Screen.ModoLectura -> currentScreen.value = Screen.ListaAgendas
+                            Screen.Notificaciones -> currentScreen.value = Screen.Home
                             else -> {}
                         }
                     }
 
                     when (screen) {
                         Screen.Login -> LoginScreen(
-                            onLoginClick = { signIn() }
+                            onLoginClick = { signIn() },
+                            idioma = idioma,
+                            onIdiomaChange = { nuevoIdioma ->
+                                idioma = nuevoIdioma
+                                LocaleHelper.setIdioma(context, nuevoIdioma)
+                                prefs.edit().putString("pantalla_actual", "Login").apply()
+                                recreate()
+                            }
                         )
                         Screen.SeleccionUnidad -> SeleccionUnidadScreen(
                             activity = this@MainActivity,
@@ -111,6 +153,11 @@ class MainActivity : FragmentActivity() {
                             onUnidadIngresada = { numeroUnidad ->
                                 currentUnidad.value = numeroUnidad
                                 currentScreen.value = Screen.Home
+                                AgendaNotificationWorker.programar(this@MainActivity)
+                                // Guardar próxima agenda en prefs para notificaciones
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    AgendaRepository().guardarProximaAgendaEnPrefs(numeroUnidad, this@MainActivity)
+                                }
                             },
                             onLogout = { logout() }
                         )
@@ -121,8 +168,19 @@ class MainActivity : FragmentActivity() {
                                 tema = nuevoTema
                                 prefs.edit().putString("tema", nuevoTema).apply()
                             },
+                            idioma = idioma,
+                            onIdiomaChange = { nuevoIdioma ->
+                                idioma = nuevoIdioma
+                                LocaleHelper.setIdioma(context, nuevoIdioma)
+                                prefs.edit()
+                                    .putString("pantalla_actual", "Home")
+                                    .putString("unidad_recreate", unidad)
+                                    .apply()
+                                recreate()
+                            },
                             onIrAgendas = { currentScreen.value = Screen.ListaAgendas },
                             onIrPlanificacion = { currentScreen.value = Screen.Planificacion },
+                            onIrNotificaciones = { currentScreen.value = Screen.Notificaciones },
                             onCambiarUnidad = { currentUnidad.value = ""; currentScreen.value = Screen.SeleccionUnidad },
                             onLogout = { logout() }
                         )
@@ -154,6 +212,10 @@ class MainActivity : FragmentActivity() {
                             }
                         )
                         Screen.Planificacion -> PlanificacionScreen(
+                            numeroUnidad = unidad,
+                            onBack = { currentScreen.value = Screen.Home }
+                        )
+                        Screen.Notificaciones -> ConfiguracionNotificacionesScreen(
                             numeroUnidad = unidad,
                             onBack = { currentScreen.value = Screen.Home }
                         )
@@ -247,4 +309,5 @@ sealed class Screen {
     object EditarAgenda : Screen()
     object Planificacion : Screen()
     object ModoLectura : Screen()
+    object Notificaciones : Screen()
 }

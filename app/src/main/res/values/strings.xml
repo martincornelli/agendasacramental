@@ -1,5 +1,314 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/values/strings.xml — Español (por defecto) -->
 <resources>
+    <!-- App -->
     <string name="app_name">Agenda Sacramental</string>
-    <string name="sign_in">Iniciar sesión con Google</string>
-    <string name="default_web_client_id">833115584713-ooe0jff4lrhinahlc9i6u35077vc75gi.apps.googleusercontent.com</string>
+    <string name="app_subtitle">La Iglesia de Jesucristo de los\nSantos de los Últimos Días</string>
+    <string name="version">v1.2.3</string>
+
+    <!-- Botones comunes -->
+    <string name="btn_aceptar">Aceptar</string>
+    <string name="btn_cancelar">Cancelar</string>
+    <string name="btn_cerrar">Cerrar</string>
+    <string name="btn_guardar">Guardar</string>
+    <string name="btn_guardar_igual">Guardar igual</string>
+    <string name="btn_agregar">Agregar</string>
+    <string name="btn_agregar_igual">Agregar igual</string>
+    <string name="btn_eliminar">Eliminar</string>
+    <string name="btn_enviar">Enviar</string>
+    <string name="btn_crear">Crear</string>
+    <string name="btn_ingresar">Ingresar</string>
+    <string name="btn_volver">Volver</string>
+    <string name="btn_volver_menu">Volver al menú</string>
+    <string name="btn_ir_ajustes">Ir a Ajustes</string>
+    <string name="btn_si_crear">Sí, crear</string>
+    <string name="btn_si_asignar">Sí, asignar</string>
+    <string name="btn_asignar">Asignar</string>
+
+    <!-- Login -->
+    <string name="login_titulo">Agenda Sacramental</string>
+    <string name="login_iniciar_google">Iniciar sesión con Google</string>
+
+    <!-- Selección de unidad -->
+    <string name="unidad_acceso">Acceso a Unidad</string>
+    <string name="unidad_numero">Número de Unidad</string>
+    <string name="unidad_ingrese_numero">Ingrese el número de unidad</string>
+    <string name="unidad_ingrese_numero_primero">Ingrese el número de unidad primero</string>
+    <string name="unidad_nueva">Nueva unidad</string>
+    <string name="unidad_crear">Crear unidad</string>
+    <string name="unidad_confirmacion_crear">La unidad %s no existe. ¿Desea crearla?</string>
+    <string name="unidad_primera_contrasena">Será el primero en configurar la contraseña para esta unidad.</string>
+    <string name="unidad_error_crear">Error al crear la unidad. Intente nuevamente.</string>
+
+    <!-- Contraseña -->
+    <string name="contrasena">Contraseña</string>
+    <string name="contrasena_ingrese">Ingrese la contraseña</string>
+    <string name="contrasena_nueva">Nueva contraseña</string>
+    <string name="contrasena_confirmar">Confirmar contraseña</string>
+    <string name="contrasena_confirmar_nueva">Confirmar nueva contraseña</string>
+    <string name="contrasena_crear">Crear contraseña</string>
+    <string name="contrasena_cambiar">Cambiar contraseña</string>
+    <string name="contrasena_olvide">Olvidé mi contraseña</string>
+    <string name="contrasena_incorrecta">Contraseña incorrecta</string>
+    <string name="contrasena_minimo">La contraseña debe tener al menos 4 caracteres</string>
+    <string name="contrasena_no_coinciden">Las contraseñas no coinciden</string>
+    <string name="contrasena_actualizada">Contraseña actualizada correctamente.</string>
+    <string name="contrasena_error">Error al cambiar la contraseña. Intente nuevamente.</string>
+    <string name="contrasena_mostrar">Mostrar</string>
+    <string name="contrasena_ocultar">Ocultar</string>
+    <string name="contrasena_usar">Usar contraseña</string>
+
+    <!-- Biometría -->
+    <string name="biometria_usar">Usar huella digital</string>
+    <string name="biometria_autenticar">Autenticá con tu huella digital</string>
+    <string name="biometria_no_reconocida">Huella no reconocida. Intentá de nuevo.</string>
+    <string name="biometria_recordar">Recordar en este dispositivo (huella)</string>
+    <string name="recordar_unidad">Recordar número de unidad</string>
+    <string name="cerrar_sesion_google">Cerrar sesión de Google</string>
+
+    <!-- Home -->
+    <string name="home_que_deseas">¿Qué deseas hacer?</string>
+    <string name="home_agendas">Agendas</string>
+    <string name="home_agendas_desc">Crear y gestionar reuniones</string>
+    <string name="home_planificacion">Planificación</string>
+    <string name="home_planificacion_desc">Ranking de oradores y oraciones</string>
+
+    <!-- Menú ajustes -->
+    <string name="ajustes">Ajustes</string>
+    <string name="ajustes_tema">Tema</string>
+    <string name="ajustes_tema_sistema">Según el sistema</string>
+    <string name="ajustes_tema_claro">Claro</string>
+    <string name="ajustes_tema_oscuro">Oscuro</string>
+    <string name="ajustes_notificaciones">Notificaciones</string>
+    <string name="ajustes_idioma">Idioma</string>
+    <string name="ajustes_cerrar_sesion">Cerrar sesión</string>
+
+    <!-- Lista de agendas -->
+    <string name="agendas_titulo">Unidad %s</string>
+    <string name="agendas_nueva">Nueva agenda</string>
+    <string name="agendas_proximo_domingo">PRÓXIMO DOMINGO</string>
+    <string name="agendas_realizadas">REALIZADAS</string>
+    <string name="agendas_sin_agendas">No hay agendas aún.\nToque + para crear una.</string>
+    <string name="agendas_eliminar_titulo">Eliminar agenda</string>
+    <string name="agendas_eliminar_conf">¿Está seguro que desea eliminar la agenda del %s?</string>
+    <string name="agendas_crear_domingos">Crear domingos</string>
+    <string name="agendas_crear_domingos_titulo">Crear domingos en blanco</string>
+    <string name="agendas_crear_domingos_desc">Se crearán agendas en blanco para todos los domingos desde hoy hasta la fecha elegida. Las fechas que ya tengan agenda serán ignoradas.</string>
+    <string name="agendas_hasta_domingo">Hasta el domingo</string>
+    <string name="agendas_no_hay_borrador">No hay agendas borrador</string>
+    <string name="agendas_buscar">Buscar por fecha, nombre, himno...</string>
+    <string name="agendas_cambiar_unidad">Cambiar unidad</string>
+
+    <!-- Editar agenda -->
+    <string name="editar_agenda_titulo">Editar Agenda</string>
+    <string name="editar_agenda_nueva">Nueva Agenda</string>
+    <string name="editar_agenda_titulo_card">Agenda de Reunión Sacramental</string>
+    <string name="editar_cita_dc">D&amp;C 46:2: Pero a pesar de las cosas que están escritas, siempre se ha concedido a los élderes de mi iglesia desde el principio, y siempre será así, dirigir todas las reuniones conforme los oriente y los guíe el Santo Espíritu.</string>
+    <string name="editar_fecha">Fecha</string>
+    <string name="editar_asistencia">Asist.</string>
+    <string name="editar_estado">Estado</string>
+    <string name="editar_preside">Preside</string>
+    <string name="editar_dirige">Dirige</string>
+    <string name="editar_reconocimientos">Reconocimientos</string>
+    <string name="editar_agregar_reconocimiento">Agregar reconocimiento</string>
+    <string name="editar_anuncios">Anuncios</string>
+    <string name="editar_agregar_anuncio">Agregar anuncio</string>
+    <string name="editar_primer_himno">Primer Himno</string>
+    <string name="editar_himno_sacramental">Himno Sacramental</string>
+    <string name="editar_himno_final">Himno Final</string>
+    <string name="editar_himno_numero">Nº</string>
+    <string name="editar_himno_nombre">Nombre del himno</string>
+    <string name="editar_director_musica">Director/a de música</string>
+    <string name="editar_pianista">Pianista</string>
+    <string name="editar_primera_oracion">Primera Oración</string>
+    <string name="editar_oracion_final">Oración Final</string>
+    <string name="editar_asuntos">Asuntos Estaca/Barrio</string>
+    <string name="editar_mensajes">Mensajes del Evangelio</string>
+    <string name="editar_reunion_testimonios">Reunión de ayuno y testimonios</string>
+    <string name="editar_agregar_testimonio">Agregar nombre</string>
+    <string name="editar_guardado_ok">✓ Guardado correctamente.</string>
+    <string name="editar_error_guardar">Error al guardar. Intente nuevamente.</string>
+    <string name="editar_fecha_duplicada">Ya existe una agenda para esa fecha.</string>
+    <string name="editar_nombre_duplicado">¿Nombre duplicado?</string>
+    <string name="editar_modo_lectura">Modo Lectura</string>
+    <string name="editar_compartir">Compartir</string>
+    <string name="editar_enviar_agenda">Enviar agenda</string>
+    <string name="editar_exportar_pdf">Exportar PDF</string>
+    <string name="editar_pedir_sugerencias">Pedir sugerencias</string>
+    <string name="editar_actualizar_agendas">Actualizar en agendas borrador</string>
+    <string name="editar_sin_datos">Sin datos</string>
+    <string name="editar_nombre">Nombre</string>
+    <string name="editar_cargo">Cargo / Detalle</string>
+    <string name="editar_texto_libre">Texto libre</string>
+    <string name="editar_otros_placeholder">Escriba el texto tal como debe aparecer</string>
+    <string name="editar_nombre_completo">Nombre completo</string>
+    <string name="editar_discursante">Discursante</string>
+    <string name="editar_seleccionar_fecha">Seleccionar fecha</string>
+    <string name="editar_ver_formula">Ver fórmula</string>
+    <string name="editar_subir">Subir</string>
+    <string name="editar_bajar">Bajar</string>
+
+    <!-- Solicitud recomendaciones -->
+    <string name="solicitud_titulo">Pedir sugerencias</string>
+    <string name="solicitud_selecciona">Seleccioná qué necesitás para el %s:</string>
+    <string name="solicitud_himnos">🎵 Himnos</string>
+    <string name="solicitud_oraciones">🙏 Oraciones</string>
+    <string name="solicitud_discursos">🎤 Discursos</string>
+    <string name="solicitud_apertura">Apertura</string>
+    <string name="solicitud_sacramental">Sacramental</string>
+    <string name="solicitud_intermedio">Intermedio</string>
+    <string name="solicitud_final">Final</string>
+    <string name="solicitud_primera_oracion">Primera oración</string>
+    <string name="solicitud_oracion_final">Oración final</string>
+    <string name="solicitud_mas">Más</string>
+    <string name="solicitud_menos">Menos</string>
+    <string name="solicitud_mensaje_intro">*Agenda del domingo %s*</string>
+    <string name="solicitud_mensaje_cuerpo">Queridos hermanos del obispado: Necesitamos recomendaciones para las siguientes asignaciones:</string>
+    <string name="solicitud_mensaje_cierre">Por favor envíen sugerencias por acá lo antes posible. Gracias.</string>
+    <string name="solicitud_enviar_titulo">Enviar solicitud</string>
+
+    <!-- Modo lectura -->
+    <string name="lectura_preside">Preside</string>
+    <string name="lectura_dirige">Dirige</string>
+    <string name="lectura_reconocimientos">Reconocimientos</string>
+    <string name="lectura_anuncios">Anuncios</string>
+    <string name="lectura_himno_apertura">Himno de apertura</string>
+    <string name="lectura_director">Director/a</string>
+    <string name="lectura_pianista">Pianista</string>
+    <string name="lectura_primera_oracion">Primera oración</string>
+    <string name="lectura_asuntos">Asuntos</string>
+    <string name="lectura_himno_sacramental">Himno Sacramental</string>
+    <string name="lectura_mensajes">Mensajes del Evangelio</string>
+    <string name="lectura_himno_final">Himno Final</string>
+    <string name="lectura_oracion_final">Oración Final</string>
+    <string name="lectura_testimonio">Testimonio</string>
+    <string name="lectura_discurso">Discurso</string>
+
+    <!-- Planificación -->
+    <string name="plan_titulo">Planificación</string>
+    <string name="plan_discursos">Discursos</string>
+    <string name="plan_oraciones">Oraciones</string>
+    <string name="plan_agregar_hermano">Agregar hermano</string>
+    <string name="plan_configuracion">Configuración</string>
+    <string name="plan_buscar">Buscar hermano/a...</string>
+    <string name="plan_agregar_hermano_titulo">Agregar hermano/a</string>
+    <string name="plan_editar_hermano_titulo">Editar hermano/a</string>
+    <string name="plan_eliminar_hermano_titulo">Eliminar hermano/a</string>
+    <string name="plan_eliminar_hermanos_titulo">Eliminar hermanos</string>
+    <string name="plan_sin_hermanos">No hay hermanos en esta categoría.</string>
+    <string name="plan_sin_registros">Sin registros</string>
+    <string name="plan_ultimo_discurso">Último discurso</string>
+    <string name="plan_ultima_oracion">Última oración</string>
+    <string name="plan_ultima_participacion">Última participación conocida</string>
+    <string name="plan_opcional_participacion">Opcional: última participación conocida</string>
+    <string name="plan_inactivo">Inactivo</string>
+    <string name="plan_reactivar">Reactivar</string>
+    <string name="plan_desactivar">Desactivar</string>
+    <string name="plan_hermano_reciente">⚠️ Hermano/a reciente</string>
+    <string name="plan_conf_eliminar">¿Estás seguro que querés eliminar a %s del planificador?</string>
+    <string name="plan_conf_eliminar_varios">¿Estás seguro que querés eliminar %d hermano(s) del planificador?</string>
+    <string name="plan_asignar_titulo">Asignar %s</string>
+    <string name="plan_se_asignara_discurso">Se agregará como discursante</string>
+    <string name="plan_se_asignara_oracion">Se asignará como oración</string>
+    <string name="plan_tipo_oracion">Tipo de oración</string>
+    <string name="plan_participacion_reciente">%s participó hace solo %d días. ¿Deseas asignarlo/a de todas formas?</string>
+    <string name="plan_conf_colores">Configuración de colores</string>
+    <string name="plan_leyenda_colores">🟢 = más de X días  🟡 = entre X y Y días  🔴 = menos de Y días</string>
+    <string name="plan_cancelar_seleccion">Cancelar selección</string>
+    <string name="plan_eliminar_seleccionados">Eliminar seleccionados</string>
+    <string name="plan_dias_verde">🟢 días</string>
+    <string name="plan_dias_amarillo">🟡 días</string>
+    <string name="plan_reunion_borrador">Reunión (borrador)</string>
+    <string name="plan_nueva_discurso">NUEVO_DISCURSO</string>
+
+    <!-- Notificaciones -->
+    <string name="notif_titulo">Notificaciones</string>
+    <string name="notif_recordatorio">Recordatorio semanal</string>
+    <string name="notif_avisa">Avisa antes de cada reunión sacramental</string>
+    <string name="notif_bloqueadas_titulo">Notificaciones bloqueadas</string>
+    <string name="notif_bloqueadas_desc">Las notificaciones están bloqueadas para esta app. Para activarlas, andá a Ajustes → Aplicaciones → Agenda Sacramental → Notificaciones.</string>
+    <string name="notif_hora_aviso">Hora del aviso</string>
+    <string name="notif_cuando_avisar">¿Cuándo avisar?</string>
+    <string name="notif_cambiar_hora">Cambiar</string>
+    <string name="notif_resumen">Recibirás un aviso cada %s a las %s cuando haya reunión sacramental el domingo.</string>
+    <string name="notif_sabado">Sábado (1 día antes)</string>
+    <string name="notif_viernes">Viernes (2 días antes)</string>
+    <string name="notif_jueves">Jueves (3 días antes)</string>
+    <string name="notif_miercoles">Miércoles (4 días antes)</string>
+    <string name="notif_martes">Martes (5 días antes)</string>
+    <string name="notif_lunes">Lunes (6 días antes)</string>
+    <string name="notif_domingo">Domingo (7 días antes)</string>
+    <string name="notif_push_titulo">Agenda Sacramental</string>
+    <string name="notif_push_confirmada">Agenda del %s confirmada ✓</string>
+    <string name="notif_push_no_confirmada">Agenda del %s no confirmada</string>
+    <string name="notif_canal_nombre">Agenda Sacramental</string>
+    <string name="notif_canal_desc">Recordatorio de reunión sacramental</string>
+
+    <!-- Fórmulas litúrgicas -->
+    <string name="formula_relevo">RELEVOS</string>
+    <string name="formula_sostenimiento">SOSTENIMIENTOS</string>
+    <string name="formula_otros">OTROS</string>
+    <string name="pdf_como">como</string>
+
+    <!-- PDF -->
+    <string name="pdf_titulo">AGENDA REUNIÓN SACRAMENTAL</string>
+    <string name="pdf_subtitulo">Una Experiencia Espiritual</string>
+    <string name="pdf_asistencia">Asistencia</string>
+    <string name="pdf_fecha">Fecha:</string>
+    <string name="pdf_dirige">Dirige:</string>
+    <string name="pdf_preside">Preside:</string>
+    <string name="pdf_preludio">Preludio  (10-15\' antes del inicio de la reunión)</string>
+    <string name="pdf_bienvenida">Bienvenida y reconocimiento de autoridades:</string>
+    <string name="pdf_anuncios">Anuncios  (Solamente los más importantes y urgentes):</string>
+    <string name="pdf_himno_apertura">Himno de apertura:</string>
+    <string name="pdf_director">Director/a:</string>
+    <string name="pdf_pianista">Pianista:</string>
+    <string name="pdf_primera_oracion">Primera oración:</string>
+    <string name="pdf_himno_sacramental">Himno Sacramental:</string>
+    <string name="pdf_bendicion">Bendición y Reparto de la Santa Cena</string>
+    <string name="pdf_mensajes">Mensajes del evangelio, canto de la congregación y números musicales especiales</string>
+    <string name="pdf_reunion_testimonios">Reunión de Testimonios</string>
+    <string name="pdf_himno_final">Himno final:</string>
+    <string name="pdf_oracion_final">Oración final:</string>
+    <string name="pdf_postludio">Postludio  (10 minutos - sólo música)</string>
+    <string name="pdf_cita">\"Pero a pesar de las cosas que están escritas, siempre se ha concedido a los élderes de mi iglesia desde el principio, y siempre será así, dirigir todas las reuniones conforme los oriente y los guíe el Santo Espíritu.\"  D y C 46:2</string>
+    <string name="pdf_area" translatable="false">Área Sudamérica Sur</string>
+    <string name="pdf_relevo_singular">\"%s ha sido relevado como %s. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano.\"</string>
+    <string name="pdf_sostenimiento_singular">\"%s ha sido llamado como %s. Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\"</string>
+    <string name="plan_hoy">Hoy</string>
+    <string name="plan_hace_dias">Hace %s día(s)</string>
+    <string name="plan_dentro_de">Dentro de %s día(s)</string>
+    <string name="plan_nombre_similar">Ya existe "%s" que parece el mismo nombre. ¿Querés agregarlo igual?</string>
+    <!-- Estados de agenda -->
+    <string name="estado_borrador">Borrador</string>
+    <string name="estado_confirmada">Confirmada</string>
+    <string name="estado_realizada">Realizada</string>
+
+    <!-- Planificación adicional -->
+    <string name="plan_seleccionados">%d seleccionado(s)</string>
+
+    <!-- PDF fórmulas plural -->
+    <string name="pdf_relevo_plural">Los siguientes hermanos/as han sido relevados de sus llamamientos: \"%s. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano.\"</string>
+    <string name="pdf_sostenimiento_plural">Los siguientes hermanos/as han sido llamados a los siguientes llamamientos: \"%s. Los que estén a favor de sostenerlos, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\"</string>
+    <!-- Tipos de asunto -->
+    <string name="tipo_relevo">Relevo</string>
+    <string name="tipo_sostenimiento">Sostenimiento</string>
+    <string name="tipo_otros">Otros</string>
+
+    <!-- Colores de ranking -->
+    <string name="color_sugerido">Sugerido</string>
+    <string name="color_posible">Posible</string>
+    <string name="color_reciente">Reciente</string>
+
+    <string name="plan_veces_90_dias">%d vez/veces en 90 días</string>
+    <string name="plan_un_discurso">1 discurso</string>
+    <string name="plan_n_discursos">%d discursos</string>
+    <string name="solicitud_himnos_label">Himnos</string>
+    <string name="solicitud_oraciones_label">Oraciones</string>
+    <string name="pdf_formulas_titulo">Fórmulas de Sostenimiento y Relevo</string>
+    <string name="pdf_formulas_subtitulo">Referencia para uso durante la reunión</string>
+    <string name="pdf_formulas_nota">Texto sugerido según el Manual General de Instrucciones de La Iglesia de Jesucristo de los Santos de los Últimos Días.</string>
+
+    <!-- Disclaimer -->
+    <string name="disclaimer">Esta es una aplicación no oficial. No está afiliada ni respaldada por La Iglesia de Jesucristo de los Santos de los Últimos Días.</string>
 </resources>

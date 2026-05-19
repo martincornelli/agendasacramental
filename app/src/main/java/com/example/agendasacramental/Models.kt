@@ -3,6 +3,8 @@ package com.example.agendasacramental
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
 import java.text.Normalizer
+import java.util.Calendar
+import java.util.Date
 
 data class Unidad(
     @DocumentId val id: String = "",
@@ -34,16 +36,18 @@ data class Agenda(
     val oracionFinal: String = "",
     val asuntosEstacaBarrio: List<AsuntoEstacaBarrio> = emptyList(),
     val mensajesEvangelio: List<MensajeEvangelio> = emptyList(),
+    val reunionTestimonios: Boolean = false,
+    val testimonios: List<String> = emptyList(),
     val creadoPor: String = "",
     val creadoEn: Timestamp = Timestamp.now(),
     val ultimaEdicionPor: String = "",
     val ultimaEdicionEn: Timestamp = Timestamp.now()
 )
 
-enum class EstadoAgenda(val label: String) {
-    BORRADOR("Borrador"),
-    CONFIRMADA("Confirmada"),
-    REALIZADA("Realizada")
+enum class EstadoAgenda(val label: String, val stringResId: Int) {
+    BORRADOR("Borrador", R.string.estado_borrador),
+    CONFIRMADA("Confirmada", R.string.estado_confirmada),
+    REALIZADA("Realizada", R.string.estado_realizada)
 }
 
 data class AsuntoEstacaBarrio(
@@ -52,9 +56,10 @@ data class AsuntoEstacaBarrio(
     val columna3: String = ""
 )
 
-enum class TipoAsunto(val label: String) {
-    RELEVO("Relevo"),
-    SOSTENIMIENTO("Sostenimiento")
+enum class TipoAsunto(val label: String, val stringResId: Int) {
+    RELEVO("Relevo", R.string.tipo_relevo),
+    SOSTENIMIENTO("Sostenimiento", R.string.tipo_sostenimiento),
+    OTROS("Otros", R.string.tipo_otros)
 }
 
 data class MensajeEvangelio(
@@ -64,10 +69,10 @@ data class MensajeEvangelio(
     val himnoNombre: String = ""
 )
 
-enum class TipoMensaje(val label: String) {
-    TESTIMONIO("Testimonio"),
-    DISCURSO("Discurso"),
-    HIMNO_INTERMEDIO("Himno Intermedio")
+enum class TipoMensaje(val label: String, val stringResId: Int) {
+    TESTIMONIO("Testimonio", R.string.lectura_testimonio),
+    DISCURSO("Discurso", R.string.lectura_discurso),
+    HIMNO_INTERMEDIO("Himno Intermedio", R.string.solicitud_intermedio)
 }
 
 data class Hermano(
@@ -90,10 +95,10 @@ data class HermanoRanking(
     val vecesOracion90Dias: Int = 0
 )
 
-enum class ColorRanking(val label: String) {
-    VERDE("Sugerido"),
-    AMARILLO("Posible"),
-    ROJO("Reciente")
+enum class ColorRanking(val label: String, val stringResId: Int) {
+    VERDE("Sugerido", R.string.color_sugerido),
+    AMARILLO("Posible", R.string.color_posible),
+    ROJO("Reciente", R.string.color_reciente)
 }
 
 data class ConfiguracionPlanificacion(
@@ -109,4 +114,10 @@ data class ConfiguracionPlanificacion(
 fun normalizarNombre(nombre: String): String {
     val normalized = Normalizer.normalize(nombre.trim(), Normalizer.Form.NFD)
     return normalized.replace(Regex("[\\p{InCombiningDiacriticalMarks}]"), "").lowercase()
+}
+
+fun esPrimerDomingoDelMes(fecha: Date): Boolean {
+    val calendar = Calendar.getInstance().apply { time = fecha }
+    return calendar.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY &&
+            calendar.get(Calendar.DAY_OF_MONTH) in 1..7
 }

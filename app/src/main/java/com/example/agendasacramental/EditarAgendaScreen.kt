@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
@@ -21,6 +22,13 @@ import com.google.firebase.Timestamp
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+
+
+// Devuelve el nombre del himno según el idioma del contexto
+fun getNombreHimno(numero: Int, context: android.content.Context): String {
+    val lang = context.resources.configuration.locales[0].language
+    return if (lang == "en") HimnosEn.getNombre(numero) else Himnos.getNombre(numero)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +68,8 @@ fun EditarAgendaScreen(
     var oracionFinal by remember { mutableStateOf("") }
     var asuntos by remember { mutableStateOf<List<AsuntoEstacaBarrio>>(emptyList()) }
     var mensajes by remember { mutableStateOf<List<MensajeEvangelio>>(emptyList()) }
+    var reunionTestimonios by remember { mutableStateOf(esPrimerDomingoDelMes(fechaDate)) }
+    var testimonios by remember { mutableStateOf<List<String>>(emptyList()) }
     var metadataInfo by remember { mutableStateOf("") }
 
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
@@ -90,6 +100,8 @@ fun EditarAgendaScreen(
                 oracionFinal = agenda.oracionFinal
                 asuntos = agenda.asuntosEstacaBarrio
                 mensajes = agenda.mensajesEvangelio
+                reunionTestimonios = agenda.reunionTestimonios
+                testimonios = agenda.testimonios
                 metadataInfo = if (agenda.ultimaEdicionPor.isNotBlank())
                     "Última edición: ${agenda.ultimaEdicionPor} — ${dateFormat.format(agenda.ultimaEdicionEn.toDate())}"
                 else ""
@@ -121,6 +133,8 @@ fun EditarAgendaScreen(
             oracionFinal = oracionFinal,
             asuntosEstacaBarrio = asuntos,
             mensajesEvangelio = mensajes,
+            reunionTestimonios = reunionTestimonios,
+            testimonios = testimonios.filter { it.isNotBlank() },
             creadoPor = userEmail,
             creadoEn = Timestamp.now(),
             ultimaEdicionPor = userEmail,
@@ -129,11 +143,12 @@ fun EditarAgendaScreen(
     }
 
     fun compartirWhatsApp(context: Context) {
-        val texto = generarTextoAgenda(buildAgenda(), dateFormat)
+        val texto = generarTextoAgenda(buildAgenda(), dateFormat, context)
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_TEXT, texto)
             setPackage("com.whatsapp")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         try {
             context.startActivity(intent)
@@ -141,8 +156,9 @@ fun EditarAgendaScreen(
             val intentGeneral = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_TEXT, texto)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            context.startActivity(Intent.createChooser(intentGeneral, "Compartir agenda"))
+            context.startActivity(Intent.createChooser(intentGeneral, context.getString(R.string.editar_enviar_agenda)))
         }
     }
 
@@ -165,7 +181,7 @@ fun EditarAgendaScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (agendaId == null) "Nueva Agenda" else "Editar Agenda") },
+                title = { Text(if (agendaId == null) stringResource(R.string.editar_agenda_nueva) else stringResource(R.string.editar_agenda_titulo)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, "Volver")
@@ -173,7 +189,7 @@ fun EditarAgendaScreen(
                 },
                 actions = {
                     IconButton(onClick = { onModoLectura(buildAgenda()) }) {
-                        Icon(Icons.Default.MenuBook, "Modo Lectura")
+                        Icon(Icons.Default.MenuBook, stringResource(R.string.editar_modo_lectura))
                     }
                     Box {
                         var showCompartirMenu by remember { mutableStateOf(false) }
@@ -185,17 +201,17 @@ fun EditarAgendaScreen(
                             onDismissRequest = { showCompartirMenu = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Enviar agenda") },
+                                text = { Text(stringResource(R.string.editar_enviar_agenda)) },
                                 leadingIcon = { Icon(Icons.Default.Share, null) },
                                 onClick = { compartirWhatsApp(context); showCompartirMenu = false }
                             )
                             DropdownMenuItem(
-                                text = { Text("Exportar PDF") },
+                                text = { Text(stringResource(R.string.editar_exportar_pdf)) },
                                 leadingIcon = { Icon(Icons.Default.PictureAsPdf, null) },
                                 onClick = { GeneradorPDF.generarYCompartir(context, buildAgenda()); showCompartirMenu = false }
                             )
                             DropdownMenuItem(
-                                text = { Text("Pedir sugerencias") },
+                                text = { Text(stringResource(R.string.editar_pedir_sugerencias)) },
                                 leadingIcon = { Icon(Icons.Default.GroupAdd, null) },
                                 onClick = { showSolicitudDialog = true; showCompartirMenu = false }
                             )
@@ -211,11 +227,11 @@ fun EditarAgendaScreen(
                                     errorGuardado = ""
                                     // Recargar el agendaId si es nueva para habilitar PDF
                                     if (agendaId == null) onBack()
-                                    else errorGuardado = "✓ Guardado correctamente."
+                                    else errorGuardado = "✓ ${context.getString(R.string.editar_guardado_ok)}"
                                 } else if (result.exceptionOrNull()?.message == "FECHA_DUPLICADA") {
-                                    errorGuardado = "Ya existe una agenda para esa fecha."
+                                    errorGuardado = context.getString(R.string.editar_fecha_duplicada)
                                 } else {
-                                    errorGuardado = "Error al guardar. Intente nuevamente."
+                                    errorGuardado = context.getString(R.string.editar_error_guardar)
                                 }
                             }
                         },
@@ -224,7 +240,7 @@ fun EditarAgendaScreen(
                         if (isSaving) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         } else {
-                            Icon(Icons.Default.Check, "Guardar")
+                            Icon(Icons.Default.Check, stringResource(R.string.btn_guardar))
                         }
                     }
                 }
@@ -255,7 +271,7 @@ fun EditarAgendaScreen(
             ) {
                 item {
                     Text(
-                        "Agenda de Reunión Sacramental",
+                        stringResource(R.string.editar_agenda_titulo_card),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -264,7 +280,7 @@ fun EditarAgendaScreen(
                 item {
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                         Text(
-                            text = "D&C 46:2: Pero a pesar de las cosas que están escritas, siempre se ha concedido a los élderes de mi iglesia desde el principio, y siempre será así, dirigir todas las reuniones conforme los oriente y los guíe el Santo Espíritu.",
+                            text = stringResource(R.string.editar_cita_dc),
                             style = MaterialTheme.typography.bodySmall,
                             fontStyle = FontStyle.Italic,
                             modifier = Modifier.padding(12.dp)
@@ -278,14 +294,21 @@ fun EditarAgendaScreen(
                         Box(modifier = Modifier.weight(1f)) {
                             FechaSelector(
                                 fecha = fechaDate,
-                                onFechaChange = { fechaDate = it },
+                                onFechaChange = { nuevaFecha ->
+                                    val fechaAnteriorEraPrimerDomingo = esPrimerDomingoDelMes(fechaDate)
+                                    fechaDate = nuevaFecha
+                                    when {
+                                        esPrimerDomingoDelMes(nuevaFecha) -> reunionTestimonios = true
+                                        fechaAnteriorEraPrimerDomingo && testimonios.all { it.isBlank() } -> reunionTestimonios = false
+                                    }
+                                },
                                 dateFormat = dateFormat
                             )
                         }
                         OutlinedTextField(
                             value = asistencia,
                             onValueChange = { asistencia = it },
-                            label = { Text("Asist.") },
+                            label = { Text(stringResource(R.string.editar_asistencia)) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.width(80.dp),
                             singleLine = true
@@ -296,45 +319,54 @@ fun EditarAgendaScreen(
                 item { EstadoSelector(estado = estado, onEstadoChange = { estado = it }) }
 
                 item {
+                    SeccionTestimonios(
+                        activa = reunionTestimonios,
+                        testimonios = testimonios,
+                        onActivaChange = { reunionTestimonios = it },
+                        onTestimoniosChange = { testimonios = it }
+                    )
+                }
+
+                item {
                     CampoConAutocompletado(
                         valor = preside, onValorChange = { preside = it },
-                        label = "Preside", sugerencias = nombresUsados
+                        label = stringResource(R.string.editar_preside), sugerencias = nombresUsados
                     )
                 }
 
                 item {
                     CampoConAutocompletado(
                         valor = dirige, onValorChange = { dirige = it },
-                        label = "Dirige", sugerencias = nombresUsados
+                        label = stringResource(R.string.editar_dirige), sugerencias = nombresUsados
                     )
                 }
 
                 item {
                     ListaItemsEditor(
-                        titulo = "Reconocimientos",
+                        titulo = stringResource(R.string.editar_reconocimientos),
                         items = reconocimientos,
                         onItemsChange = { reconocimientos = it },
-                        placeholder = "Agregar reconocimiento"
+                        placeholder = stringResource(R.string.editar_agregar_reconocimiento)
                     )
                 }
 
                 item {
                     ListaItemsEditor(
-                        titulo = "Anuncios",
+                        titulo = stringResource(R.string.editar_anuncios),
                         items = anuncios,
                         onItemsChange = { anuncios = it },
-                        placeholder = "Agregar anuncio"
+                        placeholder = stringResource(R.string.editar_agregar_anuncio)
                     )
                 }
 
                 item {
                     CampoHimno(
-                        label = "Primer Himno", numero = primerHimnoNumero, nombre = primerHimnoNombre,
+                        label = stringResource(R.string.editar_primer_himno), numero = primerHimnoNumero, nombre = primerHimnoNombre,
                         onNumeroChange = { num ->
                             primerHimnoNumero = num
                             val n = num.toIntOrNull()
                             if (num.isBlank()) primerHimnoNombre = ""
-                            else if (n != null) primerHimnoNombre = Himnos.getNombre(n).ifEmpty { primerHimnoNombre }
+                            else if (n != null) primerHimnoNombre = getNombreHimno(n, context).ifEmpty { primerHimnoNombre }
                         },
                         onNombreChange = { primerHimnoNombre = it }
                     )
@@ -346,7 +378,7 @@ fun EditarAgendaScreen(
                             CampoConAutocompletado(
                                 valor = directorMusica,
                                 onValorChange = { directorMusica = it },
-                                label = "Director/a de música",
+                                label = stringResource(R.string.editar_director_musica),
                                 sugerencias = nombresUsados
                             )
                         }
@@ -354,7 +386,7 @@ fun EditarAgendaScreen(
                             CampoConAutocompletado(
                                 valor = pianista,
                                 onValorChange = { pianista = it },
-                                label = "Pianista",
+                                label = stringResource(R.string.editar_pianista),
                                 sugerencias = nombresUsados
                             )
                         }
@@ -364,7 +396,7 @@ fun EditarAgendaScreen(
                 item {
                     CampoConAutocompletado(
                         valor = primeraOracion, onValorChange = { primeraOracion = it },
-                        label = "Primera Oración", sugerencias = nombresUsados
+                        label = stringResource(R.string.editar_primera_oracion), sugerencias = nombresUsados
                     )
                 }
 
@@ -374,12 +406,12 @@ fun EditarAgendaScreen(
 
                 item {
                     CampoHimno(
-                        label = "Himno Sacramental", numero = himnoSacramentalNumero, nombre = himnoSacramentalNombre,
+                        label = stringResource(R.string.editar_himno_sacramental), numero = himnoSacramentalNumero, nombre = himnoSacramentalNombre,
                         onNumeroChange = { num ->
                             himnoSacramentalNumero = num
                             val n = num.toIntOrNull()
                             if (num.isBlank()) himnoSacramentalNombre = ""
-                            else if (n != null) himnoSacramentalNombre = Himnos.getNombre(n).ifEmpty { himnoSacramentalNombre }
+                            else if (n != null) himnoSacramentalNombre = getNombreHimno(n, context).ifEmpty { himnoSacramentalNombre }
                         },
                         onNombreChange = { himnoSacramentalNombre = it }
                     )
@@ -394,12 +426,12 @@ fun EditarAgendaScreen(
 
                 item {
                     CampoHimno(
-                        label = "Himno Final", numero = himnoFinalNumero, nombre = himnoFinalNombre,
+                        label = stringResource(R.string.editar_himno_final), numero = himnoFinalNumero, nombre = himnoFinalNombre,
                         onNumeroChange = { num ->
                             himnoFinalNumero = num
                             val n = num.toIntOrNull()
                             if (num.isBlank()) himnoFinalNombre = ""
-                            else if (n != null) himnoFinalNombre = Himnos.getNombre(n).ifEmpty { himnoFinalNombre }
+                            else if (n != null) himnoFinalNombre = getNombreHimno(n, context).ifEmpty { himnoFinalNombre }
                         },
                         onNombreChange = { himnoFinalNombre = it }
                     )
@@ -408,7 +440,7 @@ fun EditarAgendaScreen(
                 item {
                     CampoConAutocompletado(
                         valor = oracionFinal, onValorChange = { oracionFinal = it },
-                        label = "Oración Final", sugerencias = nombresUsados
+                        label = stringResource(R.string.editar_oracion_final), sugerencias = nombresUsados
                     )
                 }
 
@@ -430,17 +462,18 @@ fun EditarAgendaScreen(
 
 @Composable
 fun FechaSelector(fecha: Date, onFechaChange: (Date) -> Unit, dateFormat: SimpleDateFormat) {
+    val context = LocalContext.current
     var showPicker by remember { mutableStateOf(false) }
     val calendar = Calendar.getInstance().also { it.time = fecha }
 
     OutlinedTextField(
         value = dateFormat.format(fecha),
         onValueChange = {},
-        label = { Text("Fecha") },
+        label = { Text(stringResource(R.string.editar_fecha)) },
         readOnly = true,
         trailingIcon = {
             IconButton(onClick = { showPicker = true }) {
-                Icon(Icons.Default.DateRange, "Seleccionar fecha")
+                Icon(Icons.Default.DateRange, stringResource(R.string.editar_seleccionar_fecha))
             }
         },
         modifier = Modifier.fillMaxWidth()
@@ -470,6 +503,7 @@ fun DatePickerDialog(
     initialMonth: Int,
     initialDay: Int
 ) {
+    val context = LocalContext.current
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
             set(initialYear, initialMonth, initialDay, 12, 0, 0)
@@ -485,9 +519,9 @@ fun DatePickerDialog(
                     val cal = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).also { it.timeInMillis = millis }
                     onDateSelected(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
                 }
-            }) { Text("Aceptar") }
+            }) { Text(stringResource(R.string.btn_aceptar)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancelar)) } }
     ) {
         DatePicker(state = datePickerState)
     }
@@ -496,20 +530,49 @@ fun DatePickerDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EstadoSelector(estado: EstadoAgenda, onEstadoChange: (EstadoAgenda) -> Unit) {
+    val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
-            value = estado.label,
+            value = context.getString(estado.stringResId),
             onValueChange = {},
             readOnly = true,
-            label = { Text("Estado") },
+            label = { Text(stringResource(R.string.editar_estado)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             EstadoAgenda.values().forEach { e ->
-                DropdownMenuItem(text = { Text(e.label) }, onClick = { onEstadoChange(e); expanded = false })
+                DropdownMenuItem(text = { Text(context.getString(e.stringResId)) }, onClick = { onEstadoChange(e); expanded = false })
             }
+        }
+    }
+}
+
+@Composable
+fun SeccionTestimonios(
+    activa: Boolean,
+    testimonios: List<String>,
+    onActivaChange: (Boolean) -> Unit,
+    onTestimoniosChange: (List<String>) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.editar_reunion_testimonios),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f)
+            )
+            Switch(checked = activa, onCheckedChange = onActivaChange)
+        }
+        if (activa) {
+            ListaItemsEditor(
+                titulo = stringResource(R.string.pdf_reunion_testimonios),
+                items = testimonios,
+                onItemsChange = onTestimoniosChange,
+                placeholder = stringResource(R.string.editar_agregar_testimonio)
+            )
         }
     }
 }
@@ -519,19 +582,20 @@ fun CampoHimno(
     label: String, numero: String, nombre: String,
     onNumeroChange: (String) -> Unit, onNombreChange: (String) -> Unit
 ) {
+    val context = LocalContext.current
     Column {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = numero, onValueChange = onNumeroChange,
-                label = { Text("Nº") },
+                label = { Text(stringResource(R.string.editar_himno_numero)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.width(80.dp), singleLine = true
             )
             OutlinedTextField(
                 value = nombre, onValueChange = onNombreChange,
-                label = { Text("Nombre del himno") },
+                label = { Text(stringResource(R.string.editar_himno_nombre)) },
                 modifier = Modifier.weight(1f), singleLine = true
             )
         }
@@ -544,6 +608,7 @@ fun CampoConAutocompletado(
     valor: String, onValorChange: (String) -> Unit,
     label: String, sugerencias: List<String>
 ) {
+    val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
     val filtradas = remember(valor, sugerencias) {
         if (valor.isBlank()) emptyList()
@@ -594,8 +659,9 @@ fun ListaItemsEditor(
     titulo: String,
     items: List<String>,
     onItemsChange: (List<String>) -> Unit,
-    placeholder: String = "Agregar ítem"
+    placeholder: String = stringResource(R.string.editar_agregar_reconocimiento)
 ) {
+    val context = LocalContext.current
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -605,7 +671,7 @@ fun ListaItemsEditor(
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = { onItemsChange(items + "") }) {
-                Icon(Icons.Default.Add, "Agregar")
+                Icon(Icons.Default.Add, stringResource(R.string.btn_agregar))
             }
         }
         items.forEachIndexed { index, item ->
@@ -626,7 +692,7 @@ fun ListaItemsEditor(
                 IconButton(onClick = {
                     onItemsChange(items.toMutableList().also { it.removeAt(index) })
                 }) {
-                    Icon(Icons.Default.Close, "Eliminar", tint = MaterialTheme.colorScheme.error)
+                    Icon(Icons.Default.Close, stringResource(R.string.btn_eliminar), tint = MaterialTheme.colorScheme.error)
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
@@ -647,13 +713,14 @@ fun TablaAsuntos(
     asuntos: List<AsuntoEstacaBarrio>,
     onAsuntosChange: (List<AsuntoEstacaBarrio>) -> Unit
 ) {
+    val context = LocalContext.current
     var asuntoFormula by remember { mutableStateOf<AsuntoEstacaBarrio?>(null) }
 
     // Diálogo fórmula litúrgica — agrupa todos los del mismo tipo
     asuntoFormula?.let { asunto ->
         val delMismoTipo = asuntos.filter { it.tipo == asunto.tipo }
-        val titulo = "Fórmula — ${asunto.tipo.label}"
-        val texto = generarFormulaLiturgica(asunto.tipo, delMismoTipo)
+        val titulo = "Fórmula — ${context.getString(asunto.tipo.stringResId)}"
+        val texto = generarFormulaLiturgica(asunto.tipo, delMismoTipo, context)
         AlertDialog(
             onDismissRequest = { asuntoFormula = null },
             title = { Text(titulo) },
@@ -661,7 +728,7 @@ fun TablaAsuntos(
                 Text(texto, style = MaterialTheme.typography.bodyMedium)
             },
             confirmButton = {
-                TextButton(onClick = { asuntoFormula = null }) { Text("Cerrar") }
+                TextButton(onClick = { asuntoFormula = null }) { Text(stringResource(R.string.btn_cerrar)) }
             }
         )
     }
@@ -669,14 +736,14 @@ fun TablaAsuntos(
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Asuntos Estaca/Barrio",
+                stringResource(R.string.editar_asuntos),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f)
             )
             if (asuntos.size < 20) {
                 IconButton(onClick = { onAsuntosChange(asuntos + AsuntoEstacaBarrio()) }) {
-                    Icon(Icons.Default.Add, "Agregar fila")
+                    Icon(Icons.Default.Add, stringResource(R.string.editar_agregar_reconocimiento))
                 }
             }
         }
@@ -708,6 +775,7 @@ fun AsuntoRow(
     isLast: Boolean,
     onVerFormula: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -717,45 +785,64 @@ fun AsuntoRow(
                     modifier = Modifier.weight(1f)
                 ) {
                     OutlinedTextField(
-                        value = asunto.tipo.label, onValueChange = {}, readOnly = true,
+                        value = context.getString(asunto.tipo.stringResId), onValueChange = {}, readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier.fillMaxWidth().menuAnchor(), singleLine = true
                     )
                     ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         TipoAsunto.values().forEach { tipo ->
                             DropdownMenuItem(
-                                text = { Text(tipo.label) },
-                                onClick = { onAsuntoChange(asunto.copy(tipo = tipo)); expanded = false }
+                                text = { Text(context.getString(tipo.stringResId)) },
+                                onClick = {
+                                    onAsuntoChange(
+                                        if (tipo == TipoAsunto.OTROS) asunto.copy(tipo = tipo, columna3 = "")
+                                        else asunto.copy(tipo = tipo)
+                                    )
+                                    expanded = false
+                                }
                             )
                         }
                     }
                 }
                 // Botón ver fórmula litúrgica
-                IconButton(onClick = onVerFormula) {
-                    Icon(
-                        Icons.Default.MenuBook,
-                        contentDescription = "Ver fórmula",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                if (asunto.tipo != TipoAsunto.OTROS) {
+                    IconButton(onClick = onVerFormula) {
+                        Icon(
+                            Icons.Default.MenuBook,
+                            contentDescription = stringResource(R.string.editar_ver_formula),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
                 IconButton(onClick = onMoveUp, enabled = !isFirst) {
-                    Icon(Icons.Default.KeyboardArrowUp, "Subir", tint = if (!isFirst) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                    Icon(Icons.Default.KeyboardArrowUp, stringResource(R.string.editar_subir), tint = if (!isFirst) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
                 }
                 IconButton(onClick = onMoveDown, enabled = !isLast) {
-                    Icon(Icons.Default.KeyboardArrowDown, "Bajar", tint = if (!isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                    Icon(Icons.Default.KeyboardArrowDown, stringResource(R.string.editar_bajar), tint = if (!isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Close, "Eliminar", tint = MaterialTheme.colorScheme.error)
+                    Icon(Icons.Default.Close, stringResource(R.string.btn_eliminar), tint = MaterialTheme.colorScheme.error)
                 }
             }
-            OutlinedTextField(
-                value = asunto.columna2, onValueChange = { onAsuntoChange(asunto.copy(columna2 = it)) },
-                modifier = Modifier.fillMaxWidth(), placeholder = { Text("Nombre") }, minLines = 1
-            )
-            OutlinedTextField(
-                value = asunto.columna3, onValueChange = { onAsuntoChange(asunto.copy(columna3 = it)) },
-                modifier = Modifier.fillMaxWidth(), placeholder = { Text("Cargo / Detalle") }, minLines = 1
-            )
+            if (asunto.tipo == TipoAsunto.OTROS) {
+                OutlinedTextField(
+                    value = asunto.columna2,
+                    onValueChange = { onAsuntoChange(asunto.copy(columna2 = it, columna3 = "")) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.editar_texto_libre)) },
+                    placeholder = { Text(stringResource(R.string.editar_otros_placeholder)) },
+                    minLines = 3
+                )
+            } else {
+                OutlinedTextField(
+                    value = asunto.columna2, onValueChange = { onAsuntoChange(asunto.copy(columna2 = it)) },
+                    modifier = Modifier.fillMaxWidth(), placeholder = { Text(stringResource(R.string.editar_nombre)) }, minLines = 1
+                )
+                OutlinedTextField(
+                    value = asunto.columna3, onValueChange = { onAsuntoChange(asunto.copy(columna3 = it)) },
+                    modifier = Modifier.fillMaxWidth(), placeholder = { Text(stringResource(R.string.editar_cargo)) }, minLines = 1
+                )
+            }
         }
     }
 }
@@ -766,16 +853,17 @@ fun TablaMensajes(
     onMensajesChange: (List<MensajeEvangelio>) -> Unit,
     nombresUsados: List<String>
 ) {
+    val context = LocalContext.current
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Mensajes del Evangelio",
+                stringResource(R.string.editar_mensajes),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = { onMensajesChange(mensajes + MensajeEvangelio()) }) {
-                Icon(Icons.Default.Add, "Agregar")
+                Icon(Icons.Default.Add, stringResource(R.string.btn_agregar))
             }
         }
         mensajes.forEachIndexed { index, mensaje ->
@@ -806,6 +894,7 @@ fun MensajeRow(
     isLast: Boolean,
     nombresUsados: List<String>
 ) {
+    val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
     var himnoNumero by remember { mutableStateOf(if (mensaje.himnoNumero > 0) mensaje.himnoNumero.toString() else "") }
 
@@ -817,14 +906,14 @@ fun MensajeRow(
                     modifier = Modifier.weight(1f)
                 ) {
                     OutlinedTextField(
-                        value = mensaje.tipo.label, onValueChange = {}, readOnly = true,
+                        value = context.getString(mensaje.tipo.stringResId), onValueChange = {}, readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier.fillMaxWidth().menuAnchor(), singleLine = true
                     )
                     ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         TipoMensaje.values().forEach { tipo ->
                             DropdownMenuItem(
-                                text = { Text(tipo.label) },
+                                text = { Text(context.getString(tipo.stringResId)) },
                                 onClick = { onMensajeChange(mensaje.copy(tipo = tipo)); expanded = false }
                             )
                         }
@@ -832,13 +921,13 @@ fun MensajeRow(
                 }
                 // Botones de reordenar
                 IconButton(onClick = onMoveUp, enabled = !isFirst) {
-                    Icon(Icons.Default.KeyboardArrowUp, "Subir", tint = if (!isFirst) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                    Icon(Icons.Default.KeyboardArrowUp, stringResource(R.string.editar_subir), tint = if (!isFirst) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
                 }
                 IconButton(onClick = onMoveDown, enabled = !isLast) {
-                    Icon(Icons.Default.KeyboardArrowDown, "Bajar", tint = if (!isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                    Icon(Icons.Default.KeyboardArrowDown, stringResource(R.string.editar_bajar), tint = if (!isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Close, "Eliminar", tint = MaterialTheme.colorScheme.error)
+                    Icon(Icons.Default.Close, stringResource(R.string.btn_eliminar), tint = MaterialTheme.colorScheme.error)
                 }
             }
 
@@ -849,17 +938,17 @@ fun MensajeRow(
                         onValueChange = { num ->
                             himnoNumero = num
                             val n = num.toIntOrNull()
-                            val nombre = if (num.isBlank()) "" else if (n != null) Himnos.getNombre(n).ifEmpty { mensaje.himnoNombre } else mensaje.himnoNombre
+                            val nombre = if (num.isBlank()) "" else if (n != null) getNombreHimno(n, context).ifEmpty { mensaje.himnoNombre } else mensaje.himnoNombre
                             onMensajeChange(mensaje.copy(himnoNumero = n ?: 0, himnoNombre = nombre))
                         },
-                        label = { Text("Nº") },
+                        label = { Text(stringResource(R.string.editar_himno_numero)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.width(80.dp), singleLine = true
                     )
                     OutlinedTextField(
                         value = mensaje.himnoNombre,
                         onValueChange = { onMensajeChange(mensaje.copy(himnoNombre = it)) },
-                        label = { Text("Nombre del himno") },
+                        label = { Text(stringResource(R.string.editar_himno_nombre)) },
                         modifier = Modifier.weight(1f), singleLine = true
                     )
                 }
@@ -867,7 +956,7 @@ fun MensajeRow(
                 CampoConAutocompletado(
                     valor = mensaje.nombre,
                     onValorChange = { onMensajeChange(mensaje.copy(nombre = it)) },
-                    label = if (mensaje.tipo == TipoMensaje.TESTIMONIO) "Nombre" else "Discursante",
+                    label = if (mensaje.tipo == TipoMensaje.TESTIMONIO) stringResource(R.string.editar_nombre) else stringResource(R.string.editar_discursante),
                     sugerencias = nombresUsados
                 )
             }
@@ -875,86 +964,98 @@ fun MensajeRow(
     }
 }
 
-fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat): String {
+fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat, context: android.content.Context): String {
     val sb = StringBuilder()
-    sb.appendLine("📋 *AGENDA DE REUNIÓN SACRAMENTAL*")
+    sb.appendLine("📋 *${context.getString(R.string.editar_agenda_titulo_card).uppercase()}*")
     sb.appendLine("_D&C 46:2_")
     sb.appendLine()
-    sb.appendLine("📅 Fecha: ${dateFormat.format(agenda.fecha.toDate())}")
-    if (agenda.asistencia > 0) sb.appendLine("👥 Asistencia: ${agenda.asistencia}")
-    if (agenda.preside.isNotBlank()) sb.appendLine("👤 Preside: ${agenda.preside}")
-    if (agenda.dirige.isNotBlank()) sb.appendLine("🎙 Dirige: ${agenda.dirige}")
+    sb.appendLine("📅 ${context.getString(R.string.editar_fecha)}: ${dateFormat.format(agenda.fecha.toDate())}")
+    if (agenda.asistencia > 0) sb.appendLine("👥 ${context.getString(R.string.pdf_asistencia)}: ${agenda.asistencia}")
+    if (agenda.preside.isNotBlank()) sb.appendLine("👤 ${context.getString(R.string.editar_preside)}: ${agenda.preside}")
+    if (agenda.dirige.isNotBlank()) sb.appendLine("🎙 ${context.getString(R.string.editar_dirige)}: ${agenda.dirige}")
     val reconocimientosStr = agenda.reconocimientos.split(",").map { it.trim() }.filter { it.isNotBlank() }
     val anunciosStr = agenda.anuncios.split(",").map { it.trim() }.filter { it.isNotBlank() }
     if (reconocimientosStr.isNotEmpty()) {
-        sb.appendLine("⭐ Reconocimientos:")
+        sb.appendLine("⭐ ${context.getString(R.string.editar_reconocimientos)}:")
         reconocimientosStr.forEach { sb.appendLine("  • $it") }
     }
     if (anunciosStr.isNotEmpty()) {
-        sb.appendLine("📣 Anuncios:")
+        sb.appendLine("📣 ${context.getString(R.string.editar_anuncios)}:")
         anunciosStr.forEach { sb.appendLine("  • $it") }
     }
     sb.appendLine()
-    if (agenda.primerHimnoNumero > 0) sb.appendLine("🎵 Primer Himno: ${agenda.primerHimnoNumero} - ${agenda.primerHimnoNombre}")
-    if (agenda.directorMusica.isNotBlank()) sb.appendLine("🎼 Director/a: ${agenda.directorMusica}")
-    if (agenda.pianista.isNotBlank()) sb.appendLine("🎹 Pianista: ${agenda.pianista}")
-    if (agenda.primeraOracion.isNotBlank()) sb.appendLine("🙏 Primera Oración: ${agenda.primeraOracion}")
+    if (agenda.primerHimnoNumero > 0) sb.appendLine("🎵 ${context.getString(R.string.editar_primer_himno)}: ${agenda.primerHimnoNumero} - ${agenda.primerHimnoNombre}")
+    if (agenda.directorMusica.isNotBlank()) sb.appendLine("🎼 ${context.getString(R.string.editar_director_musica)}: ${agenda.directorMusica}")
+    if (agenda.pianista.isNotBlank()) sb.appendLine("🎹 ${context.getString(R.string.editar_pianista)}: ${agenda.pianista}")
+    if (agenda.primeraOracion.isNotBlank()) sb.appendLine("🙏 ${context.getString(R.string.editar_primera_oracion)}: ${agenda.primeraOracion}")
 
-    if (agenda.asuntosEstacaBarrio.isNotEmpty()) {
+    if (agenda.reunionTestimonios) {
         sb.appendLine()
-        sb.appendLine("📌 Asuntos Estaca/Barrio:")
-        agenda.asuntosEstacaBarrio.forEach {
-            sb.appendLine("  • ${it.tipo.label}: ${it.columna2} ${it.columna3}")
+        sb.appendLine("🗣 ${context.getString(R.string.pdf_reunion_testimonios)}:")
+        if (agenda.testimonios.isEmpty()) {
+            sb.appendLine("  —")
+        } else {
+            agenda.testimonios.forEach { sb.appendLine("  • $it") }
         }
     }
 
-    sb.appendLine()
-    if (agenda.himnoSacramentalNumero > 0) sb.appendLine("🎵 Himno Sacramental: ${agenda.himnoSacramentalNumero} - ${agenda.himnoSacramentalNombre}")
-
-    if (agenda.mensajesEvangelio.isNotEmpty()) {
+    if (agenda.asuntosEstacaBarrio.isNotEmpty()) {
         sb.appendLine()
-        sb.appendLine("📖 Mensajes del Evangelio:")
-        agenda.mensajesEvangelio.forEach {
-            when (it.tipo) {
-                TipoMensaje.HIMNO_INTERMEDIO -> sb.appendLine("  🎵 Himno Intermedio: ${it.himnoNumero} - ${it.himnoNombre}")
-                TipoMensaje.TESTIMONIO -> sb.appendLine("  👁️‍🗨️ Testimonio: ${it.nombre}")
-                else -> sb.appendLine("  📖 ${it.tipo.label}: ${it.nombre}")
+        sb.appendLine("📌 ${context.getString(R.string.editar_asuntos)}:")
+        agenda.asuntosEstacaBarrio.forEach {
+            if (it.tipo == TipoAsunto.OTROS) {
+                sb.appendLine("  • ${context.getString(it.tipo.stringResId)}:")
+                it.columna2.lines().forEach { linea -> sb.appendLine("    $linea") }
+            } else {
+                sb.appendLine("  • ${context.getString(it.tipo.stringResId)}: ${it.columna2} ${it.columna3}")
             }
         }
     }
 
     sb.appendLine()
-    if (agenda.himnoFinalNumero > 0) sb.appendLine("🎵 Himno Final: ${agenda.himnoFinalNumero} - ${agenda.himnoFinalNombre}")
-    if (agenda.oracionFinal.isNotBlank()) sb.appendLine("🙏 Oración Final: ${agenda.oracionFinal}")
+    if (agenda.himnoSacramentalNumero > 0) sb.appendLine("🎵 ${context.getString(R.string.editar_himno_sacramental)}: ${agenda.himnoSacramentalNumero} - ${agenda.himnoSacramentalNombre}")
+
+    if (agenda.mensajesEvangelio.isNotEmpty()) {
+        sb.appendLine()
+        sb.appendLine("📖 ${context.getString(R.string.editar_mensajes)}:")
+        agenda.mensajesEvangelio.forEach {
+            when (it.tipo) {
+                TipoMensaje.HIMNO_INTERMEDIO -> sb.appendLine("  🎵 Himno Intermedio: ${it.himnoNumero} - ${it.himnoNombre}")
+                TipoMensaje.TESTIMONIO -> sb.appendLine("  👁️‍🗨️ Testimonio: ${it.nombre}")
+                else -> sb.appendLine("  📖 ${context.getString(it.tipo.stringResId)}: ${it.nombre}")
+            }
+        }
+    }
+
+    sb.appendLine()
+    if (agenda.himnoFinalNumero > 0) sb.appendLine("🎵 ${context.getString(R.string.editar_himno_final)}: ${agenda.himnoFinalNumero} - ${agenda.himnoFinalNombre}")
+    if (agenda.oracionFinal.isNotBlank()) sb.appendLine("🙏 ${context.getString(R.string.editar_oracion_final)}: ${agenda.oracionFinal}")
 
     return sb.toString()
 }
 
-fun generarFormulaLiturgica(tipo: TipoAsunto, asuntos: List<AsuntoEstacaBarrio>): String {
+fun generarFormulaLiturgica(tipo: TipoAsunto, asuntos: List<AsuntoEstacaBarrio>, context: android.content.Context): String {
     if (asuntos.isEmpty()) return ""
 
     return if (asuntos.size == 1) {
-        // Singular
         val nombre = asuntos[0].columna2.ifBlank { "[Nombre]" }
         val cargo = asuntos[0].columna3.ifBlank { "[Cargo]" }
         when (tipo) {
-            TipoAsunto.RELEVO ->
-                "\"$nombre ha sido relevado como $cargo. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano.\""
-            TipoAsunto.SOSTENIMIENTO ->
-                "\"$nombre ha sido llamado como $cargo. Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\""
+            TipoAsunto.RELEVO -> context.getString(R.string.pdf_relevo_singular, nombre, cargo)
+            TipoAsunto.SOSTENIMIENTO -> context.getString(R.string.pdf_sostenimiento_singular, nombre, cargo)
+            TipoAsunto.OTROS -> asuntos[0].columna2
         }
     } else {
-        // Plural — lista de nombre + cargo separados por coma
+        val como = context.getString(R.string.pdf_como)
         val lista = asuntos.joinToString(", ") { asunto ->
             val nombre = asunto.columna2.ifBlank { "[Nombre]" }
             val cargo = asunto.columna3.ifBlank { "[Cargo]" }
-            "$nombre como $cargo"
+            "$nombre $como $cargo"
         }
         when (tipo) {
-            TipoAsunto.RELEVO ->
-                "Los siguientes hermanos/as han sido relevados de sus llamamientos: \"$lista. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano.\""
-            TipoAsunto.SOSTENIMIENTO ->
-                "Los siguientes hermanos/as han sido llamados a los siguientes llamamientos: \"$lista. Los que estén a favor de sostenerlos, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\""
+            TipoAsunto.RELEVO -> context.getString(R.string.pdf_relevo_plural, lista)
+            TipoAsunto.SOSTENIMIENTO -> context.getString(R.string.pdf_sostenimiento_plural, lista)
+            TipoAsunto.OTROS -> asuntos.joinToString("\n") { it.columna2 }
         }
     }
 }
@@ -965,6 +1066,7 @@ fun SolicitudRecomendacionesDialog(
     context: android.content.Context,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     var himnoApertura by remember { mutableStateOf(false) }
     var himnoSacramental by remember { mutableStateOf(false) }
     var himnoIntermedio by remember { mutableStateOf(false) }
@@ -979,22 +1081,22 @@ fun SolicitudRecomendacionesDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Pedir sugerencias") },
+        title = { Text(stringResource(R.string.editar_pedir_sugerencias)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    "Seleccioná qué necesitás para el ${dateFormat.format(agenda.fecha.toDate())}:",
+                    context.getString(R.string.solicitud_selecciona, dateFormat.format(agenda.fecha.toDate())),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Text("🎵 Himnos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.solicitud_himnos), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 listOf(
-                    "Apertura" to himnoApertura,
-                    "Sacramental" to himnoSacramental,
-                    "Intermedio" to himnoIntermedio,
-                    "Final" to himnoFinal
+                    stringResource(R.string.solicitud_apertura) to himnoApertura,
+                    stringResource(R.string.solicitud_sacramental) to himnoSacramental,
+                    stringResource(R.string.solicitud_intermedio) to himnoIntermedio,
+                    stringResource(R.string.solicitud_final) to himnoFinal
                 ).forEachIndexed { i, (label, checked) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = checked, onCheckedChange = { v ->
@@ -1011,10 +1113,10 @@ fun SolicitudRecomendacionesDialog(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                Text("🙏 Oraciones", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.solicitud_oraciones), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 listOf(
-                    "Primera oración" to oracionPrimera,
-                    "Oración final" to oracionFinal
+                    stringResource(R.string.solicitud_primera_oracion) to oracionPrimera,
+                    stringResource(R.string.solicitud_oracion_final) to oracionFinal
                 ).forEachIndexed { i, (label, checked) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = checked, onCheckedChange = { v ->
@@ -1029,10 +1131,10 @@ fun SolicitudRecomendacionesDialog(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                Text("🎤 Discursos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.solicitud_discursos), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = discursos, onCheckedChange = { discursos = it })
-                    Text("Discursos", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.plan_discursos), style = MaterialTheme.typography.bodyMedium)
                 }
                 if (discursos) {
                     Row(
@@ -1041,11 +1143,11 @@ fun SolicitudRecomendacionesDialog(
                         modifier = Modifier.padding(start = 48.dp)
                     ) {
                         IconButton(onClick = { if (cantidadDiscursos > 1) cantidadDiscursos-- }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.Remove, "Menos")
+                            Icon(Icons.Default.Remove, stringResource(R.string.solicitud_menos))
                         }
                         Text("$cantidadDiscursos", style = MaterialTheme.typography.titleMedium)
                         IconButton(onClick = { if (cantidadDiscursos < 10) cantidadDiscursos++ }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.Add, "Más")
+                            Icon(Icons.Default.Add, stringResource(R.string.solicitud_mas))
                         }
                     }
                 }
@@ -1056,30 +1158,31 @@ fun SolicitudRecomendacionesDialog(
                 onClick = {
                     val fecha = dateFormat.format(agenda.fecha.toDate())
                     val sb = StringBuilder()
-                    sb.appendLine("*Agenda del domingo $fecha*")
-                    sb.appendLine("Queridos hermanos del obispado: Necesitamos recomendaciones para las siguientes asignaciones:")
+                    sb.appendLine(context.getString(R.string.solicitud_mensaje_intro, fecha))
+                    sb.appendLine(context.getString(R.string.solicitud_mensaje_cuerpo))
                     sb.appendLine()
                     val himnos = mutableListOf<String>()
-                    if (himnoApertura) himnos.add("Apertura")
-                    if (himnoSacramental) himnos.add("Sacramental")
-                    if (himnoIntermedio) himnos.add("Intermedio")
-                    if (himnoFinal) himnos.add("Final")
-                    if (himnos.isNotEmpty()) sb.appendLine("🎵 Himnos: ${himnos.joinToString(", ")}")
+                    if (himnoApertura) himnos.add(context.getString(R.string.solicitud_apertura))
+                    if (himnoSacramental) himnos.add(context.getString(R.string.solicitud_sacramental))
+                    if (himnoIntermedio) himnos.add(context.getString(R.string.solicitud_intermedio))
+                    if (himnoFinal) himnos.add(context.getString(R.string.solicitud_final))
+                    if (himnos.isNotEmpty()) sb.appendLine("🎵 ${context.getString(R.string.solicitud_himnos_label)}: ${himnos.joinToString(", ")}")
                     val oraciones = mutableListOf<String>()
-                    if (oracionPrimera) oraciones.add("Primera oración")
-                    if (oracionFinal) oraciones.add("Oración final")
-                    if (oraciones.isNotEmpty()) sb.appendLine("🙏 Oraciones: ${oraciones.joinToString(", ")}")
+                    if (oracionPrimera) oraciones.add(context.getString(R.string.solicitud_primera_oracion))
+                    if (oracionFinal) oraciones.add(context.getString(R.string.solicitud_oracion_final))
+                    if (oraciones.isNotEmpty()) sb.appendLine("🙏 ${context.getString(R.string.solicitud_oraciones_label)}: ${oraciones.joinToString(", ")}")
                     if (discursos) {
-                        val texto = if (cantidadDiscursos == 1) "1 discurso" else "$cantidadDiscursos discursos"
-                        sb.appendLine("🎤 Discursos: $texto")
+                        val texto = if (cantidadDiscursos == 1) context.getString(R.string.plan_un_discurso) else context.getString(R.string.plan_n_discursos, cantidadDiscursos)
+                        sb.appendLine("🎤 ${context.getString(R.string.plan_discursos)}: $texto")
                     }
                     sb.appendLine()
-                    sb.append("Por favor envíen sugerencias por acá lo antes posible. Gracias.")
+                    sb.append(context.getString(R.string.solicitud_mensaje_cierre))
 
                     val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(android.content.Intent.EXTRA_TEXT, sb.toString())
                         setPackage("com.whatsapp")
+                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                     try {
                         context.startActivity(intent)
@@ -1087,14 +1190,15 @@ fun SolicitudRecomendacionesDialog(
                         val intentGeneral = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(android.content.Intent.EXTRA_TEXT, sb.toString())
+                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                         }
-                        context.startActivity(android.content.Intent.createChooser(intentGeneral, "Enviar solicitud"))
+                        context.startActivity(android.content.Intent.createChooser(intentGeneral, context.getString(R.string.solicitud_enviar_titulo)))
                     }
                     onDismiss()
                 },
                 enabled = hayAlgoSeleccionado
-            ) { Text("Enviar") }
+            ) { Text(stringResource(R.string.btn_enviar)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancelar)) } }
     )
 }

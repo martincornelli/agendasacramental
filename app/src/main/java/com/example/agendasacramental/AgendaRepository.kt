@@ -74,6 +74,41 @@ class AgendaRepository {
         }
     }
 
+
+    suspend fun guardarProximaAgendaEnPrefs(numeroUnidad: String, context: android.content.Context) {
+        try {
+            val hoy = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }.time
+            val snapshot = agendasRef
+                .whereEqualTo("numeroUnidad", numeroUnidad)
+                .whereGreaterThanOrEqualTo("fecha", Timestamp(hoy))
+                .orderBy("fecha", Query.Direction.ASCENDING)
+                .limit(1)
+                .get().await()
+            val prefs = context.getSharedPreferences(NotifPrefs.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            val agenda = snapshot.documents.firstOrNull()?.toObject(Agenda::class.java)
+            if (agenda != null && agenda.estado != EstadoAgenda.REALIZADA) {
+                android.util.Log.d("AgendaRepo", "guardarProximaAgenda: ${agenda.fecha.toDate()} estado=${agenda.estado}")
+                prefs.edit()
+                    .putString("notif_agenda_estado", agenda.estado.name)
+                    .putString("notif_agenda_preside", agenda.preside)
+                    .putLong("notif_agenda_fecha", agenda.fecha.toDate().time)
+                    .putString("notif_agenda_id", agenda.id)
+                    .apply()
+            } else {
+                prefs.edit()
+                    .remove("notif_agenda_estado")
+                    .remove("notif_agenda_preside")
+                    .remove("notif_agenda_fecha")
+                    .apply()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AgendaRepo", "guardarProximaAgenda error: ${e.message}")
+        }
+    }
+
     // Verificar si ya existe agenda con la misma fecha (mismo día) para la unidad
     private fun mismoDia(t1: Timestamp, t2: Timestamp): Boolean {
         val c1 = Calendar.getInstance().apply { time = t1.toDate() }
@@ -151,6 +186,9 @@ class AgendaRepository {
                 mensajes.forEach { m ->
                     (m["nombre"] as? String)?.takeIf { it.isNotBlank() }?.let { nombres.add(it) }
                 }
+                @Suppress("UNCHECKED_CAST")
+                val testimonios = doc.get("testimonios") as? List<String> ?: emptyList()
+                testimonios.forEach { it.takeIf { nombre -> nombre.isNotBlank() }?.let { nombre -> nombres.add(nombre) } }
             }
 
             // También incluir hermanos agregados manualmente al planificador
@@ -196,6 +234,8 @@ class AgendaRepository {
                 mapOf("tipo" to it.tipo.name, "nombre" to it.nombre,
                     "himnoNumero" to it.himnoNumero, "himnoNombre" to it.himnoNombre)
             },
+            "reunionTestimonios" to agenda.reunionTestimonios,
+            "testimonios" to agenda.testimonios.filter { it.isNotBlank() },
             "creadoPor" to agenda.creadoPor,
             "creadoEn" to agenda.creadoEn,
             "ultimaEdicionPor" to agenda.ultimaEdicionPor,
@@ -546,6 +586,8 @@ class AgendaRepository {
                         "primeraOracion" to "", "oracionFinal" to "",
                         "asuntosEstacaBarrio" to emptyList<Any>(),
                         "mensajesEvangelio" to emptyList<Any>(),
+                        "reunionTestimonios" to esPrimerDomingoDelMes(cal.time),
+                        "testimonios" to emptyList<String>(),
                         "creadoPor" to userEmail,
                         "creadoEn" to ahora,
                         "ultimaEdicionPor" to userEmail,
