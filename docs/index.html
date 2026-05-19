@@ -3,202 +3,59 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#1f4f4f">
     <title>Agenda Sacramental</title>
-    <meta
-      name="description"
-      content="Agenda Sacramental ayuda a obispados a preparar, coordinar y compartir reuniones sacramentales desde Android."
-    >
-    <meta name="theme-color" content="#123f3f">
-    <meta property="og:title" content="Agenda Sacramental">
-    <meta
-      property="og:description"
-      content="Planificacion de reuniones sacramentales para Android: agendas, himnos, PDF, recordatorios y coordinacion del obispado."
-    >
-    <meta property="og:type" content="website">
-    <meta property="og:image" content="assets/hero-chapel.png">
-    <link rel="icon" href="assets/app-icon.webp">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/webp" href="./assets/app-icon.webp">
+    <link rel="shortcut icon" type="image/webp" href="./assets/app-icon.webp">
+    <link rel="apple-touch-icon" href="./assets/app-icon.webp">
+    <link rel="stylesheet" href="./styles.css?v=20260519-1">
   </head>
   <body>
-    <header class="site-header" data-header>
-      <a class="brand" href="#top" aria-label="Agenda Sacramental">
-        <img src="assets/app-icon.webp" width="40" height="40" alt="">
-        <span>Agenda Sacramental</span>
-      </a>
-
-      <nav class="nav-links" aria-label="Principal">
-        <a href="#funciones" data-i18n="navFeatures">Funciones</a>
-        <a href="#flujo" data-i18n="navFlow">Flujo</a>
-        <a href="#descargar" data-i18n="navDownload">Descargar</a>
-      </nav>
-
-      <div class="language-switch" role="group" aria-label="Idioma">
-        <button type="button" class="lang-button is-active" data-lang="es">ES</button>
-        <button type="button" class="lang-button" data-lang="en">EN</button>
-      </div>
-    </header>
-
-    <main id="top">
-      <section class="hero" aria-labelledby="hero-title">
-        <div class="hero-backdrop" aria-hidden="true"></div>
-        <div class="hero-inner">
-          <div class="hero-copy">
-            <p class="eyebrow" data-i18n="eyebrow">Android · v1.2.3</p>
-            <h1 id="hero-title">Agenda Sacramental</h1>
-            <p class="hero-lede" data-i18n="heroLede">
-              Prepará reuniones sacramentales completas, coordiná asignaciones y compartí la agenda con el obispado sin perder el hilo del domingo.
-            </p>
-            <div class="hero-actions" aria-label="Acciones principales">
-              <a class="button button-primary" href="https://play.google.com/store/apps/details?id=com.martincornelli.agendasacramental" data-i18n="primaryCta">
-                Descargar en Google Play
-              </a>
-              <a class="button button-secondary" href="https://github.com/martincornelli/agendasacramental" data-i18n="secondaryCta">
-                Ver proyecto
-              </a>
-            </div>
-          </div>
-
-          <div class="phone-stage" aria-label="Vista previa de la aplicacion">
-            <div class="phone">
-              <div class="phone-top">
-                <span></span>
-              </div>
-              <div class="app-screen">
-                <div class="screen-bar">
-                  <span data-i18n="mockUnit">Unidad 123456</span>
-                  <strong>+</strong>
-                </div>
-                <div class="screen-card active">
-                  <small data-i18n="mockNext">PRÓXIMO DOMINGO</small>
-                  <h2 data-i18n="mockDate">24 de mayo</h2>
-                  <p data-i18n="mockAgenda">Agenda confirmada</p>
-                </div>
-                <div class="agenda-lines">
-                  <div>
-                    <span data-i18n="mockPreside">Preside</span>
-                    <strong>Obispo</strong>
-                  </div>
-                  <div>
-                    <span data-i18n="mockHymn">Himno sacramental</span>
-                    <strong>169</strong>
-                  </div>
-                  <div>
-                    <span data-i18n="mockMessages">Mensajes</span>
-                    <strong>3</strong>
-                  </div>
-                </div>
-                <div class="screen-tabs">
-                  <span class="is-selected" data-i18n="mockAgendas">Agendas</span>
-                  <span data-i18n="mockPlanning">Planificación</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="signal-row" aria-label="Resumen">
-        <div>
-          <strong data-i18n="statOne">Agendas</strong>
-          <span data-i18n="statOneText">borrador, confirmadas y realizadas</span>
-        </div>
-        <div>
-          <strong data-i18n="statTwo">PDF</strong>
-          <span data-i18n="statTwoText">listo para imprimir o compartir</span>
-        </div>
-        <div>
-          <strong data-i18n="statThree">ES / EN</strong>
-          <span data-i18n="statThreeText">interfaz bilingüe</span>
-        </div>
-      </section>
-
-      <section id="funciones" class="section feature-band">
-        <div class="section-heading">
-          <p class="eyebrow" data-i18n="featuresEyebrow">Pensada para el domingo</p>
-          <h2 data-i18n="featuresTitle">Todo lo que el obispado necesita para preparar la reunión.</h2>
-        </div>
-
-        <div class="feature-grid">
-          <article class="feature-card">
-            <span class="feature-mark" aria-hidden="true">01</span>
-            <h3 data-i18n="featureAgendaTitle">Agendas completas</h3>
-            <p data-i18n="featureAgendaText">Fecha, asistencia, autoridades, anuncios, himnos, oraciones, asuntos y mensajes en un solo lugar.</p>
-          </article>
-          <article class="feature-card">
-            <span class="feature-mark" aria-hidden="true">02</span>
-            <h3 data-i18n="featurePlanTitle">Planificación justa</h3>
-            <p data-i18n="featurePlanText">Ranking de discursos y oraciones para ver participaciones recientes y evitar repetir asignaciones sin querer.</p>
-          </article>
-          <article class="feature-card">
-            <span class="feature-mark" aria-hidden="true">03</span>
-            <h3 data-i18n="featureShareTitle">Compartir sin fricción</h3>
-            <p data-i18n="featureShareText">Exportá la agenda en PDF o pedí sugerencias por mensaje con himnos, oraciones y discursantes pendientes.</p>
-          </article>
-          <article class="feature-card">
-            <span class="feature-mark" aria-hidden="true">04</span>
-            <h3 data-i18n="featureRemindersTitle">Recordatorios</h3>
-            <p data-i18n="featureRemindersText">Avisos semanales configurables para revisar si la reunión está confirmada antes de llegar al domingo.</p>
-          </article>
-        </div>
-      </section>
-
-      <section id="flujo" class="section workflow">
-        <div class="workflow-copy">
-          <p class="eyebrow" data-i18n="flowEyebrow">Flujo simple</p>
-          <h2 data-i18n="flowTitle">Crear, revisar, compartir.</h2>
-          <p data-i18n="flowText">
-            La app acompaña el trabajo real: empezar con una agenda en blanco, completar asignaciones con contexto histórico y terminar con una versión lista para dirigir la reunión.
-          </p>
-        </div>
-        <div class="flow-panel" aria-label="Pasos">
-          <div class="flow-step">
-            <span>1</span>
-            <p data-i18n="flowOne">Creá los domingos próximos en blanco.</p>
-          </div>
-          <div class="flow-step">
-            <span>2</span>
-            <p data-i18n="flowTwo">Completá himnos, oraciones, mensajes y asuntos.</p>
-          </div>
-          <div class="flow-step">
-            <span>3</span>
-            <p data-i18n="flowThree">Confirmá, exportá PDF y compartí con quienes corresponda.</p>
-          </div>
-        </div>
-      </section>
-
-      <section id="descargar" class="section download">
-        <div class="download-copy">
-          <img src="assets/app-icon.webp" width="72" height="72" alt="">
+    <div id="app" class="app-shell setup-mode">
+      <aside class="sidebar" aria-label="Navegacion principal">
+        <button id="brand-home" class="brand-block brand-link" type="button" aria-label="Ir al inicio">
+          <img class="brand-mark" src="./assets/app-icon.webp" alt="" aria-hidden="true">
           <div>
-            <p class="eyebrow" data-i18n="downloadEyebrow">Android</p>
-            <h2 data-i18n="downloadTitle">Agenda Sacramental está lista para usar.</h2>
-            <p data-i18n="downloadText">
-              Disponible para unidades que quieran coordinar la reunión sacramental con una herramienta sencilla y enfocada.
-            </p>
+            <p class="eyebrow">Agenda</p>
+            <h1>Sacramental</h1>
           </div>
-        </div>
-        <div class="download-actions">
-          <a class="button button-primary" href="https://play.google.com/store/apps/details?id=com.martincornelli.agendasacramental" data-i18n="primaryCta">
-            Descargar en Google Play
-          </a>
-          <a class="button button-secondary" href="https://sites.google.com/view/agendasacramental-privacy/inicio" data-i18n="privacyCta">
-            Política de privacidad
-          </a>
-        </div>
+        </button>
+
+        <div id="session-chip" class="session-chip skeleton">Conectando...</div>
+
+        <nav class="nav-list">
+          <button class="nav-item active" data-route="agendas" type="button">Agendas</button>
+          <button class="nav-item" data-route="planning" type="button">Planificacion</button>
+          <button class="nav-item" data-route="settings" type="button">Ajustes</button>
+        </nav>
+      </aside>
+
+      <section class="workspace" aria-live="polite">
+        <header class="topbar">
+          <div>
+            <p id="topbar-eyebrow" class="eyebrow">Unidad</p>
+            <h2 id="topbar-title">Agenda Sacramental</h2>
+          </div>
+          <div class="topbar-actions">
+            <button id="change-unit" class="chip-button" type="button">Cambiar unidad</button>
+            <button id="sign-out" class="chip-button danger-chip" type="button">Salir</button>
+          </div>
+        </header>
+
+        <main id="screen" class="screen">
+          <div class="loading-panel">
+            <div class="spinner"></div>
+            <span>Cargando...</span>
+          </div>
+        </main>
       </section>
+    </div>
 
-      <section class="section note">
-        <p data-i18n="disclaimer">
-          Esta es una aplicación no oficial. No está afiliada ni respaldada por La Iglesia de Jesucristo de los Santos de los Últimos Días.
-        </p>
-      </section>
-    </main>
+    <dialog id="modal" class="modal"></dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <footer class="site-footer">
-      <span>Agenda Sacramental</span>
-      <a href="https://github.com/martincornelli/agendasacramental" data-i18n="footerRepo">Repositorio en GitHub</a>
-    </footer>
-
-    <script src="app.js"></script>
+    <script type="module" src="./hymns.js?v=20260519-1"></script>
+    <script type="module" src="./app.js?v=20260519-1"></script>
   </body>
 </html>
