@@ -53,9 +53,8 @@ fun SeleccionUnidadScreen(
     val prefs = remember { activity.getSharedPreferences("agenda_prefs", Context.MODE_PRIVATE) }
     val unidadGuardada = remember { prefs.getString("unidad_guardada", "") ?: "" }
     val passwordGuardado = remember { prefs.getString("password_guardado", "") ?: "" }
-    val biometriaDisponible = remember { isBiometriaDisponible(activity) }
-    val tieneSesionGuardada = unidadGuardada.isNotBlank() && passwordGuardado.isNotBlank() && biometriaDisponible
-    val tieneUnidadGuardada = unidadGuardada.isNotBlank()
+    val autenticacionDispositivoDisponible = remember { isAutenticacionDispositivoDisponible(activity) }
+    val tieneSesionGuardada = unidadGuardada.isNotBlank() && passwordGuardado.isNotBlank() && autenticacionDispositivoDisponible
 
     // Pre-cargar número de unidad
     LaunchedEffect(Unit) {
@@ -65,7 +64,7 @@ fun SeleccionUnidadScreen(
     // Lanzar biometría automáticamente si hay sesión guardada
     LaunchedEffect(tieneSesionGuardada) {
         if (tieneSesionGuardada && !usandoContrasena) {
-            lanzarBiometria(
+            lanzarAutenticacionDispositivo(
                 activity = activity,
                 onSuccess = { onUnidadIngresada(unidadGuardada) },
                 onUsarContrasena = { usandoContrasena = true },
@@ -213,7 +212,7 @@ fun SeleccionUnidadScreen(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Checkbox(checked = recordarDispositivo, onCheckedChange = { recordarDispositivo = it })
                 Text(
-                    if (biometriaDisponible) stringResource(R.string.biometria_recordar) else stringResource(R.string.recordar_unidad),
+                    if (autenticacionDispositivoDisponible) textoRecordarDispositivo(context) else stringResource(R.string.recordar_unidad),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(start = 4.dp)
                 )
@@ -244,7 +243,7 @@ fun SeleccionUnidadScreen(
                         val result = repository.crearUnidad(numeroUnidad, password, userEmail)
                         isLoading = false
                         if (result.isSuccess) {
-                            if (recordarDispositivo) { if (biometriaDisponible) guardarCredenciales(prefs, numeroUnidad, password) else prefs.edit().putString("unidad_guardada", numeroUnidad).remove("password_guardado").apply() }
+                            if (recordarDispositivo) { if (autenticacionDispositivoDisponible) guardarCredenciales(prefs, numeroUnidad, password) else prefs.edit().putString("unidad_guardada", numeroUnidad).remove("password_guardado").apply() }
                             onUnidadIngresada(numeroUnidad)
                         } else {
                             errorMessage = context.getString(R.string.unidad_error_crear)
@@ -255,7 +254,7 @@ fun SeleccionUnidadScreen(
                         val passwordOk = repository.verificarPassword(numeroUnidad, password)
                         isLoading = false
                         if (passwordOk) {
-                            if (recordarDispositivo) { if (biometriaDisponible) guardarCredenciales(prefs, numeroUnidad, password) else prefs.edit().putString("unidad_guardada", numeroUnidad).remove("password_guardado").apply() }
+                            if (recordarDispositivo) { if (autenticacionDispositivoDisponible) guardarCredenciales(prefs, numeroUnidad, password) else prefs.edit().putString("unidad_guardada", numeroUnidad).remove("password_guardado").apply() }
                             onUnidadIngresada(numeroUnidad)
                         } else {
                             errorMessage = context.getString(R.string.contrasena_incorrecta)
@@ -275,13 +274,13 @@ fun SeleccionUnidadScreen(
             Spacer(modifier = Modifier.height(8.dp))
             TextButton(onClick = {
                 usandoContrasena = false
-                lanzarBiometria(
+                lanzarAutenticacionDispositivo(
                     activity = activity,
                     onSuccess = { onUnidadIngresada(unidadGuardada) },
                     onUsarContrasena = { usandoContrasena = true },
                     onError = { msg -> errorMessage = msg }
                 )
-            }) { Text(stringResource(R.string.biometria_usar)) }
+            }) { Text(textoUsarDesbloqueoDispositivo(context)) }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -303,19 +302,20 @@ fun SeleccionUnidadScreen(
 
 // --- Helpers ---
 
-fun isBiometriaDisponible(context: Context): Boolean {
+private val AUTENTICADORES_DISPOSITIVO =
+    BiometricManager.Authenticators.BIOMETRIC_STRONG or
+            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+
+fun isAutenticacionDispositivoDisponible(context: Context): Boolean {
     val bm = BiometricManager.from(context)
-    return bm.canAuthenticate(
-        BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                BiometricManager.Authenticators.BIOMETRIC_WEAK
-    ) == BiometricManager.BIOMETRIC_SUCCESS
+    return bm.canAuthenticate(AUTENTICADORES_DISPOSITIVO) == BiometricManager.BIOMETRIC_SUCCESS
 }
 
 fun guardarCredenciales(prefs: android.content.SharedPreferences, numeroUnidad: String, password: String) {
     prefs.edit().putString("unidad_guardada", numeroUnidad).putString("password_guardado", password).apply()
 }
 
-fun lanzarBiometria(
+fun lanzarAutenticacionDispositivo(
     activity: FragmentActivity,
     onSuccess: () -> Unit,
     onUsarContrasena: () -> Unit,
@@ -334,19 +334,35 @@ fun lanzarBiometria(
             }
         }
         override fun onAuthenticationFailed() {
-            onError(activity.getString(R.string.biometria_no_reconocida))
+            onError(textoDesbloqueoNoReconocido(activity))
         }
     })
 
     val promptInfo = BiometricPrompt.PromptInfo.Builder()
         .setTitle("Agenda Sacramental")
-        .setSubtitle(activity.getString(R.string.biometria_autenticar))
-        .setNegativeButtonText(activity.getString(R.string.contrasena_usar))
-        .setAllowedAuthenticators(
-            BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                    BiometricManager.Authenticators.BIOMETRIC_WEAK
-        )
+        .setSubtitle(textoAutenticacionDispositivo(activity))
+        .setAllowedAuthenticators(AUTENTICADORES_DISPOSITIVO)
         .build()
 
     prompt.authenticate(promptInfo)
+}
+
+private fun usaIngles(context: Context): Boolean {
+    return context.resources.configuration.locales[0].language == "en"
+}
+
+fun textoRecordarDispositivo(context: Context): String {
+    return if (usaIngles(context)) "Remember on this device (device unlock)" else "Recordar en este dispositivo (desbloqueo del sistema)"
+}
+
+fun textoUsarDesbloqueoDispositivo(context: Context): String {
+    return if (usaIngles(context)) "Use device unlock" else "Usar desbloqueo del sistema"
+}
+
+fun textoAutenticacionDispositivo(context: Context): String {
+    return if (usaIngles(context)) "Unlock with your fingerprint, face, PIN, pattern, or password" else "Desbloqueá con huella, rostro, PIN, patrón o contraseña"
+}
+
+fun textoDesbloqueoNoReconocido(context: Context): String {
+    return if (usaIngles(context)) "Device unlock was not recognized. Try again." else "No se reconoció el desbloqueo. Intentá de nuevo."
 }
