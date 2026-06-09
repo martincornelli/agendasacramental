@@ -249,7 +249,12 @@ fun SeleccionUnidadScreen(
                             errorMessage = context.getString(R.string.unidad_error_crear)
                         }
                     } else {
-                        val existe = repository.existeUnidad(numeroUnidad)
+                        val existe = runCatching { repository.existeUnidad(numeroUnidad) }
+                            .getOrElse {
+                                isLoading = false
+                                errorMessage = textoErrorVerificarUnidad(context)
+                                return@launch
+                            }
                         if (!existe) { isLoading = false; showCreateDialog = true; return@launch }
                         val passwordOk = repository.verificarPassword(numeroUnidad, password)
                         isLoading = false
@@ -289,7 +294,11 @@ fun SeleccionUnidadScreen(
             if (numeroUnidad.isBlank()) { errorMessage = context.getString(R.string.unidad_ingrese_numero_primero); return@TextButton }
             errorMessage = ""; successMessage = ""
             scope.launch {
-                val existe = repository.existeUnidad(numeroUnidad)
+                val existe = runCatching { repository.existeUnidad(numeroUnidad) }
+                    .getOrElse {
+                        errorMessage = textoErrorVerificarUnidad(context)
+                        return@launch
+                    }
                 if (existe) showForgotDialog = true
                 else errorMessage = "La unidad $numeroUnidad no existe."
             }
@@ -365,4 +374,8 @@ fun textoAutenticacionDispositivo(context: Context): String {
 
 fun textoDesbloqueoNoReconocido(context: Context): String {
     return if (usaIngles(context)) "Device unlock was not recognized. Try again." else "No se reconoció el desbloqueo. Intentá de nuevo."
+}
+
+fun textoErrorVerificarUnidad(context: Context): String {
+    return if (usaIngles(context)) "Could not verify the unit. Check your connection and try again." else "No se pudo verificar la unidad. Revisá la conexión e intentá de nuevo."
 }
