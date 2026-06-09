@@ -84,6 +84,10 @@ data class Hermano(
     val inactivoOracion: Boolean = false,
     val ultimaVezDiscursoManual: Timestamp? = null,
     val ultimaVezOracionManual: Timestamp? = null,
+    val ultimaVezDiscursoAutoSync: Timestamp? = null,
+    val ultimaVezOracionAutoSync: Timestamp? = null,
+    val ultimaVezDiscursoAntesAutoSync: Timestamp? = null,
+    val ultimaVezOracionAntesAutoSync: Timestamp? = null,
     val creadoEn: Timestamp = Timestamp.now()
 )
 

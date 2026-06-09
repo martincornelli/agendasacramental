@@ -140,6 +140,14 @@ class AgendaRepository {
                 return Result.failure(Exception("FECHA_DUPLICADA"))
             }
 
+            val agendaAnterior = if (agenda.id.isNotEmpty()) {
+                agendasRef.document(agenda.id).get().await()
+                    .toObject(Agenda::class.java)
+                    ?.copy(id = agenda.id)
+            } else {
+                null
+            }
+
             val ahora = Timestamp.now()
             val data = agendaToMap(agenda).toMutableMap()
             data["ultimaEdicionPor"] = userEmail
@@ -154,7 +162,9 @@ class AgendaRepository {
                 agendasRef.document(agenda.id).set(data).await()
                 agenda.id
             }
-            sincronizarParticipantesAgenda(agenda.copy(id = id))
+            val agendaGuardada = agenda.copy(id = id)
+            sincronizarParticipantesAgenda(agendaGuardada)
+            sincronizarParticipantesQuitados(agendaAnterior, agendaGuardada)
             Result.success(id)
         } catch (e: Exception) {
             Result.failure(e)
@@ -163,7 +173,10 @@ class AgendaRepository {
 
     suspend fun eliminarAgenda(agendaId: String): Result<Unit> {
         return try {
+            val doc = agendasRef.document(agendaId).get().await()
+            val agendaAnterior = doc.toObject(Agenda::class.java)?.copy(id = doc.id)
             agendasRef.document(agendaId).delete().await()
+            sincronizarParticipantesQuitados(agendaAnterior, null)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -385,12 +398,30 @@ class AgendaRepository {
                 ?: return Result.failure(Exception("Agenda no encontrada"))
             when (normalizarNombre(campo)) {
                 "primera oracion", "opening prayer" -> {
+                    val nombreAnterior = agenda.primeraOracion
                     agendasRef.document(agendaId).update("primeraOracion", nombre).await()
                     actualizarFechaParticipacionManual(agenda.numeroUnidad, nombre, agenda.fecha, esDiscurso = false)
+                    if (normalizarNombre(nombreAnterior) != normalizarNombre(nombre)) {
+                        recalcularFechaParticipacionDesdeAgendas(
+                            agenda.numeroUnidad,
+                            nombreAnterior,
+                            agenda.fecha,
+                            esDiscurso = false
+                        )
+                    }
                 }
                 "oracion final", "closing prayer" -> {
+                    val nombreAnterior = agenda.oracionFinal
                     agendasRef.document(agendaId).update("oracionFinal", nombre).await()
                     actualizarFechaParticipacionManual(agenda.numeroUnidad, nombre, agenda.fecha, esDiscurso = false)
+                    if (normalizarNombre(nombreAnterior) != normalizarNombre(nombre)) {
+                        recalcularFechaParticipacionDesdeAgendas(
+                            agenda.numeroUnidad,
+                            nombreAnterior,
+                            agenda.fecha,
+                            esDiscurso = false
+                        )
+                    }
                 }
                 "nuevo_discurso" -> {
                     val mensajes = agenda.mensajesEvangelio.toMutableList()
@@ -428,6 +459,67 @@ class AgendaRepository {
         }
     }
 
+    private fun participantesDiscurso(agenda: Agenda?): Map<String, String> {
+        if (agenda == null) return emptyMap()
+        val nombres = linkedMapOf<String, String>()
+        agenda.mensajesEvangelio
+            .filter { it.tipo != TipoMensaje.HIMNO_INTERMEDIO }
+            .forEach { registrarNombreParticipante(nombres, it.nombre) }
+        return nombres
+    }
+
+    private fun participantesOracion(agenda: Agenda?): Map<String, String> {
+        if (agenda == null) return emptyMap()
+        val nombres = linkedMapOf<String, String>()
+        registrarNombreParticipante(nombres, agenda.primeraOracion)
+        registrarNombreParticipante(nombres, agenda.oracionFinal)
+        return nombres
+    }
+
+    private fun registrarNombreParticipante(destino: MutableMap<String, String>, nombre: String?) {
+        val nombreLimpio = nombre?.trim().orEmpty()
+        val key = normalizarNombre(nombreLimpio)
+        if (key.isNotBlank()) destino.putIfAbsent(key, nombreLimpio)
+    }
+
+    private suspend fun sincronizarParticipantesQuitados(agendaAnterior: Agenda?, agendaActual: Agenda?) {
+        if (agendaAnterior == null) return
+
+        val cambioFecha = agendaActual == null || !mismoDia(agendaAnterior.fecha, agendaActual.fecha)
+        val discursosAnteriores = participantesDiscurso(agendaAnterior)
+        val discursosActuales = participantesDiscurso(agendaActual)
+        val oracionesAnteriores = participantesOracion(agendaAnterior)
+        val oracionesActuales = participantesOracion(agendaActual)
+
+        val discursosAfectados = if (cambioFecha) {
+            discursosAnteriores.keys
+        } else {
+            discursosAnteriores.keys - discursosActuales.keys
+        }
+        val oracionesAfectadas = if (cambioFecha) {
+            oracionesAnteriores.keys
+        } else {
+            oracionesAnteriores.keys - oracionesActuales.keys
+        }
+
+        discursosAfectados.forEach { key ->
+            recalcularFechaParticipacionDesdeAgendas(
+                agendaAnterior.numeroUnidad,
+                discursosAnteriores[key].orEmpty(),
+                agendaAnterior.fecha,
+                esDiscurso = true
+            )
+        }
+        oracionesAfectadas.forEach { key ->
+            recalcularFechaParticipacionDesdeAgendas(
+                agendaAnterior.numeroUnidad,
+                oracionesAnteriores[key].orEmpty(),
+                agendaAnterior.fecha,
+                esDiscurso = false
+            )
+        }
+    }
+
     private suspend fun actualizarFechaParticipacionManual(
         numeroUnidad: String,
         nombre: String,
@@ -449,11 +541,25 @@ class AgendaRepository {
         }
 
         val campoFecha = if (esDiscurso) "ultimaVezDiscursoManual" else "ultimaVezOracionManual"
+        val campoAutoSync = if (esDiscurso) "ultimaVezDiscursoAutoSync" else "ultimaVezOracionAutoSync"
+        val campoFechaAnterior = if (esDiscurso) "ultimaVezDiscursoAntesAutoSync" else "ultimaVezOracionAntesAutoSync"
         val fechaActual = hermanoDoc?.getTimestamp(campoFecha)
         if (fechaActual != null && !fecha.toDate().after(fechaActual.toDate())) return
 
         if (hermanoDoc != null) {
-            hermanoDoc.reference.update(campoFecha, fecha).await()
+            val fechaAutoActual = hermanoDoc.getTimestamp(campoAutoSync)
+            val fechaAnteriorAuto = if (mismaMarcaDeTiempo(fechaActual, fechaAutoActual)) {
+                hermanoDoc.getTimestamp(campoFechaAnterior)
+            } else {
+                fechaActual
+            }
+            hermanoDoc.reference.update(
+                mapOf<String, Any?>(
+                    campoFecha to fecha,
+                    campoAutoSync to fecha,
+                    campoFechaAnterior to fechaAnteriorAuto
+                )
+            ).await()
         } else {
             val data = mutableMapOf<String, Any?>(
                 "numeroUnidad" to numeroUnidad,
@@ -464,10 +570,106 @@ class AgendaRepository {
                 "inactivoOracion" to false,
                 "ultimaVezDiscursoManual" to if (esDiscurso) fecha else null,
                 "ultimaVezOracionManual" to if (esDiscurso) null else fecha,
+                "ultimaVezDiscursoAutoSync" to if (esDiscurso) fecha else null,
+                "ultimaVezOracionAutoSync" to if (esDiscurso) null else fecha,
+                "ultimaVezDiscursoAntesAutoSync" to null,
+                "ultimaVezOracionAntesAutoSync" to null,
                 "creadoEn" to Timestamp.now()
             )
             hermanosRef.add(data).await()
         }
+    }
+
+    private suspend fun recalcularFechaParticipacionDesdeAgendas(
+        numeroUnidad: String,
+        nombre: String,
+        fechaQuitada: Timestamp,
+        esDiscurso: Boolean
+    ) {
+        val nombreLimpio = nombre.trim()
+        if (nombreLimpio.isBlank()) return
+
+        val nombreNorm = normalizarNombre(nombreLimpio)
+        val ultimaFecha = buscarUltimaParticipacion(numeroUnidad, nombreNorm, esDiscurso)
+        val campoFecha = if (esDiscurso) "ultimaVezDiscursoManual" else "ultimaVezOracionManual"
+        val campoAutoSync = if (esDiscurso) "ultimaVezDiscursoAutoSync" else "ultimaVezOracionAutoSync"
+        val campoFechaAnterior = if (esDiscurso) "ultimaVezDiscursoAntesAutoSync" else "ultimaVezOracionAntesAutoSync"
+
+        val hermanos = hermanosRef
+            .whereEqualTo("numeroUnidad", numeroUnidad)
+            .get()
+            .await()
+
+        hermanos.documents
+            .filter { it.getBoolean("excluido") != true }
+            .filter { normalizarNombre(it.getString("nombre") ?: "") == nombreNorm }
+            .forEach { hermano ->
+                val fechaActual = hermano.getTimestamp(campoFecha)
+                val fechaAutoSync = hermano.getTimestamp(campoAutoSync)
+                val fechaAnteriorAutoSync = hermano.getTimestamp(campoFechaAnterior)
+                val debeActualizar =
+                    mismaMarcaDeTiempo(fechaActual, fechaQuitada) ||
+                            (mismaMarcaDeTiempo(fechaAutoSync, fechaQuitada) &&
+                                    mismaMarcaDeTiempo(fechaActual, fechaAutoSync))
+                if (debeActualizar) {
+                    val fechaRestaurada = fechaMasReciente(ultimaFecha, fechaAnteriorAutoSync)
+                    val autoSyncRestaurado = if (mismaMarcaDeTiempo(fechaRestaurada, ultimaFecha)) {
+                        fechaRestaurada
+                    } else {
+                        null
+                    }
+                    hermano.reference.update(
+                        mapOf<String, Any?>(
+                            campoFecha to fechaRestaurada,
+                            campoAutoSync to autoSyncRestaurado,
+                            campoFechaAnterior to null
+                        )
+                    ).await()
+                }
+            }
+    }
+
+    private suspend fun buscarUltimaParticipacion(
+        numeroUnidad: String,
+        nombreNorm: String,
+        esDiscurso: Boolean
+    ): Timestamp? {
+        val agendas = agendasRef
+            .whereEqualTo("numeroUnidad", numeroUnidad)
+            .get()
+            .await()
+
+        var ultimaFecha: Timestamp? = null
+        agendas.documents.forEach { doc ->
+            val fecha = doc.getTimestamp("fecha") ?: return@forEach
+            val participa = if (esDiscurso) {
+                @Suppress("UNCHECKED_CAST")
+                val mensajes = doc.get("mensajesEvangelio") as? List<Map<String, Any>> ?: emptyList()
+                mensajes.any { mensaje ->
+                    mensaje["tipo"] as? String != TipoMensaje.HIMNO_INTERMEDIO.name &&
+                            normalizarNombre(mensaje["nombre"] as? String ?: "") == nombreNorm
+                }
+            } else {
+                normalizarNombre(doc.getString("primeraOracion") ?: "") == nombreNorm ||
+                        normalizarNombre(doc.getString("oracionFinal") ?: "") == nombreNorm
+            }
+
+            if (participa && (ultimaFecha == null || fecha.toDate().after(ultimaFecha!!.toDate()))) {
+                ultimaFecha = fecha
+            }
+        }
+        return ultimaFecha
+    }
+
+    private fun fechaMasReciente(a: Timestamp?, b: Timestamp?): Timestamp? {
+        if (a == null) return b
+        if (b == null) return a
+        return if (a.toDate().after(b.toDate())) a else b
+    }
+
+    private fun mismaMarcaDeTiempo(a: Timestamp?, b: Timestamp?): Boolean {
+        if (a == null || b == null) return false
+        return a.seconds == b.seconds && a.nanoseconds == b.nanoseconds
     }
 
     suspend fun toggleInactivoHermano(hermanoId: String, campo: String, valor: Boolean): Result<Unit> {
@@ -506,6 +708,10 @@ class AgendaRepository {
             val updates = mutableMapOf<String, Any?>()
             updates["ultimaVezDiscursoManual"] = ultimaVezDiscurso
             updates["ultimaVezOracionManual"] = ultimaVezOracion
+            updates["ultimaVezDiscursoAutoSync"] = null
+            updates["ultimaVezOracionAutoSync"] = null
+            updates["ultimaVezDiscursoAntesAutoSync"] = null
+            updates["ultimaVezOracionAntesAutoSync"] = null
             db.collection("hermanos").document(hermanoId).update(updates).await()
             Result.success(Unit)
         } catch (e: Exception) {
@@ -587,6 +793,10 @@ class AgendaRepository {
                             "inactivoOracion" to false,
                             "ultimaVezDiscursoManual" to ultimoDiscurso?.fecha,
                             "ultimaVezOracionManual" to ultimaOracion?.fecha,
+                            "ultimaVezDiscursoAutoSync" to ultimoDiscurso?.fecha,
+                            "ultimaVezOracionAutoSync" to ultimaOracion?.fecha,
+                            "ultimaVezDiscursoAntesAutoSync" to null,
+                            "ultimaVezOracionAntesAutoSync" to null,
                             "creadoEn" to Timestamp.now()
                         )
                     ).await()
@@ -596,17 +806,37 @@ class AgendaRepository {
                         val updates = mutableMapOf<String, Any>()
                         val fechaDiscursoActual = hermano.getTimestamp("ultimaVezDiscursoManual")
                         val fechaOracionActual = hermano.getTimestamp("ultimaVezOracionManual")
+                        val fechaDiscursoAutoActual = hermano.getTimestamp("ultimaVezDiscursoAutoSync")
+                        val fechaOracionAutoActual = hermano.getTimestamp("ultimaVezOracionAutoSync")
 
                         if (ultimoDiscurso != null &&
                             (fechaDiscursoActual == null || ultimoDiscurso.fecha.toDate().after(fechaDiscursoActual.toDate()))
                         ) {
+                            val fechaAnterior = if (mismaMarcaDeTiempo(fechaDiscursoActual, fechaDiscursoAutoActual)) {
+                                hermano.getTimestamp("ultimaVezDiscursoAntesAutoSync")
+                            } else {
+                                fechaDiscursoActual
+                            }
                             updates["ultimaVezDiscursoManual"] = ultimoDiscurso.fecha
+                            updates["ultimaVezDiscursoAutoSync"] = ultimoDiscurso.fecha
+                            if (fechaAnterior != null) {
+                                updates["ultimaVezDiscursoAntesAutoSync"] = fechaAnterior
+                            }
                         }
 
                         if (ultimaOracion != null &&
                             (fechaOracionActual == null || ultimaOracion.fecha.toDate().after(fechaOracionActual.toDate()))
                         ) {
+                            val fechaAnterior = if (mismaMarcaDeTiempo(fechaOracionActual, fechaOracionAutoActual)) {
+                                hermano.getTimestamp("ultimaVezOracionAntesAutoSync")
+                            } else {
+                                fechaOracionActual
+                            }
                             updates["ultimaVezOracionManual"] = ultimaOracion.fecha
+                            updates["ultimaVezOracionAutoSync"] = ultimaOracion.fecha
+                            if (fechaAnterior != null) {
+                                updates["ultimaVezOracionAntesAutoSync"] = fechaAnterior
+                            }
                         }
 
                         if (updates.isNotEmpty()) {

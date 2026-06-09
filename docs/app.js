@@ -584,7 +584,13 @@ function bindAgendaListActions() {
     button.addEventListener("click", async () => {
       if (!confirm("¿Eliminar esta agenda?")) return;
       await withToastError(async () => {
+        const agenda = state.agendas.find((item) => item.id === button.dataset.deleteAgenda);
         await deleteDoc(agendaRef(button.dataset.deleteAgenda));
+        await syncRemovedAgendaParticipants(
+          agenda,
+          null,
+          state.agendas.filter((item) => item.id !== button.dataset.deleteAgenda)
+        );
         toastMessage("Agenda eliminada");
       });
     });
@@ -813,6 +819,7 @@ async function saveAgendaFromForm(event) {
       toastMessage("Agenda creada");
     }
     await syncAgendaParticipants(savedAgenda);
+    await syncRemovedAgendaParticipants(oldAgenda, savedAgenda, agendasAfterSave(savedAgenda));
     navigate("agendas");
   });
 }
@@ -918,6 +925,59 @@ async function syncAgendaParticipants(agenda) {
   }
 }
 
+async function syncRemovedAgendaParticipants(oldAgenda, newAgenda = null, agendasAfter = state.agendas) {
+  if (!oldAgenda) return;
+  const dateChanged = !newAgenda || !sameDay(oldAgenda.fecha, newAgenda.fecha);
+  const oldTalks = agendaTalkParticipants(oldAgenda);
+  const newTalks = agendaTalkParticipants(newAgenda);
+  const oldPrayers = agendaPrayerParticipants(oldAgenda);
+  const newPrayers = agendaPrayerParticipants(newAgenda);
+  const cache = hermanoCache();
+
+  const affectedTalks = dateChanged
+    ? [...oldTalks.keys()]
+    : [...oldTalks.keys()].filter((key) => !newTalks.has(key));
+  const affectedPrayers = dateChanged
+    ? [...oldPrayers.keys()]
+    : [...oldPrayers.keys()].filter((key) => !newPrayers.has(key));
+
+  for (const key of affectedTalks) {
+    await rebuildHermanoParticipation(oldTalks.get(key), oldAgenda.fecha, "talks", agendasAfter, cache);
+  }
+  for (const key of affectedPrayers) {
+    await rebuildHermanoParticipation(oldPrayers.get(key), oldAgenda.fecha, "prayers", agendasAfter, cache);
+  }
+}
+
+function agendasAfterSave(savedAgenda) {
+  const exists = state.agendas.some((agenda) => agenda.id === savedAgenda.id);
+  if (exists) {
+    return state.agendas.map((agenda) => agenda.id === savedAgenda.id ? savedAgenda : agenda);
+  }
+  return [...state.agendas, savedAgenda];
+}
+
+function agendaTalkParticipants(agenda) {
+  const names = new Map();
+  agenda?.mensajesEvangelio
+    ?.filter((item) => item.tipo !== "HIMNO_INTERMEDIO")
+    .forEach((item) => addParticipantName(names, item.nombre));
+  return names;
+}
+
+function agendaPrayerParticipants(agenda) {
+  const names = new Map();
+  addParticipantName(names, agenda?.primeraOracion);
+  addParticipantName(names, agenda?.oracionFinal);
+  return names;
+}
+
+function addParticipantName(map, name) {
+  const cleanName = name?.trim();
+  const key = normalizeName(cleanName);
+  if (key) map.set(key, cleanName);
+}
+
 function hermanoCache() {
   return new Map(
     state.hermanos
@@ -934,14 +994,29 @@ async function syncHermanoParticipation(name, date, tab, cache = hermanoCache())
 
   const key = normalizeName(cleanName);
   const fieldName = tab === "talks" ? "ultimaVezDiscursoManual" : "ultimaVezOracionManual";
+  const syncFieldName = tab === "talks" ? "ultimaVezDiscursoAutoSync" : "ultimaVezOracionAutoSync";
+  const beforeSyncFieldName = tab === "talks" ? "ultimaVezDiscursoAntesAutoSync" : "ultimaVezOracionAntesAutoSync";
   const timestamp = Timestamp.fromDate(participationDate);
   const existing = cache.get(key);
   const currentDate = toDate(existing?.[fieldName]);
   if (currentDate && participationDate <= currentDate) return;
 
   if (existing?.id) {
-    await updateDoc(hermanoRef(existing.id), { [fieldName]: timestamp });
-    cache.set(key, { ...existing, [fieldName]: timestamp });
+    const currentSyncDate = toDate(existing?.[syncFieldName]);
+    const previousValue = sameMoment(currentDate, currentSyncDate)
+      ? (existing?.[beforeSyncFieldName] || null)
+      : (currentDate ? Timestamp.fromDate(currentDate) : null);
+    await updateDoc(hermanoRef(existing.id), {
+      [fieldName]: timestamp,
+      [syncFieldName]: timestamp,
+      [beforeSyncFieldName]: previousValue
+    });
+    cache.set(key, {
+      ...existing,
+      [fieldName]: timestamp,
+      [syncFieldName]: timestamp,
+      [beforeSyncFieldName]: previousValue
+    });
     return;
   }
 
@@ -954,10 +1029,64 @@ async function syncHermanoParticipation(name, date, tab, cache = hermanoCache())
     inactivoOracion: false,
     ultimaVezDiscursoManual: tab === "talks" ? timestamp : null,
     ultimaVezOracionManual: tab === "prayers" ? timestamp : null,
+    ultimaVezDiscursoAutoSync: tab === "talks" ? timestamp : null,
+    ultimaVezOracionAutoSync: tab === "prayers" ? timestamp : null,
+    ultimaVezDiscursoAntesAutoSync: null,
+    ultimaVezOracionAntesAutoSync: null,
     creadoEn: serverTimestamp()
   };
   const ref = await addDoc(collection(db, "hermanos"), data);
   cache.set(key, { ...data, id: ref.id });
+}
+
+async function rebuildHermanoParticipation(name, removedDate, tab, agendasAfter = state.agendas, cache = hermanoCache()) {
+  const cleanName = name?.trim();
+  if (!cleanName) return;
+  const key = normalizeName(cleanName);
+  const existing = cache.get(key);
+  if (!existing?.id) return;
+
+  const fieldName = tab === "talks" ? "ultimaVezDiscursoManual" : "ultimaVezOracionManual";
+  const syncFieldName = tab === "talks" ? "ultimaVezDiscursoAutoSync" : "ultimaVezOracionAutoSync";
+  const beforeSyncFieldName = tab === "talks" ? "ultimaVezDiscursoAntesAutoSync" : "ultimaVezOracionAntesAutoSync";
+  const currentDate = toDate(existing[fieldName]);
+  const syncDate = toDate(existing[syncFieldName]);
+  if (!sameMoment(currentDate, removedDate) && !(sameMoment(syncDate, removedDate) && sameMoment(currentDate, syncDate))) return;
+
+  const latest = latestParticipationDate(cleanName, tab, agendasAfter);
+  const previousDate = toDate(existing[beforeSyncFieldName]);
+  const restored = latestDate([latest, previousDate]);
+  const timestamp = restored ? Timestamp.fromDate(restored) : null;
+  const syncTimestamp = sameMoment(restored, latest) ? timestamp : null;
+  await updateDoc(hermanoRef(existing.id), {
+    [fieldName]: timestamp,
+    [syncFieldName]: syncTimestamp,
+    [beforeSyncFieldName]: null
+  });
+  cache.set(key, {
+    ...existing,
+    [fieldName]: timestamp,
+    [syncFieldName]: syncTimestamp,
+    [beforeSyncFieldName]: null
+  });
+}
+
+function latestParticipationDate(name, tab, agendas = state.agendas) {
+  const key = normalizeName(name);
+  const dates = [];
+  agendas.forEach((agenda) => {
+    if (tab === "talks") {
+      agenda.mensajesEvangelio.forEach((message) => {
+        if (message.tipo !== "HIMNO_INTERMEDIO" && normalizeName(message.nombre) === key) {
+          dates.push(agenda.fecha);
+        }
+      });
+    } else {
+      if (normalizeName(agenda.primeraOracion) === key) dates.push(agenda.fecha);
+      if (normalizeName(agenda.oracionFinal) === key) dates.push(agenda.fecha);
+    }
+  });
+  return latestDate(dates);
 }
 
 function renderReadingMode() {
@@ -1183,21 +1312,37 @@ function openAssignDialog(ranking) {
           const agendaId = dialog.querySelector("#assign-agenda").value;
           const fieldName = dialog.querySelector("#assign-field").value;
           const agenda = state.agendas.find((item) => item.id === agendaId);
+          let previousName = "";
+          let agendasAfterAssignment = state.agendas;
           if (!agenda) throw new Error("No se encontró la agenda.");
           if (fieldName === "NUEVO_DISCURSO") {
+            const mensajesEvangelio = [
+              ...agenda.mensajesEvangelio,
+              { tipo: "DISCURSO", nombre: ranking.hermano.nombre, himnoNumero: 0, himnoNombre: "" }
+            ];
             await updateDoc(agendaRef(agendaId), {
-              mensajesEvangelio: [...agenda.mensajesEvangelio, { tipo: "DISCURSO", nombre: ranking.hermano.nombre, himnoNumero: 0, himnoNombre: "" }],
+              mensajesEvangelio,
               ultimaEdicionPor: userEmail(),
               ultimaEdicionEn: serverTimestamp()
             });
+            agendasAfterAssignment = state.agendas.map((item) =>
+              item.id === agendaId ? { ...item, mensajesEvangelio } : item
+            );
           } else {
+            previousName = agenda[fieldName] || "";
             await updateDoc(agendaRef(agendaId), {
               [fieldName]: ranking.hermano.nombre,
               ultimaEdicionPor: userEmail(),
               ultimaEdicionEn: serverTimestamp()
             });
+            agendasAfterAssignment = state.agendas.map((item) =>
+              item.id === agendaId ? { ...item, [fieldName]: ranking.hermano.nombre } : item
+            );
           }
           await syncHermanoParticipation(ranking.hermano.nombre, agenda.fecha, tab);
+          if (fieldName !== "NUEVO_DISCURSO" && normalizeName(previousName) !== normalizeName(ranking.hermano.nombre)) {
+            await rebuildHermanoParticipation(previousName, agenda.fecha, tab, agendasAfterAssignment);
+          }
           closeModal();
           toastMessage("Asignado");
         });
@@ -1782,6 +1927,12 @@ function isFirstSunday(date) {
 
 function sameDay(a, b) {
   return dateInputValue(a) === dateInputValue(b);
+}
+
+function sameMoment(a, b) {
+  const first = toDate(a);
+  const second = toDate(b);
+  return Boolean(first && second && first.getTime() === second.getTime());
 }
 
 function normalizeName(name) {
