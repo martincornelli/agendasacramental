@@ -139,6 +139,7 @@
     <string name="editar_sin_datos">No data</string>
     <string name="editar_nombre">Name</string>
     <string name="editar_cargo">Role / Detail</string>
+    <string name="editar_oficio">Office</string>
     <string name="editar_texto_libre">Free text</string>
     <string name="editar_otros_placeholder">Write the text exactly as it should appear</string>
     <string name="editar_nombre_completo">Full name</string>
@@ -247,6 +248,8 @@
     <!-- Liturgical formulas -->
     <string name="formula_relevo">RELEASES</string>
     <string name="formula_sostenimiento">CALLINGS</string>
+    <string name="formula_estaca">STAKE</string>
+    <string name="formula_ordenacion_aaronica">AARONIC PRIESTHOOD ORDINATION</string>
     <string name="formula_otros">OTHER</string>
     <string name="pdf_como">as</string>
 
@@ -274,6 +277,7 @@
     <string name="pdf_cita">\"But notwithstanding those things which are written, it always has been given to the elders of my church from the beginning, and ever shall be, to conduct all meetings as they are directed and guided by the Holy Spirit.\"  D&amp;C 46:2</string>
     <string name="pdf_relevo_singular">\"%s has been released as %s. Those who would like to express thanks for [his or her] service may show it by the uplifted hand.\"</string>
     <string name="pdf_sostenimiento_singular">\"%s has been called as %s. Those in favor of sustaining [him or her]may show it by the uplifted hand. [Pause briefly]. Those opposed, if any, may also show it. [Pause briefly].\"</string>
+    <string name="pdf_ordenacion_aaronica">Ask the brother to stand.\n\"We propose that %1$s receive the Aaronic Priesthood and be ordained a %2$s. Those in favor may show it by the uplifted hand. [Pause briefly]. Those opposed, if any, may also show it. [Pause briefly]\"</string>
     <string name="plan_hoy">Today</string>
     <string name="plan_hace_dias">%s day(s) ago</string>
     <string name="plan_dentro_de">In %s day(s)</string>
@@ -292,7 +296,13 @@
     <!-- Business types -->
     <string name="tipo_relevo">Release</string>
     <string name="tipo_sostenimiento">Calling</string>
+    <string name="tipo_estaca">Stake</string>
+    <string name="tipo_ordenacion_aaronica">Ordination</string>
     <string name="tipo_otros">Other</string>
+    <string name="asunto_estaca_descripcion">A stake brother will take time for stake business.</string>
+    <string name="oficio_diacono">Deacon</string>
+    <string name="oficio_maestro">Teacher</string>
+    <string name="oficio_presbitero">Priest</string>
 
     <!-- Ranking colors -->
     <string name="color_sugerido">Suggested</string>

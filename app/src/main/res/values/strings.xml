@@ -139,6 +139,7 @@
     <string name="editar_sin_datos">Sin datos</string>
     <string name="editar_nombre">Nombre</string>
     <string name="editar_cargo">Cargo / Detalle</string>
+    <string name="editar_oficio">Oficio</string>
     <string name="editar_texto_libre">Texto libre</string>
     <string name="editar_otros_placeholder">Escriba el texto tal como debe aparecer</string>
     <string name="editar_nombre_completo">Nombre completo</string>
@@ -247,6 +248,8 @@
     <!-- Fórmulas litúrgicas -->
     <string name="formula_relevo">RELEVOS</string>
     <string name="formula_sostenimiento">SOSTENIMIENTOS</string>
+    <string name="formula_estaca">ESTACA</string>
+    <string name="formula_ordenacion_aaronica">ORDENACIÓN AL SACERDOCIO AARÓNICO</string>
     <string name="formula_otros">OTROS</string>
     <string name="pdf_como">como</string>
 
@@ -275,6 +278,7 @@
     <string name="pdf_area" translatable="false">Área Sudamérica Sur</string>
     <string name="pdf_relevo_singular">\"%s ha sido relevado como %s. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano.\"</string>
     <string name="pdf_sostenimiento_singular">\"%s ha sido llamado como %s. Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\"</string>
+    <string name="pdf_ordenacion_aaronica">Pedirle al hermano que se ponga de pie.\n\"Proponemos que %1$s reciba el Sacerdocio de Aarón y que sea ordenado %2$s. Los que estén a favor, sírvanse indicarlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa]\"</string>
     <string name="plan_hoy">Hoy</string>
     <string name="plan_hace_dias">Hace %s día(s)</string>
     <string name="plan_dentro_de">Dentro de %s día(s)</string>
@@ -293,7 +297,13 @@
     <!-- Tipos de asunto -->
     <string name="tipo_relevo">Relevo</string>
     <string name="tipo_sostenimiento">Sostenimiento</string>
+    <string name="tipo_estaca">Estaca</string>
+    <string name="tipo_ordenacion_aaronica">Ordenación</string>
     <string name="tipo_otros">Otros</string>
+    <string name="asunto_estaca_descripcion">Un hermano de la estaca tomará tiempo para asuntos de la estaca.</string>
+    <string name="oficio_diacono">Diácono</string>
+    <string name="oficio_maestro">Maestro</string>
+    <string name="oficio_presbitero">Presbítero</string>
 
     <!-- Colores de ranking -->
     <string name="color_sugerido">Sugerido</string>

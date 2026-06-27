@@ -708,6 +708,38 @@ fun ListaItemsEditor(
     }
 }
 
+private fun oficiosAaronicos(context: Context): List<String> = listOf(
+    context.getString(R.string.oficio_diacono),
+    context.getString(R.string.oficio_maestro),
+    context.getString(R.string.oficio_presbitero)
+)
+
+private fun TipoAsunto.tieneFormulaLiturgica(): Boolean = when (this) {
+    TipoAsunto.RELEVO,
+    TipoAsunto.SOSTENIMIENTO,
+    TipoAsunto.ORDENACION_AARONICA -> true
+    TipoAsunto.ESTACA,
+    TipoAsunto.OTROS -> false
+}
+
+private fun AsuntoEstacaBarrio.normalizadoParaTipo(tipo: TipoAsunto, context: Context): AsuntoEstacaBarrio {
+    return when (tipo) {
+        TipoAsunto.ESTACA -> copy(tipo = tipo, columna2 = "", columna3 = "")
+        TipoAsunto.OTROS -> copy(tipo = tipo, columna3 = "")
+        TipoAsunto.ORDENACION_AARONICA -> {
+            val oficio = columna3.takeIf { it in oficiosAaronicos(context) }.orEmpty()
+            copy(tipo = tipo, columna3 = oficio)
+        }
+        TipoAsunto.RELEVO,
+        TipoAsunto.SOSTENIMIENTO -> copy(tipo = tipo)
+    }
+}
+
+private fun oficioParaFormula(oficio: String): String {
+    val limpio = oficio.trim()
+    return if (limpio.isBlank()) "[Oficio]" else limpio.replaceFirstChar { it.lowercase() }
+}
+
 @Composable
 fun TablaAsuntos(
     asuntos: List<AsuntoEstacaBarrio>,
@@ -777,6 +809,9 @@ fun AsuntoRow(
 ) {
     val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
+    var oficioExpanded by remember { mutableStateOf(false) }
+    val oficios = oficiosAaronicos(context)
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -794,10 +829,7 @@ fun AsuntoRow(
                             DropdownMenuItem(
                                 text = { Text(context.getString(tipo.stringResId)) },
                                 onClick = {
-                                    onAsuntoChange(
-                                        if (tipo == TipoAsunto.OTROS) asunto.copy(tipo = tipo, columna3 = "")
-                                        else asunto.copy(tipo = tipo)
-                                    )
+                                    onAsuntoChange(asunto.normalizadoParaTipo(tipo, context))
                                     expanded = false
                                 }
                             )
@@ -805,7 +837,7 @@ fun AsuntoRow(
                     }
                 }
                 // Botón ver fórmula litúrgica
-                if (asunto.tipo != TipoAsunto.OTROS) {
+                if (asunto.tipo.tieneFormulaLiturgica()) {
                     IconButton(onClick = onVerFormula) {
                         Icon(
                             Icons.Default.MenuBook,
@@ -824,24 +856,74 @@ fun AsuntoRow(
                     Icon(Icons.Default.Close, stringResource(R.string.btn_eliminar), tint = MaterialTheme.colorScheme.error)
                 }
             }
-            if (asunto.tipo == TipoAsunto.OTROS) {
-                OutlinedTextField(
-                    value = asunto.columna2,
-                    onValueChange = { onAsuntoChange(asunto.copy(columna2 = it, columna3 = "")) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.editar_texto_libre)) },
-                    placeholder = { Text(stringResource(R.string.editar_otros_placeholder)) },
-                    minLines = 3
-                )
-            } else {
-                OutlinedTextField(
-                    value = asunto.columna2, onValueChange = { onAsuntoChange(asunto.copy(columna2 = it)) },
-                    modifier = Modifier.fillMaxWidth(), placeholder = { Text(stringResource(R.string.editar_nombre)) }, minLines = 1
-                )
-                OutlinedTextField(
-                    value = asunto.columna3, onValueChange = { onAsuntoChange(asunto.copy(columna3 = it)) },
-                    modifier = Modifier.fillMaxWidth(), placeholder = { Text(stringResource(R.string.editar_cargo)) }, minLines = 1
-                )
+            when (asunto.tipo) {
+                TipoAsunto.OTROS -> {
+                    OutlinedTextField(
+                        value = asunto.columna2,
+                        onValueChange = { onAsuntoChange(asunto.copy(columna2 = it, columna3 = "")) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.editar_texto_libre)) },
+                        placeholder = { Text(stringResource(R.string.editar_otros_placeholder)) },
+                        minLines = 3
+                    )
+                }
+                TipoAsunto.ESTACA -> {
+                    Text(
+                        text = stringResource(R.string.asunto_estaca_descripcion),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+                TipoAsunto.ORDENACION_AARONICA -> {
+                    OutlinedTextField(
+                        value = asunto.columna2,
+                        onValueChange = { onAsuntoChange(asunto.copy(columna2 = it)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.editar_nombre)) },
+                        singleLine = true
+                    )
+                    ExposedDropdownMenuBox(
+                        expanded = oficioExpanded,
+                        onExpandedChange = { oficioExpanded = it },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedTextField(
+                            value = asunto.columna3,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.editar_oficio)) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = oficioExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            singleLine = true
+                        )
+                        ExposedDropdownMenu(
+                            expanded = oficioExpanded,
+                            onDismissRequest = { oficioExpanded = false }
+                        ) {
+                            oficios.forEach { oficio ->
+                                DropdownMenuItem(
+                                    text = { Text(oficio) },
+                                    onClick = {
+                                        onAsuntoChange(asunto.copy(columna3 = oficio))
+                                        oficioExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                TipoAsunto.RELEVO,
+                TipoAsunto.SOSTENIMIENTO -> {
+                    OutlinedTextField(
+                        value = asunto.columna2, onValueChange = { onAsuntoChange(asunto.copy(columna2 = it)) },
+                        modifier = Modifier.fillMaxWidth(), placeholder = { Text(stringResource(R.string.editar_nombre)) }, minLines = 1
+                    )
+                    OutlinedTextField(
+                        value = asunto.columna3, onValueChange = { onAsuntoChange(asunto.copy(columna3 = it)) },
+                        modifier = Modifier.fillMaxWidth(), placeholder = { Text(stringResource(R.string.editar_cargo)) }, minLines = 1
+                    )
+                }
             }
         }
     }
@@ -1003,11 +1085,21 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat, context: an
         sb.appendLine()
         sb.appendLine("📌 ${context.getString(R.string.editar_asuntos)}:")
         agenda.asuntosEstacaBarrio.forEach {
-            if (it.tipo == TipoAsunto.OTROS) {
-                sb.appendLine("  • ${context.getString(it.tipo.stringResId)}:")
-                it.columna2.lines().forEach { linea -> sb.appendLine("    $linea") }
-            } else {
-                sb.appendLine("  • ${context.getString(it.tipo.stringResId)}: ${it.columna2} ${it.columna3}")
+            when (it.tipo) {
+                TipoAsunto.OTROS -> {
+                    sb.appendLine("  • ${context.getString(it.tipo.stringResId)}:")
+                    it.columna2.lines().forEach { linea -> sb.appendLine("    $linea") }
+                }
+                TipoAsunto.ESTACA -> {
+                    sb.appendLine("  • ${context.getString(it.tipo.stringResId)}: ${context.getString(R.string.asunto_estaca_descripcion)}")
+                }
+                TipoAsunto.ORDENACION_AARONICA -> {
+                    sb.appendLine("  • ${context.getString(it.tipo.stringResId)}: ${it.columna2} — ${it.columna3}")
+                }
+                TipoAsunto.RELEVO,
+                TipoAsunto.SOSTENIMIENTO -> {
+                    sb.appendLine("  • ${context.getString(it.tipo.stringResId)}: ${it.columna2} ${it.columna3}")
+                }
             }
         }
     }
@@ -1037,25 +1129,37 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat, context: an
 fun generarFormulaLiturgica(tipo: TipoAsunto, asuntos: List<AsuntoEstacaBarrio>, context: android.content.Context): String {
     if (asuntos.isEmpty()) return ""
 
-    return if (asuntos.size == 1) {
-        val nombre = asuntos[0].columna2.ifBlank { "[Nombre]" }
-        val cargo = asuntos[0].columna3.ifBlank { "[Cargo]" }
-        when (tipo) {
-            TipoAsunto.RELEVO -> context.getString(R.string.pdf_relevo_singular, nombre, cargo)
-            TipoAsunto.SOSTENIMIENTO -> context.getString(R.string.pdf_sostenimiento_singular, nombre, cargo)
-            TipoAsunto.OTROS -> asuntos[0].columna2
-        }
-    } else {
-        val como = context.getString(R.string.pdf_como)
-        val lista = asuntos.joinToString(", ") { asunto ->
+    return when (tipo) {
+        TipoAsunto.ESTACA -> context.getString(R.string.asunto_estaca_descripcion)
+        TipoAsunto.ORDENACION_AARONICA -> asuntos.joinToString("\n\n") { asunto ->
             val nombre = asunto.columna2.ifBlank { "[Nombre]" }
-            val cargo = asunto.columna3.ifBlank { "[Cargo]" }
-            "$nombre $como $cargo"
+            val oficio = oficioParaFormula(asunto.columna3)
+            context.getString(R.string.pdf_ordenacion_aaronica, nombre, oficio)
         }
-        when (tipo) {
-            TipoAsunto.RELEVO -> context.getString(R.string.pdf_relevo_plural, lista)
-            TipoAsunto.SOSTENIMIENTO -> context.getString(R.string.pdf_sostenimiento_plural, lista)
-            TipoAsunto.OTROS -> asuntos.joinToString("\n") { it.columna2 }
+        TipoAsunto.OTROS -> asuntos.joinToString("\n") { it.columna2 }
+        TipoAsunto.RELEVO,
+        TipoAsunto.SOSTENIMIENTO -> {
+            if (asuntos.size == 1) {
+                val nombre = asuntos[0].columna2.ifBlank { "[Nombre]" }
+                val cargo = asuntos[0].columna3.ifBlank { "[Cargo]" }
+                if (tipo == TipoAsunto.RELEVO) {
+                    context.getString(R.string.pdf_relevo_singular, nombre, cargo)
+                } else {
+                    context.getString(R.string.pdf_sostenimiento_singular, nombre, cargo)
+                }
+            } else {
+                val como = context.getString(R.string.pdf_como)
+                val lista = asuntos.joinToString(", ") { asunto ->
+                    val nombre = asunto.columna2.ifBlank { "[Nombre]" }
+                    val cargo = asunto.columna3.ifBlank { "[Cargo]" }
+                    "$nombre $como $cargo"
+                }
+                if (tipo == TipoAsunto.RELEVO) {
+                    context.getString(R.string.pdf_relevo_plural, lista)
+                } else {
+                    context.getString(R.string.pdf_sostenimiento_plural, lista)
+                }
+            }
         }
     }
 }

@@ -113,10 +113,16 @@ fun ModoLecturaScreen(
                 item {
                     SeccionLectura(stringResource(R.string.lectura_asuntos)) {
                         agenda.asuntosEstacaBarrio.forEach { asunto ->
-                            val texto = if (asunto.tipo == TipoAsunto.OTROS) {
-                                "• ${context.getString(asunto.tipo.stringResId)}:\n${asunto.columna2}"
-                            } else {
-                                "• ${context.getString(asunto.tipo.stringResId)}: ${asunto.columna2} — ${asunto.columna3}"
+                            val texto = when (asunto.tipo) {
+                                TipoAsunto.OTROS ->
+                                    "• ${context.getString(asunto.tipo.stringResId)}:\n${asunto.columna2}"
+                                TipoAsunto.ESTACA ->
+                                    "• ${context.getString(asunto.tipo.stringResId)}: ${context.getString(R.string.asunto_estaca_descripcion)}"
+                                TipoAsunto.ORDENACION_AARONICA ->
+                                    "• ${context.getString(asunto.tipo.stringResId)}: ${asunto.columna2} — ${asunto.columna3}"
+                                TipoAsunto.RELEVO,
+                                TipoAsunto.SOSTENIMIENTO ->
+                                    "• ${context.getString(asunto.tipo.stringResId)}: ${asunto.columna2} — ${asunto.columna3}"
                             }
                             Text(texto, style = MaterialTheme.typography.bodyLarge)
                         }

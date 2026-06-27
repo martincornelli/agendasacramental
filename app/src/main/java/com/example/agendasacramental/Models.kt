@@ -59,6 +59,8 @@ data class AsuntoEstacaBarrio(
 enum class TipoAsunto(val label: String, val stringResId: Int) {
     RELEVO("Relevo", R.string.tipo_relevo),
     SOSTENIMIENTO("Sostenimiento", R.string.tipo_sostenimiento),
+    ESTACA("Estaca", R.string.tipo_estaca),
+    ORDENACION_AARONICA("Ordenación", R.string.tipo_ordenacion_aaronica),
     OTROS("Otros", R.string.tipo_otros)
 }
 

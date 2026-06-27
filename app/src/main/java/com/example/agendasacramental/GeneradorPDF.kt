@@ -227,13 +227,21 @@ object GeneradorPDF {
         } else {
             val grupos = agenda.asuntosEstacaBarrio.groupBy { it.tipo }
 
-            listOf(TipoAsunto.RELEVO, TipoAsunto.SOSTENIMIENTO, TipoAsunto.OTROS).forEach { tipo ->
+            listOf(
+                TipoAsunto.RELEVO,
+                TipoAsunto.SOSTENIMIENTO,
+                TipoAsunto.ESTACA,
+                TipoAsunto.ORDENACION_AARONICA,
+                TipoAsunto.OTROS
+            ).forEach { tipo ->
                 val asuntosDelTipo = grupos[tipo] ?: return@forEach
                 if (tipo == TipoAsunto.OTROS && asuntosDelTipo.all { it.columna2.isBlank() }) return@forEach
 
                 val tipoLabel = when (tipo) {
                     TipoAsunto.RELEVO -> context.getString(R.string.formula_relevo)
                     TipoAsunto.SOSTENIMIENTO -> context.getString(R.string.formula_sostenimiento)
+                    TipoAsunto.ESTACA -> context.getString(R.string.formula_estaca)
+                    TipoAsunto.ORDENACION_AARONICA -> context.getString(R.string.formula_ordenacion_aaronica)
                     TipoAsunto.OTROS -> context.getString(R.string.formula_otros)
                 }
                 canvas.drawText(tipoLabel, MARGIN_LEFT, y, paintBold)
@@ -478,11 +486,17 @@ object GeneradorPDF {
         val grupos = agenda.asuntosEstacaBarrio.groupBy { it.tipo }
         var grupoIndex = 0
 
-        listOf(TipoAsunto.RELEVO, TipoAsunto.SOSTENIMIENTO).forEach { tipo ->
+        listOf(TipoAsunto.RELEVO, TipoAsunto.SOSTENIMIENTO, TipoAsunto.ORDENACION_AARONICA).forEach { tipo ->
             val asuntosDelTipo = grupos[tipo] ?: return@forEach
             if (y > PAGE_HEIGHT - 80f) return@forEach
 
-            val tipoLabel = if (tipo == TipoAsunto.RELEVO) context.getString(R.string.formula_relevo) else context.getString(R.string.formula_sostenimiento)
+            val tipoLabel = when (tipo) {
+                TipoAsunto.RELEVO -> context.getString(R.string.formula_relevo)
+                TipoAsunto.SOSTENIMIENTO -> context.getString(R.string.formula_sostenimiento)
+                TipoAsunto.ORDENACION_AARONICA -> context.getString(R.string.formula_ordenacion_aaronica)
+                TipoAsunto.ESTACA,
+                TipoAsunto.OTROS -> ""
+            }
             canvas.drawText("${grupoIndex + 1}. $tipoLabel", MARGIN_LEFT, y, paintSeccion)
             y += 14f
 
