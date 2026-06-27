@@ -4,7 +4,7 @@
     <!-- App -->
     <string name="app_name">Agenda Sacramental</string>
     <string name="app_subtitle">La Iglesia de Jesucristo de los\nSantos de los Últimos Días</string>
-    <string name="version">v1.2.3</string>
+    <string name="version">v1.2.5</string>
 
     <!-- Botones comunes -->
     <string name="btn_aceptar">Aceptar</string>

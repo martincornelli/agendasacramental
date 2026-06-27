@@ -4,7 +4,7 @@
     <!-- App -->
     <string name="app_name">Sacrament Meeting Agenda LDS</string>
     <string name="app_subtitle">The Church of Jesus Christ of\nLatter-day Saints</string>
-    <string name="version">v1.2.3</string>
+    <string name="version">v1.2.5</string>
 
     <!-- Common buttons -->
     <string name="btn_aceptar">Accept</string>
