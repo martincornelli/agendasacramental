@@ -144,6 +144,10 @@
     <string name="editar_otros_placeholder">Write the text exactly as it should appear</string>
     <string name="editar_nombre_completo">Full name</string>
     <string name="editar_discursante">Speaker</string>
+    <string name="editar_tema_discurso">Topic</string>
+    <string name="editar_tema_discurso_placeholder">Exact assigned topic name</string>
+    <string name="editar_etiqueta_tema">Tag</string>
+    <string name="editar_etiqueta_tema_placeholder">E.g., Forgiveness</string>
     <string name="editar_seleccionar_fecha">Select date</string>
     <string name="editar_ver_formula">View formula</string>
     <string name="editar_subir">Move up</string>
@@ -189,9 +193,11 @@
     <string name="plan_titulo">Planning</string>
     <string name="plan_discursos">Talks</string>
     <string name="plan_oraciones">Prayers</string>
+    <string name="plan_temas">Topics</string>
     <string name="plan_agregar_hermano">Add member</string>
     <string name="plan_configuracion">Settings</string>
     <string name="plan_buscar">Search member...</string>
+    <string name="plan_buscar_tema">Search topic or tag...</string>
     <string name="plan_agregar_hermano_titulo">Add member</string>
     <string name="plan_editar_hermano_titulo">Edit member</string>
     <string name="plan_eliminar_hermano_titulo">Remove member</string>
@@ -221,6 +227,14 @@
     <string name="plan_dias_amarillo">🟡 days</string>
     <string name="plan_reunion_borrador">Meeting (draft)</string>
     <string name="plan_nueva_discurso">NEW_TALK</string>
+    <string name="plan_temas_sugeridos">Suggested topics</string>
+    <string name="plan_historial_temas">Topic history</string>
+    <string name="plan_sin_temas">No topics have been saved on talks yet.</string>
+    <string name="plan_sin_temas_sugeridos">No matching suggestions.</string>
+    <string name="plan_tema_sin_registros">No history records.</string>
+    <string name="plan_temas_veces_90">%d in 90 days</string>
+    <string name="plan_temas_veces_180">%d in 180 days</string>
+    <string name="plan_tema_detalle">Last: %1$s · %2$d in 180 days · %3$d total</string>
 
     <!-- Notifications -->
     <string name="notif_titulo">Notifications</string>
@@ -317,6 +331,23 @@
     <string name="pdf_formulas_titulo">Calling and Releasing Formulas</string>
     <string name="pdf_formulas_subtitulo">Reference for use during the meeting</string>
     <string name="pdf_formulas_nota">Suggested text according to the General Handbook of The Church of Jesus Christ of Latter-day Saints.</string>
+
+    <string-array name="temas_base_sugeridos">
+        <item>Jesus Christ</item>
+        <item>Atonement</item>
+        <item>Faith</item>
+        <item>Repentance</item>
+        <item>Forgiveness</item>
+        <item>Sacrament</item>
+        <item>Covenants</item>
+        <item>Temple</item>
+        <item>Holy Ghost</item>
+        <item>Prayer</item>
+        <item>Scriptures</item>
+        <item>Service</item>
+        <item>Family</item>
+        <item>Obedience</item>
+    </string-array>
 
     <!-- Disclaimer -->
     <string name="disclaimer">This is an unofficial app. It is not affiliated with or endorsed by The Church of Jesus Christ of Latter-day Saints.</string>

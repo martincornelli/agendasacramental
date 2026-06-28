@@ -144,6 +144,10 @@
     <string name="editar_otros_placeholder">Escriba el texto tal como debe aparecer</string>
     <string name="editar_nombre_completo">Nombre completo</string>
     <string name="editar_discursante">Discursante</string>
+    <string name="editar_tema_discurso">Tema</string>
+    <string name="editar_tema_discurso_placeholder">Nombre exacto del tema asignado</string>
+    <string name="editar_etiqueta_tema">Etiqueta</string>
+    <string name="editar_etiqueta_tema_placeholder">Ej.: Perdón</string>
     <string name="editar_seleccionar_fecha">Seleccionar fecha</string>
     <string name="editar_ver_formula">Ver fórmula</string>
     <string name="editar_subir">Subir</string>
@@ -189,9 +193,11 @@
     <string name="plan_titulo">Planificación</string>
     <string name="plan_discursos">Discursos</string>
     <string name="plan_oraciones">Oraciones</string>
+    <string name="plan_temas">Temas</string>
     <string name="plan_agregar_hermano">Agregar hermano</string>
     <string name="plan_configuracion">Configuración</string>
     <string name="plan_buscar">Buscar hermano/a...</string>
+    <string name="plan_buscar_tema">Buscar tema o etiqueta...</string>
     <string name="plan_agregar_hermano_titulo">Agregar hermano/a</string>
     <string name="plan_editar_hermano_titulo">Editar hermano/a</string>
     <string name="plan_eliminar_hermano_titulo">Eliminar hermano/a</string>
@@ -221,6 +227,14 @@
     <string name="plan_dias_amarillo">🟡 días</string>
     <string name="plan_reunion_borrador">Reunión (borrador)</string>
     <string name="plan_nueva_discurso">NUEVO_DISCURSO</string>
+    <string name="plan_temas_sugeridos">Temas sugeridos</string>
+    <string name="plan_historial_temas">Historial de temas</string>
+    <string name="plan_sin_temas">Todavía no hay temas guardados en discursos.</string>
+    <string name="plan_sin_temas_sugeridos">No hay sugerencias que coincidan.</string>
+    <string name="plan_tema_sin_registros">Sin registros en el historial.</string>
+    <string name="plan_temas_veces_90">%d en 90 días</string>
+    <string name="plan_temas_veces_180">%d en 180 días</string>
+    <string name="plan_tema_detalle">Último: %1$s · %2$d en 180 días · %3$d total</string>
 
     <!-- Notificaciones -->
     <string name="notif_titulo">Notificaciones</string>
@@ -318,6 +332,23 @@
     <string name="pdf_formulas_titulo">Fórmulas de Sostenimiento y Relevo</string>
     <string name="pdf_formulas_subtitulo">Referencia para uso durante la reunión</string>
     <string name="pdf_formulas_nota">Texto sugerido según el Manual General de Instrucciones de La Iglesia de Jesucristo de los Santos de los Últimos Días.</string>
+
+    <string-array name="temas_base_sugeridos">
+        <item>Jesucristo</item>
+        <item>Expiación</item>
+        <item>Fe</item>
+        <item>Arrepentimiento</item>
+        <item>Perdón</item>
+        <item>Santa Cena</item>
+        <item>Convenios</item>
+        <item>Templo</item>
+        <item>Espíritu Santo</item>
+        <item>Oración</item>
+        <item>Escrituras</item>
+        <item>Servicio</item>
+        <item>Familia</item>
+        <item>Obediencia</item>
+    </string-array>
 
     <!-- Disclaimer -->
     <string name="disclaimer">Esta es una aplicación no oficial. No está afiliada ni respaldada por La Iglesia de Jesucristo de los Santos de los Últimos Días.</string>

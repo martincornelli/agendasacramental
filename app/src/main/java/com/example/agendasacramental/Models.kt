@@ -68,7 +68,9 @@ data class MensajeEvangelio(
     val tipo: TipoMensaje = TipoMensaje.DISCURSO,
     val nombre: String = "",
     val himnoNumero: Int = 0,
-    val himnoNombre: String = ""
+    val himnoNombre: String = "",
+    val tema: String = "",
+    val etiquetaTema: String = ""
 )
 
 enum class TipoMensaje(val label: String, val stringResId: Int) {

@@ -222,6 +222,17 @@ class AgendaRepository {
         }
     }
 
+    private fun mensajeToMap(mensaje: MensajeEvangelio): Map<String, Any> {
+        return mapOf(
+            "tipo" to mensaje.tipo.name,
+            "nombre" to mensaje.nombre,
+            "himnoNumero" to mensaje.himnoNumero,
+            "himnoNombre" to mensaje.himnoNombre,
+            "tema" to mensaje.tema,
+            "etiquetaTema" to mensaje.etiquetaTema
+        )
+    }
+
     private fun agendaToMap(agenda: Agenda): Map<String, Any> {
         return mapOf(
             "numeroUnidad" to agenda.numeroUnidad,
@@ -245,10 +256,7 @@ class AgendaRepository {
             "asuntosEstacaBarrio" to agenda.asuntosEstacaBarrio.map {
                 mapOf("tipo" to it.tipo.name, "columna2" to it.columna2, "columna3" to it.columna3)
             },
-            "mensajesEvangelio" to agenda.mensajesEvangelio.map {
-                mapOf("tipo" to it.tipo.name, "nombre" to it.nombre,
-                    "himnoNumero" to it.himnoNumero, "himnoNombre" to it.himnoNombre)
-            },
+            "mensajesEvangelio" to agenda.mensajesEvangelio.map { mensajeToMap(it) },
             "reunionTestimonios" to agenda.reunionTestimonios,
             "testimonios" to agenda.testimonios.filter { it.isNotBlank() },
             "creadoPor" to agenda.creadoPor,
@@ -426,10 +434,7 @@ class AgendaRepository {
                 "nuevo_discurso" -> {
                     val mensajes = agenda.mensajesEvangelio.toMutableList()
                     mensajes.add(MensajeEvangelio(tipo = TipoMensaje.DISCURSO, nombre = nombre))
-                    val mensajesData = mensajes.map {
-                        mapOf("tipo" to it.tipo.name, "nombre" to it.nombre,
-                            "himnoNumero" to it.himnoNumero, "himnoNombre" to it.himnoNombre)
-                    }
+                    val mensajesData = mensajes.map { mensajeToMap(it) }
                     agendasRef.document(agendaId).update("mensajesEvangelio", mensajesData).await()
                     actualizarFechaParticipacionManual(agenda.numeroUnidad, nombre, agenda.fecha, esDiscurso = true)
                 }

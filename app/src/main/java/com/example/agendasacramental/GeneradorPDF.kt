@@ -294,10 +294,14 @@ object GeneradorPDF {
         y += sp(8f)
 
         // Caja grande para mensajes
-        val msgBoxH = (if (agenda.mensajesEvangelio.isEmpty()) 60f else (agenda.mensajesEvangelio.size * 16f + 16f).coerceAtLeast(60f)) * fontScale
+        val lineasMensajes = agenda.mensajesEvangelio.sumOf { msg ->
+            1 + if (msg.tipo == TipoMensaje.DISCURSO && (msg.tema.isNotBlank() || msg.etiquetaTema.isNotBlank())) 1 else 0
+        }
+        val msgBoxH = (if (agenda.mensajesEvangelio.isEmpty()) 60f else (lineasMensajes * 14f + 16f).coerceAtLeast(60f)) * fontScale
         canvas.drawRect(MARGIN_LEFT, y, MARGIN_RIGHT, y + msgBoxH, Paint().apply { color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = 0.5f })
 
         val paintMsg = Paint().apply { color = Color.BLACK; textSize = sp(9.5f); isAntiAlias = true }
+        val paintMsgDetalle = Paint().apply { color = Color.DKGRAY; textSize = sp(8.2f); isAntiAlias = true }
         var msgY = y + sp(14f)
         agenda.mensajesEvangelio.forEach { msg ->
             val texto = when (msg.tipo) {
@@ -306,7 +310,20 @@ object GeneradorPDF {
                 else -> "${context.getString(R.string.lectura_discurso)}: ${msg.nombre}"
             }
             canvas.drawText(texto, MARGIN_LEFT + 6f, msgY, paintMsg)
-            msgY += sp(16f)
+            msgY += sp(13f)
+            if (msg.tipo == TipoMensaje.DISCURSO && (msg.tema.isNotBlank() || msg.etiquetaTema.isNotBlank())) {
+                val detalle = buildString {
+                    if (msg.tema.isNotBlank()) append("${context.getString(R.string.editar_tema_discurso)}: ${msg.tema}")
+                    if (msg.etiquetaTema.isNotBlank()) {
+                        if (isNotEmpty()) append("  ·  ")
+                        append("${context.getString(R.string.editar_etiqueta_tema)}: ${msg.etiquetaTema}")
+                    }
+                }
+                canvas.drawText(detalle, MARGIN_LEFT + 18f, msgY, paintMsgDetalle)
+                msgY += sp(13f)
+            } else {
+                msgY += sp(3f)
+            }
         }
         y += msgBoxH + sp(12f)
 

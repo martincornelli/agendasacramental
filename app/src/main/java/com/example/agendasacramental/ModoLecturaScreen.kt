@@ -147,7 +147,11 @@ fun ModoLecturaScreen(
                             val texto = when (msg.tipo) {
                                 TipoMensaje.HIMNO_INTERMEDIO -> "🎵 Himno: ${msg.himnoNumero} - ${msg.himnoNombre}"
                                 TipoMensaje.TESTIMONIO -> stringResource(R.string.lectura_testimonio) + ": ${msg.nombre}"
-                                else -> stringResource(R.string.lectura_discurso) + ": ${msg.nombre}"
+                                else -> buildString {
+                                    append(stringResource(R.string.lectura_discurso) + ": ${msg.nombre}")
+                                    if (msg.tema.isNotBlank()) append("\n${stringResource(R.string.editar_tema_discurso)}: ${msg.tema}")
+                                    if (msg.etiquetaTema.isNotBlank()) append("\n${stringResource(R.string.editar_etiqueta_tema)}: ${msg.etiquetaTema}")
+                                }
                             }
                             Text("• $texto", style = MaterialTheme.typography.bodyLarge)
                         }

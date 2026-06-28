@@ -929,6 +929,29 @@ fun AsuntoRow(
     }
 }
 
+private fun MensajeEvangelio.normalizadoParaTipo(tipo: TipoMensaje): MensajeEvangelio {
+    return when (tipo) {
+        TipoMensaje.HIMNO_INTERMEDIO -> copy(
+            tipo = tipo,
+            nombre = "",
+            tema = "",
+            etiquetaTema = ""
+        )
+        TipoMensaje.TESTIMONIO -> copy(
+            tipo = tipo,
+            himnoNumero = 0,
+            himnoNombre = "",
+            tema = "",
+            etiquetaTema = ""
+        )
+        TipoMensaje.DISCURSO -> copy(
+            tipo = tipo,
+            himnoNumero = 0,
+            himnoNombre = ""
+        )
+    }
+}
+
 @Composable
 fun TablaMensajes(
     mensajes: List<MensajeEvangelio>,
@@ -996,7 +1019,10 @@ fun MensajeRow(
                         TipoMensaje.values().forEach { tipo ->
                             DropdownMenuItem(
                                 text = { Text(context.getString(tipo.stringResId)) },
-                                onClick = { onMensajeChange(mensaje.copy(tipo = tipo)); expanded = false }
+                                onClick = {
+                                    onMensajeChange(mensaje.normalizadoParaTipo(tipo))
+                                    expanded = false
+                                }
                             )
                         }
                     }
@@ -1041,6 +1067,24 @@ fun MensajeRow(
                     label = if (mensaje.tipo == TipoMensaje.TESTIMONIO) stringResource(R.string.editar_nombre) else stringResource(R.string.editar_discursante),
                     sugerencias = nombresUsados
                 )
+                if (mensaje.tipo == TipoMensaje.DISCURSO) {
+                    OutlinedTextField(
+                        value = mensaje.tema,
+                        onValueChange = { onMensajeChange(mensaje.copy(tema = it)) },
+                        label = { Text(stringResource(R.string.editar_tema_discurso)) },
+                        placeholder = { Text(stringResource(R.string.editar_tema_discurso_placeholder)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 1
+                    )
+                    OutlinedTextField(
+                        value = mensaje.etiquetaTema,
+                        onValueChange = { onMensajeChange(mensaje.copy(etiquetaTema = it)) },
+                        label = { Text(stringResource(R.string.editar_etiqueta_tema)) },
+                        placeholder = { Text(stringResource(R.string.editar_etiqueta_tema_placeholder)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
             }
         }
     }
@@ -1114,7 +1158,15 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat, context: an
             when (it.tipo) {
                 TipoMensaje.HIMNO_INTERMEDIO -> sb.appendLine("  🎵 Himno Intermedio: ${it.himnoNumero} - ${it.himnoNombre}")
                 TipoMensaje.TESTIMONIO -> sb.appendLine("  👁️‍🗨️ Testimonio: ${it.nombre}")
-                else -> sb.appendLine("  📖 ${context.getString(it.tipo.stringResId)}: ${it.nombre}")
+                else -> {
+                    sb.appendLine("  📖 ${context.getString(it.tipo.stringResId)}: ${it.nombre}")
+                    if (it.tema.isNotBlank()) {
+                        sb.appendLine("    ${context.getString(R.string.editar_tema_discurso)}: ${it.tema}")
+                    }
+                    if (it.etiquetaTema.isNotBlank()) {
+                        sb.appendLine("    ${context.getString(R.string.editar_etiqueta_tema)}: ${it.etiquetaTema}")
+                    }
+                }
             }
         }
     }

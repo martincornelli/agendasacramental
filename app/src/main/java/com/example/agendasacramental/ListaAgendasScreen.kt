@@ -80,7 +80,11 @@ fun ListaAgendasScreen(
                     agenda.dirige.contains(searchQuery, ignoreCase = true) ||
                     agenda.primeraOracion.contains(searchQuery, ignoreCase = true) ||
                     agenda.oracionFinal.contains(searchQuery, ignoreCase = true) ||
-                    agenda.mensajesEvangelio.any { it.nombre.contains(searchQuery, ignoreCase = true) }
+                    agenda.mensajesEvangelio.any {
+                        it.nombre.contains(searchQuery, ignoreCase = true) ||
+                                it.tema.contains(searchQuery, ignoreCase = true) ||
+                                it.etiquetaTema.contains(searchQuery, ignoreCase = true)
+                    }
         }
         pasaFiltroEstado && pasaBusqueda
     }
@@ -107,6 +111,8 @@ fun ListaAgendasScreen(
                             agenda.himnoFinalNumero.toString().contains(searchQuery) ||
                             agenda.mensajesEvangelio.any {
                                 it.nombre.contains(searchQuery, ignoreCase = true) ||
+                                        it.tema.contains(searchQuery, ignoreCase = true) ||
+                                        it.etiquetaTema.contains(searchQuery, ignoreCase = true) ||
                                         it.himnoNombre.contains(searchQuery, ignoreCase = true) ||
                                         it.himnoNumero.toString().contains(searchQuery)
                             }

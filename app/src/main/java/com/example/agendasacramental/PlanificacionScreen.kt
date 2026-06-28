@@ -263,7 +263,13 @@ fun PlanificacionScreen(
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
-                                placeholder = { Text(LocalContext.current.getString(R.string.plan_buscar)) },
+                                placeholder = {
+                                    Text(
+                                        LocalContext.current.getString(
+                                            if (selectedTab == 2) R.string.plan_buscar_tema else R.string.plan_buscar
+                                        )
+                                    )
+                                },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
                             )
@@ -284,13 +290,20 @@ fun PlanificacionScreen(
                     },
                     actions = {
                         IconButton(onClick = { showSearch = true }) {
-                            Icon(Icons.Default.Search, LocalContext.current.getString(R.string.plan_buscar))
+                            Icon(
+                                Icons.Default.Search,
+                                LocalContext.current.getString(
+                                    if (selectedTab == 2) R.string.plan_buscar_tema else R.string.plan_buscar
+                                )
+                            )
                         }
-                        IconButton(onClick = { showAgregarHermano = true }) {
-                            Icon(Icons.Default.PersonAdd, LocalContext.current.getString(R.string.plan_agregar_hermano))
-                        }
-                        IconButton(onClick = { showConfiguracion = true }) {
-                            Icon(Icons.Default.Settings, LocalContext.current.getString(R.string.plan_configuracion))
+                        if (selectedTab != 2) {
+                            IconButton(onClick = { showAgregarHermano = true }) {
+                                Icon(Icons.Default.PersonAdd, LocalContext.current.getString(R.string.plan_agregar_hermano))
+                            }
+                            IconButton(onClick = { showConfiguracion = true }) {
+                                Icon(Icons.Default.Settings, LocalContext.current.getString(R.string.plan_configuracion))
+                            }
                         }
                     }
                 )
@@ -302,12 +315,18 @@ fun PlanificacionScreen(
             TabRow(selectedTabIndex = selectedTab) {
                 Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text(LocalContext.current.getString(R.string.plan_discursos)) })
                 Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(LocalContext.current.getString(R.string.plan_oraciones)) })
+                Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text(LocalContext.current.getString(R.string.plan_temas)) })
             }
 
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
+            } else if (selectedTab == 2) {
+                TemasPlanificacionContent(
+                    agendas = agendas,
+                    searchQuery = searchQuery
+                )
             } else {
                 val filtrosActivos = if (selectedTab == 0) filtrosDiscurso else filtrosOracion
 
@@ -611,6 +630,291 @@ fun HermanoRankingCard(
                 }
             }
         }
+    }
+}
+
+data class TemaDiscursoRegistro(
+    val etiqueta: String,
+    val tema: String,
+    val discursante: String,
+    val fecha: Timestamp
+)
+
+data class TemaDiscursoResumen(
+    val etiqueta: String,
+    val ultimoTema: String,
+    val ultimoDiscursante: String,
+    val ultimaFecha: Timestamp,
+    val veces90Dias: Int,
+    val veces180Dias: Int,
+    val total: Int,
+    val registros: List<TemaDiscursoRegistro>
+)
+
+data class TemaSugerido(
+    val etiqueta: String,
+    val resumen: TemaDiscursoResumen?
+)
+
+@Composable
+fun TemasPlanificacionContent(
+    agendas: List<Agenda>,
+    searchQuery: String
+) {
+    val context = LocalContext.current
+    val resumenes = remember(agendas) { calcularResumenTemas(agendas) }
+    val etiquetasBase = remember(context) {
+        context.resources.getStringArray(R.array.temas_base_sugeridos).toList()
+    }
+    val sugeridos = remember(resumenes, etiquetasBase) {
+        calcularTemasSugeridos(resumenes, etiquetasBase)
+    }
+    val queryNormalizada = normalizarNombre(searchQuery)
+    val resumenesFiltrados = resumenes.filter { resumen ->
+        queryNormalizada.isBlank() ||
+                normalizarNombre(resumen.etiqueta).contains(queryNormalizada) ||
+                normalizarNombre(resumen.ultimoTema).contains(queryNormalizada) ||
+                normalizarNombre(resumen.ultimoDiscursante).contains(queryNormalizada) ||
+                resumen.registros.any {
+                    normalizarNombre(it.tema).contains(queryNormalizada) ||
+                            normalizarNombre(it.discursante).contains(queryNormalizada)
+                }
+    }
+    val sugeridosFiltrados = sugeridos.filter { sugerido ->
+        queryNormalizada.isBlank() || normalizarNombre(sugerido.etiqueta).contains(queryNormalizada)
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+            Text(
+                stringResource(R.string.plan_temas_sugeridos),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        if (sugeridosFiltrados.isEmpty()) {
+            item {
+                Text(
+                    stringResource(R.string.plan_sin_temas_sugeridos),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+        } else {
+            items(sugeridosFiltrados.take(8)) { sugerido ->
+                TemaSugeridoCard(sugerido = sugerido)
+            }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                stringResource(R.string.plan_historial_temas),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        if (resumenesFiltrados.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        stringResource(R.string.plan_sin_temas),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            items(resumenesFiltrados) { resumen ->
+                TemaResumenCard(resumen = resumen)
+            }
+        }
+    }
+}
+
+@Composable
+fun TemaSugeridoCard(sugerido: TemaSugerido) {
+    val context = LocalContext.current
+    val resumen = sugerido.resumen
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    sugerido.etiqueta,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Surface(
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text(
+                        stringResource(R.string.color_sugerido),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+            Text(
+                if (resumen == null) {
+                    stringResource(R.string.plan_tema_sin_registros)
+                } else {
+                    "${textoDistanciaTema(resumen.ultimaFecha, context)} · ${context.getString(R.string.plan_temas_veces_180, resumen.veces180Dias)}"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.78f)
+            )
+        }
+    }
+}
+
+@Composable
+fun TemaResumenCard(resumen: TemaDiscursoResumen) {
+    val context = LocalContext.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        resumen.etiqueta,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    Text(
+                        textoDistanciaTema(resumen.ultimaFecha, context),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text(
+                        context.getString(R.string.plan_temas_veces_90, resumen.veces90Dias),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            if (resumen.ultimoTema.isNotBlank()) {
+                Text(
+                    resumen.ultimoTema,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+
+            Text(
+                context.getString(
+                    R.string.plan_tema_detalle,
+                    resumen.ultimoDiscursante.ifBlank { context.getString(R.string.editar_sin_datos) },
+                    resumen.veces180Dias,
+                    resumen.total
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+fun calcularResumenTemas(agendas: List<Agenda>): List<TemaDiscursoResumen> {
+    val hace90Dias = Date(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(90))
+    val hace180Dias = Date(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(180))
+    val registros = agendas.flatMap { agenda ->
+        agenda.mensajesEvangelio.mapNotNull { mensaje ->
+            if (mensaje.tipo != TipoMensaje.DISCURSO) return@mapNotNull null
+            val tema = mensaje.tema.trim()
+            val etiqueta = mensaje.etiquetaTema.trim().ifBlank { tema }
+            if (tema.isBlank() && etiqueta.isBlank()) return@mapNotNull null
+            TemaDiscursoRegistro(
+                etiqueta = etiqueta,
+                tema = tema,
+                discursante = mensaje.nombre.trim(),
+                fecha = agenda.fecha
+            )
+        }
+    }
+
+    return registros
+        .groupBy { normalizarNombre(it.etiqueta) }
+        .values
+        .mapNotNull { grupo ->
+            val ordenados = grupo.sortedByDescending { it.fecha.toDate() }
+            val ultimo = ordenados.firstOrNull() ?: return@mapNotNull null
+            TemaDiscursoResumen(
+                etiqueta = ultimo.etiqueta,
+                ultimoTema = ultimo.tema,
+                ultimoDiscursante = ultimo.discursante,
+                ultimaFecha = ultimo.fecha,
+                veces90Dias = grupo.count { !it.fecha.toDate().before(hace90Dias) },
+                veces180Dias = grupo.count { !it.fecha.toDate().before(hace180Dias) },
+                total = grupo.size,
+                registros = ordenados
+            )
+        }
+        .sortedByDescending { it.ultimaFecha.toDate() }
+}
+
+fun calcularTemasSugeridos(
+    resumenes: List<TemaDiscursoResumen>,
+    etiquetasBase: List<String>
+): List<TemaSugerido> {
+    val porEtiqueta = resumenes.associateBy { normalizarNombre(it.etiqueta) }
+    val desdeBase = etiquetasBase
+        .filter { it.isNotBlank() }
+        .map { etiqueta -> TemaSugerido(etiqueta, porEtiqueta[normalizarNombre(etiqueta)]) }
+    val baseKeys = etiquetasBase.map { normalizarNombre(it) }.toSet()
+    val historicosPocoRecientes = resumenes
+        .filter { it.veces90Dias == 0 && normalizarNombre(it.etiqueta) !in baseKeys }
+        .map { TemaSugerido(it.etiqueta, it) }
+
+    return (desdeBase + historicosPocoRecientes)
+        .distinctBy { normalizarNombre(it.etiqueta) }
+        .sortedWith(
+            compareBy<TemaSugerido> { it.resumen?.veces90Dias ?: 0 }
+                .thenBy { it.resumen?.ultimaFecha?.toDate()?.time ?: 0L }
+                .thenBy { normalizarNombre(it.etiqueta) }
+        )
+}
+
+fun textoDistanciaTema(timestamp: Timestamp, context: android.content.Context): String {
+    val dias = diasDesde(timestamp)
+    return when {
+        dias < 0 -> context.getString(R.string.plan_dentro_de, (-dias).toString())
+        dias == 0L -> context.getString(R.string.plan_hoy)
+        else -> context.getString(R.string.plan_hace_dias, dias.toString())
     }
 }
 
