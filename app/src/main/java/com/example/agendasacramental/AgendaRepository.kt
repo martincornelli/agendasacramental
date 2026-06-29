@@ -386,7 +386,9 @@ class AgendaRepository {
                 "diasVerdeDiscurso" to config.diasVerdeDiscurso,
                 "diasAmarilloDiscurso" to config.diasAmarilloDiscurso,
                 "diasVerdeOracion" to config.diasVerdeOracion,
-                "diasAmarilloOracion" to config.diasAmarilloOracion
+                "diasAmarilloOracion" to config.diasAmarilloOracion,
+                "diasVerdeTema" to config.diasVerdeTema,
+                "diasAmarilloTema" to config.diasAmarilloTema
             )
             if (config.id.isBlank()) {
                 db.collection("configuracion").add(data).await()
@@ -440,6 +442,35 @@ class AgendaRepository {
                 }
                 else -> return Result.failure(Exception("Campo no reconocido"))
             }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun asignarTemaADiscurso(
+        agendaId: String,
+        mensajeIndex: Int,
+        tema: String,
+        etiquetaTema: String
+    ): Result<Unit> {
+        return try {
+            val doc = agendasRef.document(agendaId).get().await()
+            val agenda = doc.toObject(Agenda::class.java)?.copy(id = doc.id)
+                ?: return Result.failure(Exception("Agenda no encontrada"))
+            val mensajes = agenda.mensajesEvangelio.toMutableList()
+            val mensaje = mensajes.getOrNull(mensajeIndex)
+                ?: return Result.failure(Exception("Discurso no encontrado"))
+            if (mensaje.tipo != TipoMensaje.DISCURSO) {
+                return Result.failure(Exception("El mensaje seleccionado no es un discurso"))
+            }
+            mensajes[mensajeIndex] = mensaje.copy(
+                tema = tema.trim(),
+                etiquetaTema = etiquetaTema.trim().ifBlank { tema.trim() }
+            )
+            agendasRef.document(agendaId)
+                .update("mensajesEvangelio", mensajes.map { mensajeToMap(it) })
+                .await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

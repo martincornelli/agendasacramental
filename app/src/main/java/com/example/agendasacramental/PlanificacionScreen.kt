@@ -58,6 +58,7 @@ fun PlanificacionScreen(
     var searchQuery by remember { mutableStateOf("") }
     var seleccionados by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showConfirmarBulkDelete by remember { mutableStateOf(false) }
+    var temaParaAsignar by remember { mutableStateOf<TemaSugerido?>(null) }
 
     var filtrosDiscurso by remember { mutableStateOf(setOf(ColorRanking.VERDE, ColorRanking.AMARILLO)) }
     var filtrosOracion by remember { mutableStateOf(setOf(ColorRanking.VERDE, ColorRanking.AMARILLO)) }
@@ -65,11 +66,12 @@ fun PlanificacionScreen(
     LaunchedEffect(numeroUnidad) {
         isLoading = true
         val cfg = repository.getConfiguracion(numeroUnidad)
-        if (cfg != null) config = cfg
+        val configActiva = cfg ?: config
+        config = configActiva
         val hermanos = repository.getHermanos(numeroUnidad)
         val agResults = repository.getAgendas(numeroUnidad).getOrElse { emptyList() }
         agendas = agResults
-        rankings = calcularRankings(hermanos, agResults, config)
+        rankings = calcularRankings(hermanos, agResults, configActiva)
         isLoading = false
     }
 
@@ -212,6 +214,26 @@ fun PlanificacionScreen(
         )
     }
 
+    temaParaAsignar?.let { sugerido ->
+        AsignarTemaDialog(
+            sugerido = sugerido,
+            agendas = agendas.filter { it.estado == EstadoAgenda.BORRADOR },
+            onConfirm = { agendaId, mensajeIndex, temaExacto ->
+                scope.launch {
+                    repository.asignarTemaADiscurso(
+                        agendaId = agendaId,
+                        mensajeIndex = mensajeIndex,
+                        tema = temaExacto,
+                        etiquetaTema = sugerido.etiqueta
+                    )
+                    recargar()
+                    temaParaAsignar = null
+                }
+            },
+            onDismiss = { temaParaAsignar = null }
+        )
+    }
+
     hermanoParaAsignar?.let { ranking ->
         AsignarAgendaDialog(
             ranking = ranking,
@@ -325,7 +347,9 @@ fun PlanificacionScreen(
             } else if (selectedTab == 2) {
                 TemasPlanificacionContent(
                     agendas = agendas,
-                    searchQuery = searchQuery
+                    searchQuery = searchQuery,
+                    config = config,
+                    onSugeridoClick = { temaParaAsignar = it }
                 )
             } else {
                 val filtrosActivos = if (selectedTab == 0) filtrosDiscurso else filtrosOracion
@@ -583,6 +607,15 @@ fun HermanoRankingCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
                         )
                     }
+                    if (ranking.ultimoTemaDiscurso.isNotBlank()) {
+                        Text(
+                            context.getString(R.string.plan_ultimo_tema, ranking.ultimoTemaDiscurso),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 // Chip de color — siempre visible a la derecha, tamaño fijo
@@ -659,7 +692,9 @@ data class TemaSugerido(
 @Composable
 fun TemasPlanificacionContent(
     agendas: List<Agenda>,
-    searchQuery: String
+    searchQuery: String,
+    config: ConfiguracionPlanificacion,
+    onSugeridoClick: (TemaSugerido) -> Unit
 ) {
     val context = LocalContext.current
     val resumenes = remember(agendas) { calcularResumenTemas(agendas) }
@@ -708,7 +743,11 @@ fun TemasPlanificacionContent(
             }
         } else {
             items(sugeridosFiltrados.take(8)) { sugerido ->
-                TemaSugeridoCard(sugerido = sugerido)
+                TemaSugeridoCard(
+                    sugerido = sugerido,
+                    config = config,
+                    onClick = { onSugeridoClick(sugerido) }
+                )
             }
         }
 
@@ -735,20 +774,29 @@ fun TemasPlanificacionContent(
             }
         } else {
             items(resumenesFiltrados) { resumen ->
-                TemaResumenCard(resumen = resumen)
+                TemaResumenCard(resumen = resumen, config = config)
             }
         }
     }
 }
 
 @Composable
-fun TemaSugeridoCard(sugerido: TemaSugerido) {
+fun TemaSugeridoCard(
+    sugerido: TemaSugerido,
+    config: ConfiguracionPlanificacion,
+    onClick: () -> Unit
+) {
     val context = LocalContext.current
     val resumen = sugerido.resumen
+    val color = resumen?.let {
+        calcularColor(it.ultimaFecha, config.diasVerdeTema, config.diasAmarilloTema)
+    } ?: ColorRanking.VERDE
+    val colorReal = colorParaChip(color)
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
+            containerColor = colorReal.copy(alpha = 0.12f)
         )
     ) {
         Column(
@@ -760,19 +808,19 @@ fun TemaSugeridoCard(sugerido: TemaSugerido) {
                     sugerido.etiqueta,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 Surface(
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                    color = colorReal.copy(alpha = 0.15f),
                     shape = MaterialTheme.shapes.small
                 ) {
                     Text(
-                        stringResource(R.string.color_sugerido),
+                        context.getString(color.stringResId),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = colorReal,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
@@ -784,21 +832,32 @@ fun TemaSugeridoCard(sugerido: TemaSugerido) {
                     "${textoDistanciaTema(resumen.ultimaFecha, context)} · ${context.getString(R.string.plan_temas_veces_180, resumen.veces180Dias)}"
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.78f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
 }
 
 @Composable
-fun TemaResumenCard(resumen: TemaDiscursoResumen) {
+fun TemaResumenCard(
+    resumen: TemaDiscursoResumen,
+    config: ConfiguracionPlanificacion
+) {
     val context = LocalContext.current
+    val color = calcularColor(resumen.ultimaFecha, config.diasVerdeTema, config.diasAmarilloTema)
+    val colorReal = colorParaChip(color)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .background(colorReal, shape = MaterialTheme.shapes.small)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         resumen.etiqueta,
@@ -814,13 +873,13 @@ fun TemaResumenCard(resumen: TemaDiscursoResumen) {
                     )
                 }
                 Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                    color = colorReal.copy(alpha = 0.15f),
                     shape = MaterialTheme.shapes.small
                 ) {
                     Text(
                         context.getString(R.string.plan_temas_veces_90, resumen.veces90Dias),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        color = colorReal,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
@@ -916,6 +975,152 @@ fun textoDistanciaTema(timestamp: Timestamp, context: android.content.Context): 
         dias == 0L -> context.getString(R.string.plan_hoy)
         else -> context.getString(R.string.plan_hace_dias, dias.toString())
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AsignarTemaDialog(
+    sugerido: TemaSugerido,
+    agendas: List<Agenda>,
+    onConfirm: (String, Int, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val dateFormat = remember { java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()) }
+    var agendaSeleccionada by remember { mutableStateOf<Agenda?>(null) }
+    var mensajeIndexSeleccionado by remember { mutableStateOf<Int?>(null) }
+    var expandedAgenda by remember { mutableStateOf(false) }
+    var expandedDiscurso by remember { mutableStateOf(false) }
+    var temaExacto by remember(sugerido.etiqueta) { mutableStateOf(sugerido.etiqueta) }
+
+    val discursosDisponibles = agendaSeleccionada
+        ?.mensajesEvangelio
+        ?.mapIndexedNotNull { index, mensaje ->
+            if (mensaje.tipo == TipoMensaje.DISCURSO && mensaje.nombre.isNotBlank()) index to mensaje else null
+        }
+        .orEmpty()
+    val discursoSeleccionado = discursosDisponibles.firstOrNull { it.first == mensajeIndexSeleccionado }?.second
+    val puedeConfirmar = agendaSeleccionada != null && mensajeIndexSeleccionado != null && temaExacto.isNotBlank()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(context.getString(R.string.plan_asignar_tema_titulo, sugerido.etiqueta)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    context.getString(R.string.plan_asignar_tema_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                ExposedDropdownMenuBox(
+                    expanded = expandedAgenda,
+                    onExpandedChange = { expandedAgenda = it }
+                ) {
+                    OutlinedTextField(
+                        value = agendaSeleccionada?.let { dateFormat.format(it.fecha.toDate()) } ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(context.getString(R.string.plan_reunion_borrador)) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedAgenda) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        placeholder = { Text(context.getString(R.string.editar_seleccionar_fecha)) }
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedAgenda,
+                        onDismissRequest = { expandedAgenda = false }
+                    ) {
+                        if (agendas.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text(context.getString(R.string.agendas_no_hay_borrador)) },
+                                onClick = { expandedAgenda = false },
+                                enabled = false
+                            )
+                        } else {
+                            agendas.sortedBy { it.fecha.toDate() }.forEach { agenda ->
+                                DropdownMenuItem(
+                                    text = { Text(dateFormat.format(agenda.fecha.toDate())) },
+                                    onClick = {
+                                        agendaSeleccionada = agenda
+                                        mensajeIndexSeleccionado = null
+                                        expandedAgenda = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                ExposedDropdownMenuBox(
+                    expanded = expandedDiscurso,
+                    onExpandedChange = { if (agendaSeleccionada != null) expandedDiscurso = it }
+                ) {
+                    OutlinedTextField(
+                        value = discursoSeleccionado?.nombre.orEmpty(),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(context.getString(R.string.plan_discurso_asignado)) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedDiscurso) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        placeholder = {
+                            Text(
+                                if (agendaSeleccionada == null) {
+                                    context.getString(R.string.editar_seleccionar_fecha)
+                                } else {
+                                    context.getString(R.string.plan_sin_discursos_asignados)
+                                }
+                            )
+                        },
+                        enabled = agendaSeleccionada != null
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedDiscurso,
+                        onDismissRequest = { expandedDiscurso = false }
+                    ) {
+                        if (discursosDisponibles.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text(context.getString(R.string.plan_sin_discursos_asignados)) },
+                                onClick = { expandedDiscurso = false },
+                                enabled = false
+                            )
+                        } else {
+                            discursosDisponibles.forEach { (index, mensaje) ->
+                                val detalle = if (mensaje.tema.isBlank()) mensaje.nombre else "${mensaje.nombre} · ${mensaje.tema}"
+                                DropdownMenuItem(
+                                    text = { Text(detalle) },
+                                    onClick = {
+                                        mensajeIndexSeleccionado = index
+                                        if (mensaje.tema.isNotBlank()) temaExacto = mensaje.tema
+                                        expandedDiscurso = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = temaExacto,
+                    onValueChange = { temaExacto = it },
+                    label = { Text(context.getString(R.string.plan_tema_exacto)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 1
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val agenda = agendaSeleccionada ?: return@TextButton
+                    val index = mensajeIndexSeleccionado ?: return@TextButton
+                    onConfirm(agenda.id, index, temaExacto.trim())
+                },
+                enabled = puedeConfirmar
+            ) { Text(context.getString(R.string.btn_asignar)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(context.getString(R.string.btn_cancelar)) }
+        }
+    )
 }
 
 @Composable
@@ -1051,6 +1256,8 @@ fun ConfiguracionDialog(
     var diasAmarilloDiscurso by remember { mutableStateOf(config.diasAmarilloDiscurso.toString()) }
     var diasVerdeOracion by remember { mutableStateOf(config.diasVerdeOracion.toString()) }
     var diasAmarilloOracion by remember { mutableStateOf(config.diasAmarilloOracion.toString()) }
+    var diasVerdeTema by remember { mutableStateOf(config.diasVerdeTema.toString()) }
+    var diasAmarilloTema by remember { mutableStateOf(config.diasAmarilloTema.toString()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1067,6 +1274,11 @@ fun ConfiguracionDialog(
                     OutlinedTextField(value = diasVerdeOracion, onValueChange = { diasVerdeOracion = it }, label = { Text(LocalContext.current.getString(R.string.plan_dias_verde)) }, modifier = Modifier.weight(1f), singleLine = true)
                     OutlinedTextField(value = diasAmarilloOracion, onValueChange = { diasAmarilloOracion = it }, label = { Text(LocalContext.current.getString(R.string.plan_dias_amarillo)) }, modifier = Modifier.weight(1f), singleLine = true)
                 }
+                Text(LocalContext.current.getString(R.string.plan_temas), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = diasVerdeTema, onValueChange = { diasVerdeTema = it }, label = { Text(LocalContext.current.getString(R.string.plan_dias_verde)) }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = diasAmarilloTema, onValueChange = { diasAmarilloTema = it }, label = { Text(LocalContext.current.getString(R.string.plan_dias_amarillo)) }, modifier = Modifier.weight(1f), singleLine = true)
+                }
                 Text(LocalContext.current.getString(R.string.plan_leyenda_colores), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
@@ -1076,7 +1288,9 @@ fun ConfiguracionDialog(
                     diasVerdeDiscurso = diasVerdeDiscurso.toIntOrNull() ?: config.diasVerdeDiscurso,
                     diasAmarilloDiscurso = diasAmarilloDiscurso.toIntOrNull() ?: config.diasAmarilloDiscurso,
                     diasVerdeOracion = diasVerdeOracion.toIntOrNull() ?: config.diasVerdeOracion,
-                    diasAmarilloOracion = diasAmarilloOracion.toIntOrNull() ?: config.diasAmarilloOracion
+                    diasAmarilloOracion = diasAmarilloOracion.toIntOrNull() ?: config.diasAmarilloOracion,
+                    diasVerdeTema = diasVerdeTema.toIntOrNull() ?: config.diasVerdeTema,
+                    diasAmarilloTema = diasAmarilloTema.toIntOrNull() ?: config.diasAmarilloTema
                 ))
             }) { Text(LocalContext.current.getString(R.string.btn_guardar)) }
         },
@@ -1405,12 +1619,21 @@ fun calcularRankings(
         val nombre = hermano.nombre.trim().lowercase()
 
         var ultimaVezDiscurso: Timestamp? = null
+        var ultimaFechaTemaDiscurso: Timestamp? = null
+        var ultimoTemaDiscurso = ""
         var vecesDiscurso90 = 0
         agendas.forEach { agenda ->
             agenda.mensajesEvangelio.forEach { msg ->
                 if (msg.tipo != TipoMensaje.HIMNO_INTERMEDIO && msg.nombre.trim().lowercase() == nombre) {
                     if (ultimaVezDiscurso == null || agenda.fecha.toDate().after(ultimaVezDiscurso!!.toDate())) {
                         ultimaVezDiscurso = agenda.fecha
+                    }
+                    if (msg.tipo == TipoMensaje.DISCURSO &&
+                        msg.tema.isNotBlank() &&
+                        (ultimaFechaTemaDiscurso == null || agenda.fecha.toDate().after(ultimaFechaTemaDiscurso!!.toDate()))
+                    ) {
+                        ultimaFechaTemaDiscurso = agenda.fecha
+                        ultimoTemaDiscurso = msg.tema.trim()
                     }
                     if (agenda.fecha.toDate().after(hace90Dias)) vecesDiscurso90++
                 }
@@ -1446,6 +1669,7 @@ fun calcularRankings(
             hermano = hermano,
             ultimaVezDiscurso = ultimaVezDiscurso,
             ultimaVezOracion = ultimaVezOracion,
+            ultimoTemaDiscurso = ultimoTemaDiscurso,
             vecesDiscurso90Dias = vecesDiscurso90,
             vecesOracion90Dias = vecesOracion90
         )

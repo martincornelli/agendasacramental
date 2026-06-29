@@ -235,6 +235,12 @@
     <string name="plan_temas_veces_90">%d en 90 días</string>
     <string name="plan_temas_veces_180">%d en 180 días</string>
     <string name="plan_tema_detalle">Último: %1$s · %2$d en 180 días · %3$d total</string>
+    <string name="plan_ultimo_tema">Último tema: %s</string>
+    <string name="plan_asignar_tema_titulo">Asignar tema: %s</string>
+    <string name="plan_asignar_tema_desc">Elegí una reunión borrador y un discurso ya asignado.</string>
+    <string name="plan_discurso_asignado">Discurso asignado</string>
+    <string name="plan_sin_discursos_asignados">No hay discursos asignados</string>
+    <string name="plan_tema_exacto">Tema exacto</string>
 
     <!-- Notificaciones -->
     <string name="notif_titulo">Notificaciones</string>

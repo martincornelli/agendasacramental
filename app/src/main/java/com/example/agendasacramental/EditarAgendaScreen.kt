@@ -1076,14 +1076,6 @@ fun MensajeRow(
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 1
                     )
-                    OutlinedTextField(
-                        value = mensaje.etiquetaTema,
-                        onValueChange = { onMensajeChange(mensaje.copy(etiquetaTema = it)) },
-                        label = { Text(stringResource(R.string.editar_etiqueta_tema)) },
-                        placeholder = { Text(stringResource(R.string.editar_etiqueta_tema_placeholder)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
                 }
             }
         }
@@ -1162,9 +1154,6 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat, context: an
                     sb.appendLine("  📖 ${context.getString(it.tipo.stringResId)}: ${it.nombre}")
                     if (it.tema.isNotBlank()) {
                         sb.appendLine("    ${context.getString(R.string.editar_tema_discurso)}: ${it.tema}")
-                    }
-                    if (it.etiquetaTema.isNotBlank()) {
-                        sb.appendLine("    ${context.getString(R.string.editar_etiqueta_tema)}: ${it.etiquetaTema}")
                     }
                 }
             }
