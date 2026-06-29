@@ -100,6 +100,7 @@ data class HermanoRanking(
     val ultimaVezDiscurso: Timestamp? = null,
     val ultimaVezOracion: Timestamp? = null,
     val ultimoTemaDiscurso: String = "",
+    val ultimaEtiquetaDiscurso: String = "",
     val vecesDiscurso90Dias: Int = 0,
     val vecesOracion90Dias: Int = 0
 )
@@ -118,7 +119,8 @@ data class ConfiguracionPlanificacion(
     val diasVerdeOracion: Int = 30,
     val diasAmarilloOracion: Int = 14,
     val diasVerdeTema: Int = 180,
-    val diasAmarilloTema: Int = 90
+    val diasAmarilloTema: Int = 90,
+    val etiquetasTema: List<String> = emptyList()
 )
 
 // Normalizar nombre: quita tildes y pone en minúsculas para comparar

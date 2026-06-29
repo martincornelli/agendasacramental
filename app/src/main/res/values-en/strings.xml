@@ -236,11 +236,17 @@
     <string name="plan_temas_veces_180">%d in 180 days</string>
     <string name="plan_tema_detalle">Last: %1$s · %2$d in 180 days · %3$d total</string>
     <string name="plan_ultimo_tema">Last topic: %s</string>
+    <string name="plan_ultimo_tema_campo">Last topic</string>
+    <string name="plan_ultima_etiqueta_campo">Last tag</string>
+    <string name="plan_ultima_etiqueta_resumen">Last tag: %s</string>
     <string name="plan_asignar_tema_titulo">Assign topic: %s</string>
     <string name="plan_asignar_tema_desc">Choose a draft meeting and an already assigned talk.</string>
     <string name="plan_discurso_asignado">Assigned talk</string>
     <string name="plan_sin_discursos_asignados">No assigned talks</string>
     <string name="plan_tema_exacto">Exact topic</string>
+    <string name="plan_etiquetas_tema">Topic tags</string>
+    <string name="plan_etiquetas_tema_desc">Edit the tags used for topic suggestions and statistics.</string>
+    <string name="plan_agregar_etiqueta">Add tag</string>
 
     <!-- Notifications -->
     <string name="notif_titulo">Notifications</string>

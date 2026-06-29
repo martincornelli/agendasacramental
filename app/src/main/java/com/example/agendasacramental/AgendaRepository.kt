@@ -388,7 +388,8 @@ class AgendaRepository {
                 "diasVerdeOracion" to config.diasVerdeOracion,
                 "diasAmarilloOracion" to config.diasAmarilloOracion,
                 "diasVerdeTema" to config.diasVerdeTema,
-                "diasAmarilloTema" to config.diasAmarilloTema
+                "diasAmarilloTema" to config.diasAmarilloTema,
+                "etiquetasTema" to config.etiquetasTema
             )
             if (config.id.isBlank()) {
                 db.collection("configuracion").add(data).await()

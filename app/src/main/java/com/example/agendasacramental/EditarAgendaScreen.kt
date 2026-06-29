@@ -1076,6 +1076,14 @@ fun MensajeRow(
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 1
                     )
+                    OutlinedTextField(
+                        value = mensaje.etiquetaTema,
+                        onValueChange = { onMensajeChange(mensaje.copy(etiquetaTema = it)) },
+                        label = { Text(stringResource(R.string.editar_etiqueta_tema)) },
+                        placeholder = { Text(stringResource(R.string.editar_etiqueta_tema_placeholder)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
                 }
             }
         }

@@ -59,6 +59,7 @@ fun PlanificacionScreen(
     var seleccionados by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showConfirmarBulkDelete by remember { mutableStateOf(false) }
     var temaParaAsignar by remember { mutableStateOf<TemaSugerido?>(null) }
+    var showEtiquetasTema by remember { mutableStateOf(false) }
 
     var filtrosDiscurso by remember { mutableStateOf(setOf(ColorRanking.VERDE, ColorRanking.AMARILLO)) }
     var filtrosOracion by remember { mutableStateOf(setOf(ColorRanking.VERDE, ColorRanking.AMARILLO)) }
@@ -159,6 +160,8 @@ fun PlanificacionScreen(
             nombreActual = ranking.hermano.nombre,
             fechaDiscursoActual = ranking.ultimaVezDiscurso ?: ranking.hermano.ultimaVezDiscursoManual,
             fechaOracionActual = ranking.ultimaVezOracion ?: ranking.hermano.ultimaVezOracionManual,
+            ultimoTemaDiscurso = ranking.ultimoTemaDiscurso,
+            ultimaEtiquetaDiscurso = ranking.ultimaEtiquetaDiscurso,
             nombresExistentes = rankings.map { it.hermano.nombre }.filter { it != ranking.hermano.nombre },
             onConfirm = { nuevoNombre, fechaDiscurso, fechaOracion, actualizarAgendas ->
                 scope.launch {
@@ -211,6 +214,21 @@ fun PlanificacionScreen(
                 }
             },
             onDismiss = { showConfiguracion = false }
+        )
+    }
+
+    if (showEtiquetasTema) {
+        EtiquetasTemaDialog(
+            etiquetasIniciales = etiquetasTemaDisponibles(context, config),
+            onConfirm = { etiquetas ->
+                scope.launch {
+                    val nuevaConfig = config.copy(etiquetasTema = etiquetas)
+                    repository.guardarConfiguracion(nuevaConfig)
+                    config = nuevaConfig
+                    showEtiquetasTema = false
+                }
+            },
+            onDismiss = { showEtiquetasTema = false }
         )
     }
 
@@ -319,7 +337,14 @@ fun PlanificacionScreen(
                                 )
                             )
                         }
-                        if (selectedTab != 2) {
+                        if (selectedTab == 2) {
+                            IconButton(onClick = { showEtiquetasTema = true }) {
+                                Icon(Icons.Default.Label, LocalContext.current.getString(R.string.plan_etiquetas_tema))
+                            }
+                            IconButton(onClick = { showConfiguracion = true }) {
+                                Icon(Icons.Default.Settings, LocalContext.current.getString(R.string.plan_configuracion))
+                            }
+                        } else {
                             IconButton(onClick = { showAgregarHermano = true }) {
                                 Icon(Icons.Default.PersonAdd, LocalContext.current.getString(R.string.plan_agregar_hermano))
                             }
@@ -607,7 +632,15 @@ fun HermanoRankingCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
                         )
                     }
-                    if (ranking.ultimoTemaDiscurso.isNotBlank()) {
+                    if (ranking.ultimaEtiquetaDiscurso.isNotBlank()) {
+                        Text(
+                            context.getString(R.string.plan_ultima_etiqueta_resumen, ranking.ultimaEtiquetaDiscurso),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    } else if (ranking.ultimoTemaDiscurso.isNotBlank()) {
                         Text(
                             context.getString(R.string.plan_ultimo_tema, ranking.ultimoTemaDiscurso),
                             style = MaterialTheme.typography.labelSmall,
@@ -689,6 +722,17 @@ data class TemaSugerido(
     val resumen: TemaDiscursoResumen?
 )
 
+fun etiquetasTemaDisponibles(
+    context: android.content.Context,
+    config: ConfiguracionPlanificacion
+): List<String> {
+    return config.etiquetasTema
+        .ifEmpty { context.resources.getStringArray(R.array.temas_base_sugeridos).toList() }
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinctBy { normalizarNombre(it) }
+}
+
 @Composable
 fun TemasPlanificacionContent(
     agendas: List<Agenda>,
@@ -698,8 +742,8 @@ fun TemasPlanificacionContent(
 ) {
     val context = LocalContext.current
     val resumenes = remember(agendas) { calcularResumenTemas(agendas) }
-    val etiquetasBase = remember(context) {
-        context.resources.getStringArray(R.array.temas_base_sugeridos).toList()
+    val etiquetasBase = remember(context, config.etiquetasTema) {
+        etiquetasTemaDisponibles(context, config)
     }
     val sugeridos = remember(resumenes, etiquetasBase) {
         calcularTemasSugeridos(resumenes, etiquetasBase)
@@ -975,6 +1019,74 @@ fun textoDistanciaTema(timestamp: Timestamp, context: android.content.Context): 
         dias == 0L -> context.getString(R.string.plan_hoy)
         else -> context.getString(R.string.plan_hace_dias, dias.toString())
     }
+}
+
+@Composable
+fun EtiquetasTemaDialog(
+    etiquetasIniciales: List<String>,
+    onConfirm: (List<String>) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var etiquetas by remember(etiquetasIniciales) {
+        mutableStateOf(etiquetasIniciales.ifEmpty { listOf("") })
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(context.getString(R.string.plan_etiquetas_tema)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    context.getString(R.string.plan_etiquetas_tema_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                etiquetas.forEachIndexed { index, etiqueta ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = etiqueta,
+                            onValueChange = { nuevo ->
+                                etiquetas = etiquetas.toMutableList().also { it[index] = nuevo }
+                            },
+                            label = { Text(context.getString(R.string.editar_etiqueta_tema)) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        IconButton(onClick = {
+                            etiquetas = etiquetas.toMutableList().also { it.removeAt(index) }.ifEmpty { listOf("") }
+                        }) {
+                            Icon(
+                                Icons.Default.Close,
+                                context.getString(R.string.btn_eliminar),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+                TextButton(onClick = { etiquetas = etiquetas + "" }) {
+                    Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(context.getString(R.string.plan_agregar_etiqueta))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val limpias = etiquetas
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinctBy { normalizarNombre(it) }
+                onConfirm(limpias)
+            }) { Text(context.getString(R.string.btn_guardar)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(context.getString(R.string.btn_cancelar)) }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1403,6 +1515,8 @@ fun EditarHermanoDialog(
     nombreActual: String,
     fechaDiscursoActual: Timestamp?,
     fechaOracionActual: Timestamp?,
+    ultimoTemaDiscurso: String,
+    ultimaEtiquetaDiscurso: String,
     nombresExistentes: List<String>,
     onConfirm: (String, Timestamp?, Timestamp?, Boolean) -> Unit,
     onDismiss: () -> Unit
@@ -1520,6 +1634,24 @@ fun EditarHermanoDialog(
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    if (ultimaEtiquetaDiscurso.isNotBlank()) {
+                        OutlinedTextField(
+                            value = ultimaEtiquetaDiscurso,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(LocalContext.current.getString(R.string.plan_ultima_etiqueta_campo)) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    if (ultimoTemaDiscurso.isNotBlank()) {
+                        OutlinedTextField(
+                            value = ultimoTemaDiscurso,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(LocalContext.current.getString(R.string.plan_ultimo_tema_campo)) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -1621,6 +1753,7 @@ fun calcularRankings(
         var ultimaVezDiscurso: Timestamp? = null
         var ultimaFechaTemaDiscurso: Timestamp? = null
         var ultimoTemaDiscurso = ""
+        var ultimaEtiquetaDiscurso = ""
         var vecesDiscurso90 = 0
         agendas.forEach { agenda ->
             agenda.mensajesEvangelio.forEach { msg ->
@@ -1634,6 +1767,7 @@ fun calcularRankings(
                     ) {
                         ultimaFechaTemaDiscurso = agenda.fecha
                         ultimoTemaDiscurso = msg.tema.trim()
+                        ultimaEtiquetaDiscurso = msg.etiquetaTema.trim().ifBlank { msg.tema.trim() }
                     }
                     if (agenda.fecha.toDate().after(hace90Dias)) vecesDiscurso90++
                 }
@@ -1670,6 +1804,7 @@ fun calcularRankings(
             ultimaVezDiscurso = ultimaVezDiscurso,
             ultimaVezOracion = ultimaVezOracion,
             ultimoTemaDiscurso = ultimoTemaDiscurso,
+            ultimaEtiquetaDiscurso = ultimaEtiquetaDiscurso,
             vecesDiscurso90Dias = vecesDiscurso90,
             vecesOracion90Dias = vecesOracion90
         )
