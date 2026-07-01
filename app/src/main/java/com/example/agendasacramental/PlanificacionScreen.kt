@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import com.google.firebase.Timestamp
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -1029,59 +1030,138 @@ fun EtiquetasTemaDialog(
 ) {
     val context = LocalContext.current
     var etiquetas by remember(etiquetasIniciales) {
-        mutableStateOf(etiquetasIniciales.ifEmpty { listOf("") })
+        mutableStateOf(etiquetasIniciales)
+    }
+    var mostrarAlta by remember { mutableStateOf(false) }
+    var nuevaEtiqueta by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+    var scrollAlFinal by remember { mutableStateOf(false) }
+
+    fun etiquetasLimpias(incluirNueva: Boolean = false): List<String> {
+        val candidatas = if (incluirNueva && nuevaEtiqueta.isNotBlank()) {
+            etiquetas + nuevaEtiqueta
+        } else {
+            etiquetas
+        }
+        return candidatas
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinctBy { normalizarNombre(it) }
+    }
+
+    fun agregarEtiqueta() {
+        if (nuevaEtiqueta.isBlank()) return
+        etiquetas = etiquetasLimpias(incluirNueva = true)
+        nuevaEtiqueta = ""
+        mostrarAlta = false
+        scrollAlFinal = true
+    }
+
+    LaunchedEffect(etiquetas.size, scrollAlFinal) {
+        if (scrollAlFinal && etiquetas.isNotEmpty()) {
+            listState.animateScrollToItem(etiquetas.lastIndex)
+            scrollAlFinal = false
+        }
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(context.getString(R.string.plan_etiquetas_tema)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     context.getString(R.string.plan_etiquetas_tema_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                etiquetas.forEachIndexed { index, etiqueta ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = etiqueta,
-                            onValueChange = { nuevo ->
-                                etiquetas = etiquetas.toMutableList().also { it[index] = nuevo }
-                            },
-                            label = { Text(context.getString(R.string.editar_etiqueta_tema)) },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true
-                        )
-                        IconButton(onClick = {
-                            etiquetas = etiquetas.toMutableList().also { it.removeAt(index) }.ifEmpty { listOf("") }
-                        }) {
-                            Icon(
-                                Icons.Default.Close,
-                                context.getString(R.string.btn_eliminar),
-                                tint = MaterialTheme.colorScheme.error
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 320.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(etiquetas.size) { index ->
+                        val etiqueta = etiquetas[index]
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = etiqueta,
+                                onValueChange = { nuevo ->
+                                    etiquetas = etiquetas.toMutableList().also { it[index] = nuevo }
+                                },
+                                label = { Text(context.getString(R.string.editar_etiqueta_tema)) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
                             )
+                            IconButton(onClick = {
+                                etiquetas = etiquetas.toMutableList().also { it.removeAt(index) }
+                            }) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    context.getString(R.string.btn_eliminar),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
                         }
                     }
                 }
-                TextButton(onClick = { etiquetas = etiquetas + "" }) {
-                    Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(context.getString(R.string.plan_agregar_etiqueta))
+                if (mostrarAlta) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = nuevaEtiqueta,
+                                onValueChange = { nuevaEtiqueta = it },
+                                label = { Text(context.getString(R.string.editar_etiqueta_tema)) },
+                                placeholder = { Text(context.getString(R.string.editar_etiqueta_tema_placeholder)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                TextButton(onClick = {
+                                    nuevaEtiqueta = ""
+                                    mostrarAlta = false
+                                }) {
+                                    Text(context.getString(R.string.btn_cancelar))
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = ::agregarEtiqueta,
+                                    enabled = nuevaEtiqueta.isNotBlank()
+                                ) {
+                                    Text(context.getString(R.string.btn_agregar))
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    FilledTonalButton(
+                        onClick = { mostrarAlta = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(context.getString(R.string.plan_agregar_etiqueta))
+                    }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                val limpias = etiquetas
-                    .map { it.trim() }
-                    .filter { it.isNotBlank() }
-                    .distinctBy { normalizarNombre(it) }
-                onConfirm(limpias)
-            }) { Text(context.getString(R.string.btn_guardar)) }
+            TextButton(onClick = { onConfirm(etiquetasLimpias(incluirNueva = true)) }) {
+                Text(context.getString(R.string.btn_guardar))
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(context.getString(R.string.btn_cancelar)) }
