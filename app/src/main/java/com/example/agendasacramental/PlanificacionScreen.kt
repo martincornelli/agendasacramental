@@ -1029,6 +1029,7 @@ fun EtiquetasTemaDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val dialogScope = rememberCoroutineScope()
     var etiquetas by remember(etiquetasIniciales) {
         mutableStateOf(etiquetasIniciales)
     }
@@ -1036,6 +1037,29 @@ fun EtiquetasTemaDialog(
     var nuevaEtiqueta by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     var scrollAlFinal by remember { mutableStateOf(false) }
+
+    fun claveEtiqueta(etiqueta: String): String = normalizarNombre(etiqueta.trim())
+
+    fun indicesDuplicados(): Set<Int> {
+        val primeros = mutableMapOf<String, Int>()
+        val duplicados = mutableSetOf<Int>()
+        etiquetas.forEachIndexed { index, etiqueta ->
+            val clave = claveEtiqueta(etiqueta)
+            if (clave.isNotBlank()) {
+                val previo = primeros.putIfAbsent(clave, index)
+                if (previo != null) {
+                    duplicados += previo
+                    duplicados += index
+                }
+            }
+        }
+        return duplicados
+    }
+
+    fun nuevaEtiquetaDuplicada(): Boolean {
+        val nuevaClave = claveEtiqueta(nuevaEtiqueta)
+        return nuevaClave.isNotBlank() && etiquetas.any { claveEtiqueta(it) == nuevaClave }
+    }
 
     fun etiquetasLimpias(incluirNueva: Boolean = false): List<String> {
         val candidatas = if (incluirNueva && nuevaEtiqueta.isNotBlank()) {
@@ -1050,8 +1074,9 @@ fun EtiquetasTemaDialog(
     }
 
     fun agregarEtiqueta() {
-        if (nuevaEtiqueta.isBlank()) return
-        etiquetas = etiquetasLimpias(incluirNueva = true)
+        val etiqueta = nuevaEtiqueta.trim()
+        if (etiqueta.isBlank() || nuevaEtiquetaDuplicada()) return
+        etiquetas = etiquetas + etiqueta
         nuevaEtiqueta = ""
         mostrarAlta = false
         scrollAlFinal = true
@@ -1063,6 +1088,9 @@ fun EtiquetasTemaDialog(
             scrollAlFinal = false
         }
     }
+
+    val duplicados = indicesDuplicados()
+    val nuevaDuplicada = nuevaEtiquetaDuplicada()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1094,6 +1122,12 @@ fun EtiquetasTemaDialog(
                                 },
                                 label = { Text(context.getString(R.string.editar_etiqueta_tema)) },
                                 modifier = Modifier.weight(1f),
+                                isError = index in duplicados,
+                                supportingText = if (index in duplicados) {
+                                    { Text(context.getString(R.string.plan_etiqueta_duplicada)) }
+                                } else {
+                                    null
+                                },
                                 singleLine = true
                             )
                             IconButton(onClick = {
@@ -1107,6 +1141,13 @@ fun EtiquetasTemaDialog(
                             }
                         }
                     }
+                }
+                if (duplicados.isNotEmpty()) {
+                    Text(
+                        context.getString(R.string.plan_etiquetas_duplicadas),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
                 if (mostrarAlta) {
                     Surface(
@@ -1124,6 +1165,12 @@ fun EtiquetasTemaDialog(
                                 label = { Text(context.getString(R.string.editar_etiqueta_tema)) },
                                 placeholder = { Text(context.getString(R.string.editar_etiqueta_tema_placeholder)) },
                                 modifier = Modifier.fillMaxWidth(),
+                                isError = nuevaDuplicada,
+                                supportingText = if (nuevaDuplicada) {
+                                    { Text(context.getString(R.string.plan_etiqueta_duplicada)) }
+                                } else {
+                                    null
+                                },
                                 singleLine = true
                             )
                             Row(
@@ -1139,7 +1186,7 @@ fun EtiquetasTemaDialog(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Button(
                                     onClick = ::agregarEtiqueta,
-                                    enabled = nuevaEtiqueta.isNotBlank()
+                                    enabled = nuevaEtiqueta.isNotBlank() && !nuevaDuplicada
                                 ) {
                                     Text(context.getString(R.string.btn_agregar))
                                 }
@@ -1159,7 +1206,16 @@ fun EtiquetasTemaDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(etiquetasLimpias(incluirNueva = true)) }) {
+            TextButton(onClick = {
+                val duplicadoInicial = indicesDuplicados().minOrNull()
+                when {
+                    duplicadoInicial != null -> dialogScope.launch {
+                        listState.animateScrollToItem(duplicadoInicial)
+                    }
+                    nuevaEtiquetaDuplicada() -> mostrarAlta = true
+                    else -> onConfirm(etiquetasLimpias(incluirNueva = true))
+                }
+            }) {
                 Text(context.getString(R.string.btn_guardar))
             }
         },

@@ -247,6 +247,8 @@
     <string name="plan_etiquetas_tema">Topic tags</string>
     <string name="plan_etiquetas_tema_desc">Edit the tags used for topic suggestions and statistics.</string>
     <string name="plan_agregar_etiqueta">Add tag</string>
+    <string name="plan_etiqueta_duplicada">A tag with this name already exists.</string>
+    <string name="plan_etiquetas_duplicadas">There are duplicate tags. Edit or remove one of them.</string>
 
     <!-- Notifications -->
     <string name="notif_titulo">Notifications</string>
