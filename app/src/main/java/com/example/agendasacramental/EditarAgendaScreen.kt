@@ -346,7 +346,8 @@ fun EditarAgendaScreen(
                         titulo = stringResource(R.string.editar_reconocimientos),
                         items = reconocimientos,
                         onItemsChange = { reconocimientos = it },
-                        placeholder = stringResource(R.string.editar_agregar_reconocimiento)
+                        placeholder = stringResource(R.string.editar_agregar_reconocimiento),
+                        ordenable = true
                     )
                 }
 
@@ -659,7 +660,8 @@ fun ListaItemsEditor(
     titulo: String,
     items: List<String>,
     onItemsChange: (List<String>) -> Unit,
-    placeholder: String = stringResource(R.string.editar_agregar_reconocimiento)
+    placeholder: String = stringResource(R.string.editar_agregar_reconocimiento),
+    ordenable: Boolean = false
 ) {
     val context = LocalContext.current
     Column {
@@ -689,6 +691,36 @@ fun ListaItemsEditor(
                     placeholder = { Text(placeholder) },
                     singleLine = true
                 )
+                if (ordenable) {
+                    IconButton(
+                        onClick = {
+                            if (index > 0) {
+                                onItemsChange(items.toMutableList().also { it.add(index - 1, it.removeAt(index)) })
+                            }
+                        },
+                        enabled = index > 0
+                    ) {
+                        Icon(
+                            Icons.Default.KeyboardArrowUp,
+                            stringResource(R.string.editar_subir),
+                            tint = if (index > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            if (index < items.size - 1) {
+                                onItemsChange(items.toMutableList().also { it.add(index + 1, it.removeAt(index)) })
+                            }
+                        },
+                        enabled = index < items.size - 1
+                    ) {
+                        Icon(
+                            Icons.Default.KeyboardArrowDown,
+                            stringResource(R.string.editar_bajar),
+                            tint = if (index < items.size - 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
                 IconButton(onClick = {
                     onItemsChange(items.toMutableList().also { it.removeAt(index) })
                 }) {

@@ -329,7 +329,7 @@
     <string name="tipo_estaca">Estaca</string>
     <string name="tipo_ordenacion_aaronica">Ordenación</string>
     <string name="tipo_otros">Otros</string>
-    <string name="asunto_estaca_descripcion">%s tomará tiempo para asuntos de la estaca.</string>
+    <string name="asunto_estaca_descripcion">El %s tomará tiempo para asuntos de la estaca.</string>
     <string name="asunto_estaca_nombre_placeholder">[nombre]</string>
     <string name="oficio_diacono">Diácono</string>
     <string name="oficio_maestro">Maestro</string>
