@@ -328,7 +328,7 @@
     <string name="tipo_estaca">Stake</string>
     <string name="tipo_ordenacion_aaronica">Ordination</string>
     <string name="tipo_otros">Other</string>
-    <string name="asunto_estaca_descripcion">Brother/President %s will take time for stake business.</string>
+    <string name="asunto_estaca_descripcion">%s will take time for stake business.</string>
     <string name="asunto_estaca_nombre_placeholder">[name]</string>
     <string name="oficio_diacono">Deacon</string>
     <string name="oficio_maestro">Teacher</string>
