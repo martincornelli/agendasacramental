@@ -148,6 +148,7 @@
     <string name="editar_tema_discurso_placeholder">Exact assigned topic name</string>
     <string name="editar_etiqueta_tema">Tag</string>
     <string name="editar_etiqueta_tema_placeholder">E.g., Forgiveness</string>
+    <string name="editar_nombre_estaca_placeholder">E.g., President Garcia</string>
     <string name="editar_seleccionar_fecha">Select date</string>
     <string name="editar_ver_formula">View formula</string>
     <string name="editar_subir">Move up</string>
@@ -327,7 +328,8 @@
     <string name="tipo_estaca">Stake</string>
     <string name="tipo_ordenacion_aaronica">Ordination</string>
     <string name="tipo_otros">Other</string>
-    <string name="asunto_estaca_descripcion">A stake brother will take time for stake business.</string>
+    <string name="asunto_estaca_descripcion">Brother/President %s will take time for stake business.</string>
+    <string name="asunto_estaca_nombre_placeholder">[name]</string>
     <string name="oficio_diacono">Deacon</string>
     <string name="oficio_maestro">Teacher</string>
     <string name="oficio_presbitero">Priest</string>

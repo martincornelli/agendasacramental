@@ -117,7 +117,7 @@ fun ModoLecturaScreen(
                                 TipoAsunto.OTROS ->
                                     "• ${context.getString(asunto.tipo.stringResId)}:\n${asunto.columna2}"
                                 TipoAsunto.ESTACA ->
-                                    "• ${context.getString(asunto.tipo.stringResId)}: ${context.getString(R.string.asunto_estaca_descripcion)}"
+                                    "• ${context.getString(asunto.tipo.stringResId)}: ${descripcionAsuntoEstaca(asunto, context)}"
                                 TipoAsunto.ORDENACION_AARONICA ->
                                     "• ${context.getString(asunto.tipo.stringResId)}: ${asunto.columna2} — ${asunto.columna3}"
                                 TipoAsunto.RELEVO,

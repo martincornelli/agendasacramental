@@ -724,7 +724,7 @@ private fun TipoAsunto.tieneFormulaLiturgica(): Boolean = when (this) {
 
 private fun AsuntoEstacaBarrio.normalizadoParaTipo(tipo: TipoAsunto, context: Context): AsuntoEstacaBarrio {
     return when (tipo) {
-        TipoAsunto.ESTACA -> copy(tipo = tipo, columna2 = "", columna3 = "")
+        TipoAsunto.ESTACA -> copy(tipo = tipo, columna3 = "")
         TipoAsunto.OTROS -> copy(tipo = tipo, columna3 = "")
         TipoAsunto.ORDENACION_AARONICA -> {
             val oficio = columna3.takeIf { it in oficiosAaronicos(context) }.orEmpty()
@@ -738,6 +738,13 @@ private fun AsuntoEstacaBarrio.normalizadoParaTipo(tipo: TipoAsunto, context: Co
 private fun oficioParaFormula(oficio: String): String {
     val limpio = oficio.trim()
     return if (limpio.isBlank()) "[Oficio]" else limpio.replaceFirstChar { it.lowercase() }
+}
+
+fun descripcionAsuntoEstaca(asunto: AsuntoEstacaBarrio, context: android.content.Context): String {
+    val nombre = asunto.columna2.trim().ifBlank {
+        context.getString(R.string.asunto_estaca_nombre_placeholder)
+    }
+    return context.getString(R.string.asunto_estaca_descripcion, nombre)
 }
 
 @Composable
@@ -868,8 +875,16 @@ fun AsuntoRow(
                     )
                 }
                 TipoAsunto.ESTACA -> {
+                    OutlinedTextField(
+                        value = asunto.columna2,
+                        onValueChange = { onAsuntoChange(asunto.copy(columna2 = it, columna3 = "")) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.editar_nombre)) },
+                        placeholder = { Text(stringResource(R.string.editar_nombre_estaca_placeholder)) },
+                        singleLine = true
+                    )
                     Text(
-                        text = stringResource(R.string.asunto_estaca_descripcion),
+                        text = descripcionAsuntoEstaca(asunto, context),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
@@ -1135,7 +1150,7 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat, context: an
                     it.columna2.lines().forEach { linea -> sb.appendLine("    $linea") }
                 }
                 TipoAsunto.ESTACA -> {
-                    sb.appendLine("  • ${context.getString(it.tipo.stringResId)}: ${context.getString(R.string.asunto_estaca_descripcion)}")
+                    sb.appendLine("  • ${context.getString(it.tipo.stringResId)}: ${descripcionAsuntoEstaca(it, context)}")
                 }
                 TipoAsunto.ORDENACION_AARONICA -> {
                     sb.appendLine("  • ${context.getString(it.tipo.stringResId)}: ${it.columna2} — ${it.columna3}")
@@ -1179,7 +1194,7 @@ fun generarFormulaLiturgica(tipo: TipoAsunto, asuntos: List<AsuntoEstacaBarrio>,
     if (asuntos.isEmpty()) return ""
 
     return when (tipo) {
-        TipoAsunto.ESTACA -> context.getString(R.string.asunto_estaca_descripcion)
+        TipoAsunto.ESTACA -> asuntos.joinToString("\n") { descripcionAsuntoEstaca(it, context) }
         TipoAsunto.ORDENACION_AARONICA -> asuntos.joinToString("\n\n") { asunto ->
             val nombre = asunto.columna2.ifBlank { "[Nombre]" }
             val oficio = oficioParaFormula(asunto.columna3)
