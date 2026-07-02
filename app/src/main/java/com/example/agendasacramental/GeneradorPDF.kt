@@ -225,25 +225,9 @@ object GeneradorPDF {
             }
             y += sp(6f)
         } else {
-            val grupos = agenda.asuntosEstacaBarrio.groupBy { it.tipo }
-
-            listOf(
-                TipoAsunto.RELEVO,
-                TipoAsunto.SOSTENIMIENTO,
-                TipoAsunto.ESTACA,
-                TipoAsunto.ORDENACION_AARONICA,
-                TipoAsunto.OTROS
-            ).forEach { tipo ->
-                val asuntosDelTipo = grupos[tipo] ?: return@forEach
-                if (tipo == TipoAsunto.OTROS && asuntosDelTipo.all { it.columna2.isBlank() }) return@forEach
-
-                val tipoLabel = when (tipo) {
-                    TipoAsunto.RELEVO -> context.getString(R.string.formula_relevo)
-                    TipoAsunto.SOSTENIMIENTO -> context.getString(R.string.formula_sostenimiento)
-                    TipoAsunto.ESTACA -> context.getString(R.string.formula_estaca)
-                    TipoAsunto.ORDENACION_AARONICA -> context.getString(R.string.formula_ordenacion_aaronica)
-                    TipoAsunto.OTROS -> context.getString(R.string.formula_otros)
-                }
+            bloquesAsuntosEnOrden(agenda.asuntosEstacaBarrio).forEach { asuntosDelTipo ->
+                val tipo = asuntosDelTipo.first().tipo
+                val tipoLabel = etiquetaFormulaAsunto(tipo, context)
                 canvas.drawText(tipoLabel, MARGIN_LEFT, y, paintBold)
                 y += sp(13f)
 
@@ -468,6 +452,37 @@ object GeneradorPDF {
         return y
     }
 
+    private fun bloquesAsuntosEnOrden(
+        asuntos: List<AsuntoEstacaBarrio>,
+        tiposPermitidos: Set<TipoAsunto>? = null
+    ): List<List<AsuntoEstacaBarrio>> {
+        val bloques = mutableListOf<MutableList<AsuntoEstacaBarrio>>()
+
+        asuntos.forEach { asunto ->
+            if (tiposPermitidos != null && asunto.tipo !in tiposPermitidos) return@forEach
+            if (asunto.tipo == TipoAsunto.OTROS && asunto.columna2.isBlank()) return@forEach
+
+            val ultimoBloque = bloques.lastOrNull()
+            if (ultimoBloque != null && ultimoBloque.first().tipo == asunto.tipo) {
+                ultimoBloque += asunto
+            } else {
+                bloques += mutableListOf(asunto)
+            }
+        }
+
+        return bloques
+    }
+
+    private fun etiquetaFormulaAsunto(tipo: TipoAsunto, context: Context): String {
+        return when (tipo) {
+            TipoAsunto.RELEVO -> context.getString(R.string.formula_relevo)
+            TipoAsunto.SOSTENIMIENTO -> context.getString(R.string.formula_sostenimiento)
+            TipoAsunto.ESTACA -> context.getString(R.string.formula_estaca)
+            TipoAsunto.ORDENACION_AARONICA -> context.getString(R.string.formula_ordenacion_aaronica)
+            TipoAsunto.OTROS -> context.getString(R.string.formula_otros)
+        }
+    }
+
     private fun dibujarFormulasLiturgicas(canvas: Canvas, agenda: Agenda, context: Context) {
         var y = 50f
         val paintTitulo = Paint().apply {
@@ -493,21 +508,18 @@ object GeneradorPDF {
         canvas.drawLine(MARGIN_LEFT, y, MARGIN_RIGHT, y, paintLinea)
         y += 16f
 
-        // Agrupar por tipo — Relevos primero, luego Sostenimientos
-        val grupos = agenda.asuntosEstacaBarrio.groupBy { it.tipo }
+        // Mantener el orden editable, agrupando solo asuntos consecutivos del mismo tipo.
+        val bloques = bloquesAsuntosEnOrden(
+            agenda.asuntosEstacaBarrio,
+            setOf(TipoAsunto.RELEVO, TipoAsunto.SOSTENIMIENTO, TipoAsunto.ORDENACION_AARONICA)
+        )
         var grupoIndex = 0
 
-        listOf(TipoAsunto.RELEVO, TipoAsunto.SOSTENIMIENTO, TipoAsunto.ORDENACION_AARONICA).forEach { tipo ->
-            val asuntosDelTipo = grupos[tipo] ?: return@forEach
+        bloques.forEach { asuntosDelTipo ->
             if (y > PAGE_HEIGHT - 80f) return@forEach
 
-            val tipoLabel = when (tipo) {
-                TipoAsunto.RELEVO -> context.getString(R.string.formula_relevo)
-                TipoAsunto.SOSTENIMIENTO -> context.getString(R.string.formula_sostenimiento)
-                TipoAsunto.ORDENACION_AARONICA -> context.getString(R.string.formula_ordenacion_aaronica)
-                TipoAsunto.ESTACA,
-                TipoAsunto.OTROS -> ""
-            }
+            val tipo = asuntosDelTipo.first().tipo
+            val tipoLabel = etiquetaFormulaAsunto(tipo, context)
             canvas.drawText("${grupoIndex + 1}. $tipoLabel", MARGIN_LEFT, y, paintSeccion)
             y += 14f
 
@@ -534,7 +546,7 @@ object GeneradorPDF {
 
             y += 6f
 
-            if (grupoIndex < grupos.size - 1) {
+            if (grupoIndex < bloques.size - 1) {
                 canvas.drawLine(MARGIN_LEFT, y, MARGIN_RIGHT, y, paintLinea)
                 y += 10f
             }
