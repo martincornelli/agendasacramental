@@ -137,35 +137,34 @@ fun ModoLecturaScreen(
                 CampoLectura(stringResource(R.string.lectura_himno_sacramental), himno)
             }
 
-            // Mensajes del evangelio
+            // Mensajes del evangelio / testimonios
             item {
-                SeccionLectura(stringResource(R.string.lectura_mensajes)) {
-                    if (agenda.mensajesEvangelio.isEmpty()) {
-                        Text("—", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    } else {
-                        agenda.mensajesEvangelio.forEach { msg ->
-                            val texto = when (msg.tipo) {
-                                TipoMensaje.HIMNO_INTERMEDIO -> "🎵 Himno: ${msg.himnoNumero} - ${msg.himnoNombre}"
-                                TipoMensaje.TESTIMONIO -> stringResource(R.string.lectura_testimonio) + ": ${msg.nombre}"
-                                else -> buildString {
-                                    append(stringResource(R.string.lectura_discurso) + ": ${msg.nombre}")
-                                    if (msg.tema.isNotBlank()) append("\n${stringResource(R.string.editar_tema_discurso)}: ${msg.tema}")
-                                }
-                            }
-                            Text("• $texto", style = MaterialTheme.typography.bodyLarge)
+                if (agenda.reunionTestimonios) {
+                    SeccionLectura(stringResource(R.string.pdf_reunion_testimonios)) {
+                        Text(
+                            stringResource(R.string.tiempo_testimonios_congregacion),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        agenda.testimonios.filter { it.isNotBlank() }.forEach { nombre ->
+                            Text("• $nombre", style = MaterialTheme.typography.bodyLarge)
                         }
                     }
-                }
-            }
-
-            if (agenda.reunionTestimonios) {
-                item {
-                    SeccionLectura(stringResource(R.string.pdf_reunion_testimonios)) {
-                        if (agenda.testimonios.isEmpty()) {
+                } else {
+                    SeccionLectura(stringResource(R.string.lectura_mensajes)) {
+                        if (agenda.mensajesEvangelio.isEmpty()) {
                             Text("—", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         } else {
-                            agenda.testimonios.forEach { nombre ->
-                                Text("• $nombre", style = MaterialTheme.typography.bodyLarge)
+                            agenda.mensajesEvangelio.forEach { msg ->
+                                val texto = when (msg.tipo) {
+                                    TipoMensaje.HIMNO_INTERMEDIO -> "🎵 Himno: ${msg.himnoNumero} - ${msg.himnoNombre}"
+                                    TipoMensaje.TESTIMONIO -> stringResource(R.string.lectura_testimonio) + ": ${msg.nombre}"
+                                    else -> buildString {
+                                        append(stringResource(R.string.lectura_discurso) + ": ${msg.nombre}")
+                                        if (msg.tema.isNotBlank()) append("\n${stringResource(R.string.editar_tema_discurso)}: ${msg.tema}")
+                                    }
+                                }
+                                Text("• $texto", style = MaterialTheme.typography.bodyLarge)
                             }
                         }
                     }

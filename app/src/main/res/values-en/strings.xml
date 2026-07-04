@@ -125,6 +125,7 @@
     <string name="editar_asuntos">Ward/Stake Business</string>
     <string name="editar_mensajes">Gospel Messages</string>
     <string name="editar_reunion_testimonios">Fast and testimony meeting</string>
+    <string name="tiempo_testimonios_congregacion">Time for congregation testimonies</string>
     <string name="editar_agregar_testimonio">Add name</string>
     <string name="editar_guardado_ok">✓ Saved successfully.</string>
     <string name="editar_error_guardar">Error saving. Please try again.</string>

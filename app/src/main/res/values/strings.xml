@@ -125,6 +125,7 @@
     <string name="editar_asuntos">Asuntos Estaca/Barrio</string>
     <string name="editar_mensajes">Mensajes del Evangelio</string>
     <string name="editar_reunion_testimonios">Reunión de ayuno y testimonios</string>
+    <string name="tiempo_testimonios_congregacion">Tiempo de testimonios de la congregación</string>
     <string name="editar_agregar_testimonio">Agregar nombre</string>
     <string name="editar_guardado_ok">✓ Guardado correctamente.</string>
     <string name="editar_error_guardar">Error al guardar. Intente nuevamente.</string>

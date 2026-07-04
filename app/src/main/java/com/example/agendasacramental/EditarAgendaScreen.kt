@@ -132,7 +132,7 @@ fun EditarAgendaScreen(
             primeraOracion = primeraOracion,
             oracionFinal = oracionFinal,
             asuntosEstacaBarrio = asuntos,
-            mensajesEvangelio = mensajes,
+            mensajesEvangelio = if (reunionTestimonios) emptyList() else mensajes,
             reunionTestimonios = reunionTestimonios,
             testimonios = testimonios.filter { it.isNotBlank() },
             creadoPor = userEmail,
@@ -419,10 +419,14 @@ fun EditarAgendaScreen(
                 }
 
                 item {
-                    TablaMensajes(
-                        mensajes = mensajes, onMensajesChange = { mensajes = it },
-                        nombresUsados = nombresUsados
-                    )
+                    if (reunionTestimonios) {
+                        AvisoTiempoTestimonios()
+                    } else {
+                        TablaMensajes(
+                            mensajes = mensajes, onMensajesChange = { mensajes = it },
+                            nombresUsados = nombresUsados
+                        )
+                    }
                 }
 
                 item {
@@ -573,6 +577,29 @@ fun SeccionTestimonios(
                 items = testimonios,
                 onItemsChange = onTestimoniosChange,
                 placeholder = stringResource(R.string.editar_agregar_testimonio)
+            )
+        }
+    }
+}
+
+@Composable
+fun AvisoTiempoTestimonios() {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            stringResource(R.string.pdf_reunion_testimonios),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
+            shape = MaterialTheme.shapes.small
+        ) {
+            Text(
+                stringResource(R.string.tiempo_testimonios_congregacion),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(12.dp)
             )
         }
     }

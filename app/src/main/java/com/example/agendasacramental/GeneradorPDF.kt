@@ -273,7 +273,20 @@ object GeneradorPDF {
             Paint().apply { color = Color.GRAY; textSize = sp(8f); isAntiAlias = true; typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.ITALIC) })
         y += sp(20f)
 
-        // --- Mensajes del Evangelio ---
+        if (agenda.reunionTestimonios) {
+            canvas.drawText(context.getString(R.string.pdf_reunion_testimonios), MARGIN_LEFT, y, paintBold)
+            y += sp(8f)
+            val msgBoxH = 60f * fontScale
+            canvas.drawRect(MARGIN_LEFT, y, MARGIN_RIGHT, y + msgBoxH, Paint().apply { color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = 0.5f })
+            canvas.drawText(
+                context.getString(R.string.tiempo_testimonios_congregacion),
+                MARGIN_LEFT + 6f,
+                y + sp(32f),
+                Paint().apply { color = Color.BLACK; textSize = sp(9.5f); isAntiAlias = true; isFakeBoldText = true }
+            )
+            y += msgBoxH + sp(12f)
+        } else {
+            // --- Mensajes del Evangelio ---
         canvas.drawText(context.getString(R.string.pdf_mensajes), MARGIN_LEFT, y, paintBold)
         y += sp(8f)
 
@@ -304,6 +317,7 @@ object GeneradorPDF {
             }
         }
         y += msgBoxH + sp(12f)
+        }
 
         // --- Himno Final ---
         val himnoFin = if (agenda.himnoFinalNumero > 0) "${agenda.himnoFinalNumero} - ${agenda.himnoFinalNombre}" else ""
