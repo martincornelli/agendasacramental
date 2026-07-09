@@ -45,13 +45,33 @@ const AGENDA_GROUPS = [
   { state: "CONFIRMADA", label: "Confirmadas", defaultOpen: true },
   { state: "REALIZADA", label: "Realizadas", defaultOpen: false }
 ];
-const BUSINESS_TYPES = ["RELEVO", "SOSTENIMIENTO", "OTROS"];
+const BUSINESS_TYPES = ["RELEVO", "SOSTENIMIENTO", "ESTACA", "ORDENACION_AARONICA", "OTROS"];
 const MESSAGE_TYPES = ["DISCURSO", "TESTIMONIO", "HIMNO_INTERMEDIO"];
+const AARONIC_OFFICES = ["Diacono", "Maestro", "Presbitero"];
+const BASE_TOPIC_TAGS = [
+  "Jesucristo",
+  "Expiacion",
+  "Fe",
+  "Arrepentimiento",
+  "Perdon",
+  "Santa Cena",
+  "Convenios",
+  "Templo",
+  "Espiritu Santo",
+  "Oracion",
+  "Escrituras",
+  "Servicio",
+  "Familia",
+  "Obediencia"
+];
 const defaultConfig = {
   diasVerdeDiscurso: 90,
   diasAmarilloDiscurso: 30,
   diasVerdeOracion: 30,
-  diasAmarilloOracion: 14
+  diasAmarilloOracion: 14,
+  diasVerdeTema: 180,
+  diasAmarilloTema: 90,
+  etiquetasTema: []
 };
 
 const state = {
@@ -472,7 +492,7 @@ function renderAgendaDashboard(searchValue, filterState) {
     </section>
 
     ${showNextAgenda ? `
-      <section class="panel">
+      <section class="panel next-agenda-panel">
         ${sectionTitle("Próximo domingo", "", `<button class="text-button" data-open="${escapeAttr(nextAgenda.id)}" type="button">Abrir</button>`)}
         ${agendaCard(nextAgenda)}
       </section>
@@ -537,7 +557,8 @@ function agendaMatchesSearch(agenda, searchValue) {
     agenda.primerHimnoNumero,
     agenda.himnoSacramentalNumero,
     agenda.himnoFinalNumero,
-    agenda.mensajesEvangelio.map((item) => `${item.nombre} ${item.himnoNombre} ${item.himnoNumero}`).join(" ")
+    agenda.asuntosEstacaBarrio.map((item) => `${labelBusiness(item.tipo)} ${item.columna2} ${item.columna3}`).join(" "),
+    agenda.mensajesEvangelio.map((item) => `${item.nombre} ${item.tema} ${item.etiquetaTema} ${item.himnoNombre} ${item.himnoNumero}`).join(" ")
   ].join(" "));
   return haystack.includes(normalizedSearch);
 }
@@ -565,6 +586,7 @@ function agendaCard(agenda) {
         <span class="item-meta">Asistencia: ${Number(agenda.asistencia || 0)}</span>
         <div class="item-actions">
           <button class="secondary-button" data-read="${escapeAttr(agenda.id)}" type="button">Lectura</button>
+          <button class="secondary-button" data-print-agenda="${escapeAttr(agenda.id)}" type="button">PDF</button>
           <button class="primary-button" data-open="${escapeAttr(agenda.id)}" type="button">Editar</button>
           <button class="icon-button" data-delete-agenda="${escapeAttr(agenda.id)}" type="button" title="Eliminar">X</button>
         </div>
@@ -579,6 +601,12 @@ function bindAgendaListActions() {
   });
   screen.querySelectorAll("[data-read]").forEach((button) => {
     button.addEventListener("click", () => openReading(button.dataset.read));
+  });
+  screen.querySelectorAll("[data-print-agenda]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const agenda = state.agendas.find((item) => item.id === button.dataset.printAgenda);
+      if (agenda) exportAgendaPdf(agenda);
+    });
   });
   screen.querySelectorAll("[data-delete-agenda]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -624,6 +652,7 @@ function renderAgendaEditor() {
           <div class="button-row">
             <button class="secondary-button" data-action="back" type="button">Volver</button>
             <button class="secondary-button" data-action="reading-preview" type="button">Modo lectura</button>
+            <button class="secondary-button" data-action="export-pdf" type="button">Exportar PDF</button>
             <button class="primary-button" type="submit">Guardar</button>
           </div>
         `)}
@@ -638,8 +667,8 @@ function renderAgendaEditor() {
             ${field("dirige", "Dirige", textInput("dirige", agenda.dirige, "names-list"))}
           </div>
           <div class="inline-fields">
-            ${field("reconocimientos", "Reconocimientos", textarea("reconocimientos", agenda.reconocimientos))}
-            ${field("anuncios", "Anuncios", textarea("anuncios", agenda.anuncios))}
+            ${field("reconocimientos", "Reconocimientos", textarea("reconocimientos", agenda.reconocimientos), "Si vas a cargar varios, separalos con una coma.")}
+            ${field("anuncios", "Anuncios", textarea("anuncios", agenda.anuncios), "Si vas a cargar varios, separalos con una coma.")}
           </div>
         </div>
       </section>
@@ -682,8 +711,8 @@ function renderAgendaEditor() {
       <datalist id="names-list">${usedNames().map((name) => `<option value="${escapeAttr(name)}"></option>`).join("")}</datalist>
     </form>
   `;
-  if (!agenda.asuntosEstacaBarrio.length) addBusinessRow();
-  if (!agenda.mensajesEvangelio.length && !agenda.reunionTestimonios) addMessageRow();
+  if (!agenda.asuntosEstacaBarrio.length) screen.querySelector("#business-list").insertAdjacentHTML("beforeend", businessRow());
+  if (!agenda.mensajesEvangelio.length && !agenda.reunionTestimonios) screen.querySelector("#message-list").insertAdjacentHTML("beforeend", messageRow());
   screen.querySelector("#agenda-form").addEventListener("submit", saveAgendaFromForm);
   screen.querySelector('[data-action="back"]').addEventListener("click", () => navigate("agendas"));
   screen.querySelector('[data-action="reading-preview"]').addEventListener("click", () => {
@@ -692,14 +721,24 @@ function renderAgendaEditor() {
     state.draftReadingAgenda = readAgendaForm(agenda);
     render();
   });
+  screen.querySelector('[data-action="export-pdf"]').addEventListener("click", () => {
+    exportAgendaPdf(readAgendaForm(agenda));
+  });
   screen.querySelector("#add-business").addEventListener("click", addBusinessRow);
   screen.querySelector("#add-message").addEventListener("click", addMessageRow);
-  screen.querySelectorAll("[data-remove-row]").forEach(bindRemoveRow);
   bindHymnAutoFill();
+  bindBusinessRows();
+  bindMessageRows();
 }
 
-function field(id, label, control) {
-  return `<div class="field"><label for="${escapeAttr(id)}">${escapeHtml(label)}</label>${control}</div>`;
+function field(id, label, control, hint = "") {
+  return `
+    <div class="field">
+      <label for="${escapeAttr(id)}">${escapeHtml(label)}</label>
+      ${control}
+      ${hint ? `<p class="field-hint">${escapeHtml(hint)}</p>` : ""}
+    </div>
+  `;
 }
 
 function configColorField(id, label, colorClass, value) {
@@ -737,11 +776,40 @@ function hymnFields(prefix, label, number, name) {
 
 function businessRow(item = {}) {
   const type = item.tipo || "SOSTENIMIENTO";
+  const col2 = item.columna2 || "";
+  const col3 = item.columna3 || "";
+  const fields = {
+    RELEVO: `
+      <input class="input" data-business-col2 value="${escapeAttr(col2)}" placeholder="Nombre">
+      <input class="input" data-business-col3 value="${escapeAttr(col3)}" placeholder="Cargo">
+    `,
+    SOSTENIMIENTO: `
+      <input class="input" data-business-col2 value="${escapeAttr(col2)}" placeholder="Nombre">
+      <input class="input" data-business-col3 value="${escapeAttr(col3)}" placeholder="Cargo">
+    `,
+    ESTACA: `
+      <div class="field compact-field">
+        <input class="input" data-business-col2 value="${escapeAttr(col2)}" placeholder="Ej.: Presidente Garcia">
+        <p class="field-hint">${escapeHtml(descripcionAsuntoEstaca({ columna2: col2 }))}</p>
+      </div>
+      <input type="hidden" data-business-col3 value="">
+    `,
+    ORDENACION_AARONICA: `
+      <input class="input" data-business-col2 value="${escapeAttr(col2)}" placeholder="Nombre">
+      <select class="select" data-business-col3>
+        <option value="">Oficio</option>
+        ${AARONIC_OFFICES.map((office) => option(office, office, col3)).join("")}
+      </select>
+    `,
+    OTROS: `
+      <textarea class="textarea compact-textarea" data-business-col2 placeholder="Escribi el texto tal como debe aparecer">${escapeHtml(col2)}</textarea>
+      <input type="hidden" data-business-col3 value="">
+    `
+  }[type] || "";
   return `
-    <div class="dynamic-row" data-business-row>
+    <div class="dynamic-row business-row" data-business-row>
       <select class="select" data-business-type>${BUSINESS_TYPES.map((value) => option(value, labelBusiness(value), type)).join("")}</select>
-      <input class="input" data-business-col2 value="${escapeAttr(item.columna2 || "")}" placeholder="Nombre o detalle">
-      <input class="input" data-business-col3 value="${escapeAttr(item.columna3 || "")}" placeholder="Cargo / texto">
+      <div class="dynamic-row-fields">${fields}</div>
       <button class="icon-button" data-remove-row type="button" title="Eliminar">X</button>
     </div>
   `;
@@ -749,12 +817,32 @@ function businessRow(item = {}) {
 
 function messageRow(item = {}) {
   const type = item.tipo || "DISCURSO";
+  const personLabel = type === "TESTIMONIO" ? "Nombre" : "Discursante";
   return `
     <div class="dynamic-row message-row" data-message-row>
       <select class="select" data-message-type>${MESSAGE_TYPES.map((value) => option(value, labelMessage(value), type)).join("")}</select>
-      <input class="input" data-message-name value="${escapeAttr(item.nombre || "")}" list="names-list" placeholder="Nombre">
-      <input class="input" data-message-hymn-number type="number" min="0" value="${Number(item.himnoNumero || 0) || ""}" placeholder="Nro.">
-      <input class="input" data-message-hymn-name value="${escapeAttr(item.himnoNombre || "")}" placeholder="Nombre del himno">
+      <div class="dynamic-row-fields">
+        ${type === "HIMNO_INTERMEDIO" ? `
+          <div class="inline-fields compact-inline">
+            <input class="input" data-message-hymn-number type="number" min="0" value="${Number(item.himnoNumero || 0) || ""}" placeholder="Nro.">
+            <input class="input" data-message-hymn-name value="${escapeAttr(item.himnoNombre || "")}" placeholder="Nombre del himno">
+          </div>
+          <input type="hidden" data-message-name value="">
+          <input type="hidden" data-message-topic value="">
+          <input type="hidden" data-message-topic-tags value="">
+        ` : `
+          <input class="input" data-message-name value="${escapeAttr(item.nombre || "")}" list="names-list" placeholder="${escapeAttr(personLabel)}">
+          <input type="hidden" data-message-hymn-number value="0">
+          <input type="hidden" data-message-hymn-name value="">
+          ${type === "DISCURSO" ? `
+            <input class="input" data-message-topic value="${escapeAttr(item.tema || "")}" placeholder="Tema exacto">
+            <input class="input" data-message-topic-tags value="${escapeAttr(item.etiquetaTema || "")}" placeholder="Etiquetas separadas con coma">
+          ` : `
+            <input type="hidden" data-message-topic value="">
+            <input type="hidden" data-message-topic-tags value="">
+          `}
+        `}
+      </div>
       <button class="icon-button" data-remove-row type="button" title="Eliminar">X</button>
     </div>
   `;
@@ -762,18 +850,54 @@ function messageRow(item = {}) {
 
 function addBusinessRow() {
   screen.querySelector("#business-list").insertAdjacentHTML("beforeend", businessRow());
-  bindRemoveRow(screen.querySelector("#business-list [data-business-row]:last-child [data-remove-row]"));
+  bindBusinessRow(screen.querySelector("#business-list [data-business-row]:last-child"));
 }
 
 function addMessageRow() {
   screen.querySelector("#message-list").insertAdjacentHTML("beforeend", messageRow());
   const row = screen.querySelector("#message-list [data-message-row]:last-child");
-  bindRemoveRow(row.querySelector("[data-remove-row]"));
-  bindMessageHymnRow(row);
+  bindMessageRow(row);
 }
 
 function bindRemoveRow(button) {
   button.addEventListener("click", () => button.closest(".dynamic-row")?.remove());
+}
+
+function bindBusinessRows() {
+  screen.querySelectorAll("[data-business-row]").forEach(bindBusinessRow);
+}
+
+function bindBusinessRow(row) {
+  bindRemoveRow(row.querySelector("[data-remove-row]"));
+  row.querySelector("[data-business-type]")?.addEventListener("change", (event) => {
+    const nextItem = normalizeBusinessForType(readBusinessRow(row), event.target.value);
+    replaceDynamicRow(row, businessRow(nextItem), bindBusinessRow);
+  });
+  row.querySelector("[data-business-col2]")?.addEventListener("input", () => {
+    if (row.querySelector("[data-business-type]")?.value !== "ESTACA") return;
+    const hint = row.querySelector(".field-hint");
+    if (hint) hint.textContent = descripcionAsuntoEstaca(readBusinessRow(row));
+  });
+}
+
+function bindMessageRows() {
+  screen.querySelectorAll("[data-message-row]").forEach(bindMessageRow);
+}
+
+function bindMessageRow(row) {
+  bindRemoveRow(row.querySelector("[data-remove-row]"));
+  bindMessageHymnRow(row);
+  row.querySelector("[data-message-type]")?.addEventListener("change", (event) => {
+    const nextItem = normalizeMessageForType(readMessageRow(row), event.target.value);
+    replaceDynamicRow(row, messageRow(nextItem), bindMessageRow);
+  });
+}
+
+function replaceDynamicRow(row, html, bind) {
+  row.insertAdjacentHTML("afterend", html);
+  const nextRow = row.nextElementSibling;
+  row.remove();
+  bind(nextRow);
 }
 
 function bindHymnAutoFill() {
@@ -783,7 +907,6 @@ function bindHymnAutoFill() {
       fillHymnName(input.value, target);
     });
   });
-  screen.querySelectorAll("[data-message-row]").forEach(bindMessageHymnRow);
 }
 
 function bindMessageHymnRow(row) {
@@ -850,19 +973,76 @@ function readAgendaForm(baseAgenda) {
     himnoFinalNombre: valueOf("#himnoFinalNombre"),
     primeraOracion: valueOf("#primeraOracion"),
     oracionFinal: valueOf("#oracionFinal"),
-    asuntosEstacaBarrio: [...screen.querySelectorAll("[data-business-row]")].map((row) => ({
-      tipo: row.querySelector("[data-business-type]").value,
-      columna2: row.querySelector("[data-business-col2]").value.trim(),
-      columna3: row.querySelector("[data-business-col3]").value.trim()
-    })).filter((item) => item.columna2 || item.columna3),
-    mensajesEvangelio: [...screen.querySelectorAll("[data-message-row]")].map((row) => ({
-      tipo: row.querySelector("[data-message-type]").value,
-      nombre: row.querySelector("[data-message-name]").value.trim(),
-      himnoNumero: Number(row.querySelector("[data-message-hymn-number]").value || 0),
-      himnoNombre: row.querySelector("[data-message-hymn-name]").value.trim()
-    })).filter((item) => item.nombre || item.himnoNumero || item.himnoNombre),
+    asuntosEstacaBarrio: [...screen.querySelectorAll("[data-business-row]")]
+      .map(readBusinessRow)
+      .filter((item) => item.columna2 || item.columna3),
+    mensajesEvangelio: [...screen.querySelectorAll("[data-message-row]")]
+      .map(readMessageRow)
+      .filter((item) => item.nombre || item.himnoNumero || item.himnoNombre || item.tema || item.etiquetaTema),
     reunionTestimonios: screen.querySelector("#reunionTestimonios").checked,
     testimonios
+  };
+}
+
+function readBusinessRow(row) {
+  return normalizeBusinessForType({
+    tipo: row.querySelector("[data-business-type]")?.value || "SOSTENIMIENTO",
+    columna2: row.querySelector("[data-business-col2]")?.value.trim() || "",
+    columna3: row.querySelector("[data-business-col3]")?.value.trim() || ""
+  });
+}
+
+function normalizeBusinessForType(item, nextType = item.tipo) {
+  const type = nextType || "SOSTENIMIENTO";
+  const col2 = item.columna2 || "";
+  const col3 = item.columna3 || "";
+  return {
+    tipo: type,
+    columna2: col2,
+    columna3: ["ESTACA", "OTROS"].includes(type) ? "" : col3
+  };
+}
+
+function readMessageRow(row) {
+  return normalizeMessageForType({
+    tipo: row.querySelector("[data-message-type]")?.value || "DISCURSO",
+    nombre: row.querySelector("[data-message-name]")?.value.trim() || "",
+    himnoNumero: Number(row.querySelector("[data-message-hymn-number]")?.value || 0),
+    himnoNombre: row.querySelector("[data-message-hymn-name]")?.value.trim() || "",
+    tema: row.querySelector("[data-message-topic]")?.value.trim() || "",
+    etiquetaTema: row.querySelector("[data-message-topic-tags]")?.value.trim() || ""
+  });
+}
+
+function normalizeMessageForType(item, nextType = item.tipo) {
+  const type = nextType || "DISCURSO";
+  if (type === "HIMNO_INTERMEDIO") {
+    return {
+      tipo: type,
+      nombre: "",
+      himnoNumero: Number(item.himnoNumero || 0),
+      himnoNombre: item.himnoNombre || "",
+      tema: "",
+      etiquetaTema: ""
+    };
+  }
+  if (type === "TESTIMONIO") {
+    return {
+      tipo: type,
+      nombre: item.nombre || "",
+      himnoNumero: 0,
+      himnoNombre: "",
+      tema: "",
+      etiquetaTema: ""
+    };
+  }
+  return {
+    tipo: type,
+    nombre: item.nombre || "",
+    himnoNumero: 0,
+    himnoNombre: "",
+    tema: item.tema || "",
+    etiquetaTema: item.etiquetaTema || ""
   };
 }
 
@@ -1118,12 +1298,26 @@ function renderReadingMode() {
   });
 }
 
+function exportAgendaPdf(agenda) {
+  state.draftReadingAgenda = agenda;
+  state.activeAgendaId = agenda.id || "__draft__";
+  state.route = "reading";
+  render();
+  window.setTimeout(() => window.print(), 120);
+}
+
 function readingHtml(agenda) {
   const messages = agenda.reunionTestimonios
     ? agenda.testimonios.map((name) => `<li>Testimonio: ${escapeHtml(name)}</li>`).join("")
     : agenda.mensajesEvangelio.map((message) => {
       if (message.tipo === "HIMNO_INTERMEDIO") return `<li>Himno intermedio: ${escapeHtml(hymnLabel(message.himnoNumero, message.himnoNombre))}</li>`;
-      return `<li>${escapeHtml(labelMessage(message.tipo))}: ${escapeHtml(message.nombre || "Sin datos")}</li>`;
+      const topic = message.tipo === "DISCURSO" && message.tema
+        ? `<br><span class="reading-detail">Tema: ${escapeHtml(message.tema)}</span>`
+        : "";
+      const tags = message.tipo === "DISCURSO" && message.etiquetaTema
+        ? `<br><span class="reading-detail">Etiquetas: ${escapeHtml(message.etiquetaTema)}</span>`
+        : "";
+      return `<li>${escapeHtml(labelMessage(message.tipo))}: ${escapeHtml(message.nombre || "Sin datos")}${topic}${tags}</li>`;
     }).join("");
   return `
     <div class="reading-title">
@@ -1139,7 +1333,7 @@ function readingHtml(agenda) {
     ${readingLine("Director/a", agenda.directorMusica)}
     ${readingLine("Pianista", agenda.pianista)}
     ${readingLine("Primera oración", agenda.primeraOracion)}
-    ${agenda.asuntosEstacaBarrio.length ? `<section class="reading-section"><strong>Asuntos Estaca/Barrio</strong><ul>${agenda.asuntosEstacaBarrio.map((item) => `<li>${escapeHtml(labelBusiness(item.tipo))}: ${escapeHtml([item.columna2, item.columna3].filter(Boolean).join(" - "))}</li>`).join("")}</ul></section>` : ""}
+    ${agenda.asuntosEstacaBarrio.length ? `<section class="reading-section"><strong>Asuntos Estaca/Barrio</strong><ul>${agenda.asuntosEstacaBarrio.map((item) => `<li>${escapeHtml(labelBusiness(item.tipo))}: ${escapeHtml(businessDescription(item) || "Sin datos")}</li>`).join("")}</ul></section>` : ""}
     ${readingLine("Himno Sacramental", hymnLabel(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre))}
     <section class="reading-section"><strong>${agenda.reunionTestimonios ? "Reunión de testimonios" : "Mensajes del Evangelio"}</strong>${messages ? `<ul>${messages}</ul>` : "<p>Sin datos</p>"}</section>
     ${readingLine("Himno final", hymnLabel(agenda.himnoFinalNumero, agenda.himnoFinalNombre))}
@@ -1154,7 +1348,8 @@ function readingLine(label, value) {
 function renderPlanning() {
   const rankings = planningRankings();
   const tab = state.planningTab;
-  const list = rankings
+  const isTopics = tab === "topics";
+  const list = isTopics ? [] : rankings
     .sort((a, b) => {
       const inactiveA = isInactiveForTab(a, tab);
       const inactiveB = isInactiveForTab(b, tab);
@@ -1166,17 +1361,20 @@ function renderPlanning() {
       <div class="toolbar-left">
         <button class="filter-chip ${tab === "talks" ? "active" : ""}" data-planning-tab="talks" type="button">Discursos</button>
         <button class="filter-chip ${tab === "prayers" ? "active" : ""}" data-planning-tab="prayers" type="button">Oraciones</button>
-        <input id="planning-search" class="input" type="search" placeholder="Buscar hermano/a..." style="width: min(340px, 100%);">
+        <button class="filter-chip ${tab === "topics" ? "active" : ""}" data-planning-tab="topics" type="button">Temas</button>
+        <input id="planning-search" class="input" type="search" placeholder="${isTopics ? "Buscar tema o etiquetas..." : "Buscar hermano/a..."}" style="width: min(340px, 100%);">
       </div>
       <div class="toolbar-right">
         <button id="planning-config" class="secondary-button" type="button">Configuración</button>
-        <button id="add-brother" class="primary-button" type="button">Agregar hermano</button>
+        ${isTopics ? `<button id="topic-tags" class="secondary-button" type="button">Etiquetas</button>` : `<button id="add-brother" class="primary-button" type="button">Agregar hermano</button>`}
       </div>
     </div>
-    <section class="panel">
-      ${sectionTitle(tab === "talks" ? "Discursos" : "Oraciones", "P", "")}
-      <div id="brother-list" class="agenda-list">${renderBrotherList(list, tab, "")}</div>
-    </section>
+    ${isTopics ? renderTopicsPlanning("") : `
+      <section class="panel">
+        ${sectionTitle(tab === "talks" ? "Discursos" : "Oraciones", "P", "")}
+        <div id="brother-list" class="agenda-list">${renderBrotherList(list, tab, "")}</div>
+      </section>
+    `}
   `;
   screen.querySelectorAll("[data-planning-tab]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1185,12 +1383,203 @@ function renderPlanning() {
     });
   });
   screen.querySelector("#planning-search").addEventListener("input", (event) => {
-    screen.querySelector("#brother-list").innerHTML = renderBrotherList(list, tab, event.target.value);
-    bindBrotherActions();
+    if (isTopics) {
+      screen.querySelector("#topics-content").innerHTML = renderTopicsPlanningContent(event.target.value);
+      bindTopicActions();
+    } else {
+      screen.querySelector("#brother-list").innerHTML = renderBrotherList(list, tab, event.target.value);
+      bindBrotherActions();
+    }
   });
   screen.querySelector("#planning-config").addEventListener("click", openPlanningConfigDialog);
-  screen.querySelector("#add-brother").addEventListener("click", () => openBrotherDialog());
-  bindBrotherActions();
+  if (isTopics) {
+    screen.querySelector("#topic-tags").addEventListener("click", openTopicTagsDialog);
+    bindTopicActions();
+  } else {
+    screen.querySelector("#add-brother").addEventListener("click", () => openBrotherDialog());
+    bindBrotherActions();
+  }
+}
+
+function renderTopicsPlanning(searchValue) {
+  return `<div id="topics-content" class="screen-grid">${renderTopicsPlanningContent(searchValue)}</div>`;
+}
+
+function renderTopicsPlanningContent(searchValue) {
+  const summaries = topicSummaries();
+  const suggestions = topicSuggestions(summaries, topicTagsAvailable());
+  const query = normalizeText(searchValue);
+  const filteredSuggestions = suggestions.filter((item) =>
+    !query || normalizeText(item.etiqueta).includes(query) || normalizeText(item.resumen?.ultimoTema).includes(query)
+  );
+  const filteredSummaries = summaries.filter((item) =>
+    !query ||
+    normalizeText(item.etiqueta).includes(query) ||
+    normalizeText(item.ultimoTema).includes(query) ||
+    normalizeText(item.ultimoDiscursante).includes(query) ||
+    item.registros.some((record) => normalizeText(`${record.tema} ${record.discursante}`).includes(query))
+  );
+
+  return `
+    <section class="panel">
+      ${sectionTitle("Temas sugeridos", "T", "")}
+      <div class="topic-grid">
+        ${filteredSuggestions.length ? filteredSuggestions.slice(0, 12).map(topicSuggestionCard).join("") : emptyState("No hay sugerencias que coincidan.")}
+      </div>
+    </section>
+    <section class="panel">
+      ${sectionTitle("Historial de temas", "H", "")}
+      <div class="agenda-list">
+        ${filteredSummaries.length ? filteredSummaries.map(topicSummaryCard).join("") : emptyState("Todavia no hay temas guardados en discursos.")}
+      </div>
+    </section>
+  `;
+}
+
+function topicSuggestionCard(item) {
+  const color = topicColor(item.resumen);
+  const meta = item.resumen
+    ? `${topicDistanceText(item.resumen.ultimaFecha)} - ${item.resumen.veces180Dias} en 180 dias`
+    : "Sin registros en el historial.";
+  return `
+    <article class="topic-card ${escapeAttr(color)}">
+      <div>
+        <p class="item-title"><span class="rank-dot ${escapeAttr(color)}"></span>${escapeHtml(item.etiqueta)}</p>
+        <p class="item-meta">${escapeHtml(meta)}</p>
+      </div>
+      <button class="secondary-button" data-topic-assign="${escapeAttr(item.etiqueta)}" type="button">Asignar</button>
+    </article>
+  `;
+}
+
+function topicSummaryCard(summary) {
+  const color = topicColor(summary);
+  return `
+    <article class="topic-card">
+      <div>
+        <p class="item-title"><span class="rank-dot ${escapeAttr(color)}"></span>${escapeHtml(summary.etiqueta)}</p>
+        <p class="item-meta">${escapeHtml(topicDistanceText(summary.ultimaFecha))} - ${summary.veces90Dias} en 90 dias</p>
+        ${summary.ultimoTema ? `<p class="topic-detail">${escapeHtml(summary.ultimoTema)}</p>` : ""}
+        <p class="item-meta">Ultimo: ${escapeHtml(summary.ultimoDiscursante || "Sin datos")} - ${summary.veces180Dias} en 180 dias - ${summary.total} total</p>
+      </div>
+    </article>
+  `;
+}
+
+function bindTopicActions() {
+  const suggestions = topicSuggestions(topicSummaries(), topicTagsAvailable());
+  const byLabel = new Map(suggestions.map((item) => [normalizeText(item.etiqueta), item]));
+  screen.querySelectorAll("[data-topic-assign]").forEach((button) => {
+    button.addEventListener("click", () => openAssignTopicDialog(byLabel.get(normalizeText(button.dataset.topicAssign))));
+  });
+}
+
+function topicTagsAvailable() {
+  const source = Array.isArray(state.config.etiquetasTema) && state.config.etiquetasTema.length
+    ? state.config.etiquetasTema
+    : BASE_TOPIC_TAGS;
+  return uniqueCleanList(source);
+}
+
+function topicLabelsFromText(text, fallback = "") {
+  const labels = uniqueCleanList(String(text || "").split(","));
+  if (labels.length) return labels;
+  const cleanFallback = fallback.trim();
+  return cleanFallback ? [cleanFallback] : [];
+}
+
+function topicRecords() {
+  return state.agendas.flatMap((agenda) =>
+    agenda.mensajesEvangelio.flatMap((message) => {
+      if (message.tipo !== "DISCURSO") return [];
+      const topic = (message.tema || "").trim();
+      const labels = topicLabelsFromText(message.etiquetaTema, topic);
+      if (!topic && !labels.length) return [];
+      return labels.map((label) => ({
+        etiqueta: label,
+        tema: topic,
+        discursante: (message.nombre || "").trim(),
+        fecha: agenda.fecha
+      }));
+    })
+  );
+}
+
+function topicSummaries() {
+  const groups = new Map();
+  topicRecords().forEach((record) => {
+    const key = normalizeText(record.etiqueta);
+    if (!key) return;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(record);
+  });
+
+  return [...groups.values()]
+    .map((group) => {
+      const ordered = group.sort((a, b) => b.fecha - a.fecha);
+      const latest = ordered[0];
+      return {
+        etiqueta: latest.etiqueta,
+        ultimoTema: latest.tema,
+        ultimoDiscursante: latest.discursante,
+        ultimaFecha: latest.fecha,
+        veces90Dias: countRecordsWithinDays(group, 90),
+        veces180Dias: countRecordsWithinDays(group, 180),
+        total: group.length,
+        registros: ordered
+      };
+    })
+    .sort((a, b) => b.ultimaFecha - a.ultimaFecha);
+}
+
+function topicSuggestions(summaries, baseTags) {
+  const byTag = new Map(summaries.map((item) => [normalizeText(item.etiqueta), item]));
+  const baseKeys = new Set(baseTags.map(normalizeText));
+  const fromBase = baseTags.map((etiqueta) => ({ etiqueta, resumen: byTag.get(normalizeText(etiqueta)) || null }));
+  const historical = summaries
+    .filter((item) => item.veces90Dias === 0 && !baseKeys.has(normalizeText(item.etiqueta)))
+    .map((item) => ({ etiqueta: item.etiqueta, resumen: item }));
+  return [...fromBase, ...historical]
+    .filter((item, index, list) => list.findIndex((other) => normalizeText(other.etiqueta) === normalizeText(item.etiqueta)) === index)
+    .sort((a, b) => {
+      const countDiff = (a.resumen?.veces90Dias || 0) - (b.resumen?.veces90Dias || 0);
+      if (countDiff) return countDiff;
+      const dateDiff = (a.resumen?.ultimaFecha?.getTime?.() || 0) - (b.resumen?.ultimaFecha?.getTime?.() || 0);
+      if (dateDiff) return dateDiff;
+      return normalizeText(a.etiqueta).localeCompare(normalizeText(b.etiqueta));
+    });
+}
+
+function countRecordsWithinDays(records, days) {
+  const now = startOfDay(new Date());
+  return records.filter((record) => (now - startOfDay(record.fecha)) / 86400000 <= days).length;
+}
+
+function topicColor(summary) {
+  if (!summary) return "rank-green";
+  const days = daysSince(summary.ultimaFecha);
+  if (days >= Number(state.config.diasVerdeTema || 180)) return "rank-green";
+  if (days >= Number(state.config.diasAmarilloTema || 90)) return "rank-yellow";
+  return "rank-red";
+}
+
+function topicDistanceText(date) {
+  const days = daysSince(date);
+  if (!Number.isFinite(days)) return "Sin registros";
+  return days === 0 ? "Hoy" : `Hace ${days} dias`;
+}
+
+function uniqueCleanList(items) {
+  const seen = new Set();
+  const clean = [];
+  items.forEach((item) => {
+    const value = String(item || "").trim();
+    const key = normalizeText(value);
+    if (!value || seen.has(key)) return;
+    seen.add(key);
+    clean.push(value);
+  });
+  return clean;
 }
 
 function renderBrotherList(items, tab, searchValue) {
@@ -1351,6 +1740,109 @@ function openAssignDialog(ranking) {
   });
 }
 
+function openAssignTopicDialog(suggestion) {
+  if (!suggestion) return;
+  const candidateAgendas = state.agendas
+    .filter((agenda) => agenda.estado !== "REALIZADA")
+    .sort((a, b) => a.fecha - b.fecha);
+  if (!candidateAgendas.length) {
+    toastMessage("No hay agendas borrador o confirmadas.");
+    return;
+  }
+
+  openModal({
+    title: `Asignar tema: ${suggestion.etiqueta}`,
+    body: `
+      <form id="assign-topic-form" class="form-grid">
+        ${field("topic-agenda", "Agenda", `<select id="topic-agenda" class="select">${candidateAgendas.map((agenda) => option(agenda.id, formatDateLong(agenda.fecha), candidateAgendas[0].id)).join("")}</select>`)}
+        ${field("topic-discourse", "Discurso asignado", `<select id="topic-discourse" class="select"></select>`)}
+        ${field("topic-exact", "Tema exacto", `<input id="topic-exact" class="input" value="${escapeAttr(suggestion.etiqueta)}">`)}
+        ${field("topic-tags-input", "Etiquetas", `<input id="topic-tags-input" class="input" value="${escapeAttr(suggestion.etiqueta)}">`, "Separá varias etiquetas con comas.")}
+      </form>
+    `,
+    footer: `
+      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
+      <button class="primary-button" form="assign-topic-form" type="submit">Asignar</button>
+    `,
+    bind: (dialog) => {
+      const agendaSelect = dialog.querySelector("#topic-agenda");
+      const discourseSelect = dialog.querySelector("#topic-discourse");
+      const topicInput = dialog.querySelector("#topic-exact");
+      const tagsInput = dialog.querySelector("#topic-tags-input");
+
+      const refreshDiscourses = () => {
+        const agenda = candidateAgendas.find((item) => item.id === agendaSelect.value);
+        const discourses = agenda?.mensajesEvangelio
+          ?.map((message, index) => ({ message, index }))
+          .filter((item) => item.message.tipo === "DISCURSO" && item.message.nombre)
+          || [];
+        discourseSelect.innerHTML = discourses.length
+          ? discourses.map((item) => option(String(item.index), discourseOptionLabel(item.message), discourseSelect.value)).join("")
+          : `<option value="">No hay discursos asignados</option>`;
+        discourseSelect.disabled = !discourses.length;
+        const selected = discourses.find((item) => String(item.index) === discourseSelect.value) || discourses[0];
+        if (selected?.message?.tema) topicInput.value = selected.message.tema;
+        if (selected?.message?.etiquetaTema) tagsInput.value = selected.message.etiquetaTema;
+      };
+
+      agendaSelect.addEventListener("change", refreshDiscourses);
+      discourseSelect.addEventListener("change", refreshDiscourses);
+      refreshDiscourses();
+
+      dialog.querySelector("#assign-topic-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await withToastError(async () => {
+          const agenda = candidateAgendas.find((item) => item.id === agendaSelect.value);
+          const index = Number(discourseSelect.value);
+          if (!agenda || !Number.isInteger(index)) throw new Error("Selecciona una agenda y un discurso.");
+          const messages = [...agenda.mensajesEvangelio];
+          const message = messages[index];
+          if (!message || message.tipo !== "DISCURSO") throw new Error("El mensaje seleccionado no es un discurso.");
+          const tema = topicInput.value.trim();
+          const etiquetaTema = tagsInput.value.trim() || suggestion.etiqueta || tema;
+          messages[index] = { ...message, tema, etiquetaTema };
+          await updateDoc(agendaRef(agenda.id), {
+            mensajesEvangelio: messages,
+            ultimaEdicionPor: userEmail(),
+            ultimaEdicionEn: serverTimestamp()
+          });
+          closeModal();
+          toastMessage("Tema asignado");
+        });
+      });
+    }
+  });
+}
+
+function discourseOptionLabel(message) {
+  return message.tema ? `${message.nombre} - ${message.tema}` : message.nombre;
+}
+
+function openTopicTagsDialog() {
+  openModal({
+    title: "Etiquetas de temas",
+    body: `
+      <form id="topic-tags-form" class="form-grid">
+        ${field("topic-tags-list", "Etiquetas", `<textarea id="topic-tags-list" class="textarea">${escapeHtml(topicTagsAvailable().join("\n"))}</textarea>`, "Escribi una etiqueta por linea o separalas con comas.")}
+      </form>
+    `,
+    footer: `
+      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
+      <button class="primary-button" form="topic-tags-form" type="submit">Guardar</button>
+    `,
+    bind: (dialog) => {
+      dialog.querySelector("#topic-tags-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const tags = uniqueCleanList(dialog.querySelector("#topic-tags-list").value.split(/[\n,]/));
+        await savePlanningConfig({ etiquetasTema: tags });
+        closeModal();
+        toastMessage("Etiquetas guardadas");
+        renderPlanning();
+      });
+    }
+  });
+}
+
 async function toggleInactive(ranking) {
   if (!ranking) return;
   await withToastError(async () => {
@@ -1397,6 +1889,10 @@ function openPlanningConfigDialog() {
     body: `
       <form id="planning-config-form" class="form-grid">
         <div class="inline-fields">
+          ${configColorField("green-topic", "Temas: verde desde dias", "rank-green", state.config.diasVerdeTema || 180)}
+          ${configColorField("yellow-topic", "Temas: amarillo desde dias", "rank-yellow", state.config.diasAmarilloTema || 90)}
+        </div>
+        <div class="inline-fields">
           ${configColorField("green-talk", "Discursos: verde desde días", "rank-green", state.config.diasVerdeDiscurso)}
           ${configColorField("yellow-talk", "Discursos: amarillo desde días", "rank-yellow", state.config.diasAmarilloDiscurso)}
         </div>
@@ -1414,21 +1910,31 @@ function openPlanningConfigDialog() {
       dialog.querySelector("#planning-config-form").addEventListener("submit", async (event) => {
         event.preventDefault();
         await withToastError(async () => {
-          const data = {
-            numeroUnidad: state.unitNumber,
+          await savePlanningConfig({
             diasVerdeDiscurso: Number(dialog.querySelector("#green-talk").value || 90),
             diasAmarilloDiscurso: Number(dialog.querySelector("#yellow-talk").value || 30),
             diasVerdeOracion: Number(dialog.querySelector("#green-prayer").value || 30),
-            diasAmarilloOracion: Number(dialog.querySelector("#yellow-prayer").value || 14)
-          };
-          if (state.configId) await setDoc(configRef(state.configId), data);
-          else await addDoc(collection(db, "configuracion"), data);
+            diasAmarilloOracion: Number(dialog.querySelector("#yellow-prayer").value || 14),
+            diasVerdeTema: Number(dialog.querySelector("#green-topic").value || 180),
+            diasAmarilloTema: Number(dialog.querySelector("#yellow-topic").value || 90)
+          });
           closeModal();
           toastMessage("Configuración guardada");
         });
       });
     }
   });
+}
+
+async function savePlanningConfig(partial) {
+  const data = {
+    ...defaultConfig,
+    ...state.config,
+    ...partial,
+    numeroUnidad: state.unitNumber
+  };
+  if (state.configId) await setDoc(configRef(state.configId), data);
+  else await addDoc(collection(db, "configuracion"), data);
 }
 
 function planningRankings() {
@@ -1777,6 +2283,8 @@ function labelBusiness(value) {
   return {
     RELEVO: "Relevo",
     SOSTENIMIENTO: "Sostenimiento",
+    ESTACA: "Estaca",
+    ORDENACION_AARONICA: "Ordenacion",
     OTROS: "Otros"
   }[value] || value;
 }
@@ -1789,6 +2297,37 @@ function labelMessage(value) {
   }[value] || value;
 }
 
+function descripcionAsuntoEstaca(item) {
+  const nombre = item?.columna2?.trim() || "[Nombre]";
+  return `Con la aprobacion de la presidencia de estaca, ${nombre}.`;
+}
+
+function oficioParaFormula(oficio) {
+  const clean = oficio?.trim();
+  return clean ? clean.charAt(0).toLowerCase() + clean.slice(1) : "[Oficio]";
+}
+
+function businessDescription(item) {
+  if (!item) return "";
+  if (item.tipo === "ESTACA") return descripcionAsuntoEstaca(item);
+  if (item.tipo === "ORDENACION_AARONICA") return [item.columna2, item.columna3].filter(Boolean).join(" - ");
+  if (item.tipo === "OTROS") return item.columna2 || "";
+  return [item.columna2, item.columna3].filter(Boolean).join(" - ");
+}
+
+function messageText(item) {
+  if (item.tipo === "HIMNO_INTERMEDIO") return `Himno intermedio - ${hymnLabel(item.himnoNumero, item.himnoNombre)}`;
+  if (item.tipo === "DISCURSO") {
+    const details = [
+      item.nombre,
+      item.tema ? `Tema: ${item.tema}` : "",
+      item.etiquetaTema ? `Etiquetas: ${item.etiquetaTema}` : ""
+    ].filter(Boolean).join(" - ");
+    return `${labelMessage(item.tipo)} - ${details || "Sin datos"}`;
+  }
+  return `${labelMessage(item.tipo)} - ${item.nombre || "Sin datos"}`;
+}
+
 function agendaText(agenda) {
   const lines = [
     `Agenda Reunión Sacramental - ${formatDateLong(agenda.fecha)}`,
@@ -1798,10 +2337,13 @@ function agendaText(agenda) {
     agenda.anuncios ? `Anuncios: ${agenda.anuncios}` : "",
     `Himno de apertura: ${hymnLabel(agenda.primerHimnoNumero, agenda.primerHimnoNombre)}`,
     `Primera oración: ${agenda.primeraOracion || "Sin datos"}`,
+    agenda.asuntosEstacaBarrio?.length
+      ? `Asuntos: ${agenda.asuntosEstacaBarrio.map((item) => `${labelBusiness(item.tipo)} - ${businessDescription(item)}`).join("; ")}`
+      : "",
     `Himno Sacramental: ${hymnLabel(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre)}`,
     agenda.reunionTestimonios
       ? `Testimonios: ${(agenda.testimonios || []).join(", ") || "Sin datos"}`
-      : `Mensajes: ${agenda.mensajesEvangelio.map((item) => item.tipo === "HIMNO_INTERMEDIO" ? hymnLabel(item.himnoNumero, item.himnoNombre) : `${labelMessage(item.tipo)} - ${item.nombre}`).join("; ") || "Sin datos"}`,
+      : `Mensajes: ${agenda.mensajesEvangelio.map((item) => messageText(item)).join("; ") || "Sin datos"}`,
     `Himno final: ${hymnLabel(agenda.himnoFinalNumero, agenda.himnoFinalNombre)}`,
     `Oración final: ${agenda.oracionFinal || "Sin datos"}`
   ].filter(Boolean);
