@@ -45,6 +45,19 @@ const AGENDA_GROUPS = [
   { state: "CONFIRMADA", label: "Confirmadas", defaultOpen: true },
   { state: "REALIZADA", label: "Realizadas", defaultOpen: false }
 ];
+const SVG_ICONS = {
+  search: `<path d="m21 21-4.35-4.35"></path><circle cx="11" cy="11" r="7"></circle>`,
+  calendarPlus: `<path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M3 10h18"></path><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M12 14v4"></path><path d="M10 16h4"></path>`,
+  plus: `<path d="M12 5v14"></path><path d="M5 12h14"></path>`,
+  chevronRight: `<path d="m9 18 6-6-6-6"></path>`,
+  bookOpen: `<path d="M12 7v14"></path><path d="M3 5.5A2.5 2.5 0 0 1 5.5 3H12v18H5.5A2.5 2.5 0 0 0 3 23z"></path><path d="M21 5.5A2.5 2.5 0 0 0 18.5 3H12v18h6.5A2.5 2.5 0 0 1 21 23z"></path>`,
+  fileText: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M8 13h8"></path><path d="M8 17h6"></path>`,
+  pencil: `<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path>`,
+  x: `<path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>`,
+  mic: `<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><path d="M12 19v3"></path>`,
+  users: `<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>`,
+  messageSquare: `<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>`
+};
 const BUSINESS_TYPES = ["RELEVO", "SOSTENIMIENTO", "ESTACA", "ORDENACION_AARONICA", "OTROS"];
 const MESSAGE_TYPES = ["DISCURSO", "TESTIMONIO", "HIMNO_INTERMEDIO"];
 const AARONIC_OFFICES = ["Diacono", "Maestro", "Presbitero"];
@@ -100,6 +113,7 @@ const screen = document.querySelector("#screen");
 const modal = document.querySelector("#modal");
 const toast = document.querySelector("#toast");
 const sessionChip = document.querySelector("#session-chip");
+const sidebarFooterUnit = document.querySelector("#sidebar-footer-unit");
 const topbarEyebrow = document.querySelector("#topbar-eyebrow");
 const topbarTitle = document.querySelector("#topbar-title");
 
@@ -305,6 +319,9 @@ function renderChrome() {
       : state.isBooting
         ? "Conectando..."
         : "Sin sesión";
+  if (sidebarFooterUnit) {
+    sidebarFooterUnit.textContent = `\u00a9 ${new Date().getFullYear()} \u00b7 ${state.unitNumber ? `Unidad ${state.unitNumber}` : "Sin unidad"}`;
+  }
   topbarEyebrow.textContent = state.unitNumber ? `Unidad ${state.unitNumber}` : "Agenda Sacramental";
   topbarTitle.textContent = routeTitle();
 }
@@ -463,15 +480,18 @@ function renderAgendas() {
   screen.innerHTML = `
     <div class="toolbar">
       <div class="toolbar-left">
-        <input id="agenda-search" class="input" type="search" placeholder="Buscar por fecha, nombre, himno..." style="width: min(420px, 100%);" value="${escapeAttr(searchValue)}">
+        <div class="search-field">
+          <span class="search-icon" aria-hidden="true">${icon("search")}</span>
+          <input id="agenda-search" class="input" type="search" placeholder="Buscar por fecha, nombre, himno..." value="${escapeAttr(searchValue)}">
+        </div>
         ${stateFilter("all", "Todas", true)}
         ${stateFilter("BORRADOR", "Borrador")}
         ${stateFilter("CONFIRMADA", "Confirmada")}
         ${stateFilter("REALIZADA", "Realizada")}
       </div>
       <div class="toolbar-right">
-        <button id="create-sundays" class="secondary-button" type="button">Crear domingos</button>
-        <button id="new-agenda" class="primary-button" type="button">Nueva agenda</button>
+        <button id="create-sundays" class="secondary-button" type="button">${buttonIcon("calendarPlus")}Crear domingos</button>
+        <button id="new-agenda" class="primary-button" type="button">${buttonIcon("plus")}Nueva agenda</button>
       </div>
     </div>
 
@@ -504,7 +524,7 @@ function renderAgendaDashboard(searchValue, filterState) {
     agendaMatchesState(nextAgenda, filterState) &&
     agendaMatchesSearch(nextAgenda, searchValue);
   return `
-    <section class="panel prominent">
+    <section class="summary-section">
       ${sectionTitle("Resumen", "", "")}
       <div class="metric-grid">
         ${metricPill("Total", stats.total)}
@@ -515,7 +535,7 @@ function renderAgendaDashboard(searchValue, filterState) {
 
     ${showNextAgenda ? `
       <section class="panel next-agenda-panel">
-        ${sectionTitle("Próximo domingo", "", `<button class="text-button" data-open="${escapeAttr(nextAgenda.id)}" type="button">Abrir</button>`)}
+        ${sectionTitle("Próximo domingo", "", `<button class="text-button" data-open="${escapeAttr(nextAgenda.id)}" type="button">Abrir ${buttonIcon("chevronRight")}</button>`)}
         ${agendaCard(nextAgenda)}
       </section>
     ` : ""}
@@ -601,21 +621,33 @@ function agendaCard(agenda) {
         <span class="status-pill status-${escapeAttr(agenda.estado)}">${escapeHtml(labelState(agenda.estado))}</span>
       </div>
       <div class="agenda-summary">
-        <div><span>Preside</span><strong>${escapeHtml(agenda.preside || "Sin datos")}</strong></div>
-        <div><span>Dirige</span><strong>${escapeHtml(agenda.dirige || "Sin datos")}</strong></div>
-        <div><span>Mensajes</span><strong>${agenda.mensajesEvangelio.length || agenda.testimonios.length || 0}</strong></div>
+        <div>${summaryLabel("mic", "Preside")}<strong>${escapeHtml(agenda.preside || "Sin datos")}</strong></div>
+        <div>${summaryLabel("users", "Dirige")}<strong>${escapeHtml(agenda.dirige || "Sin datos")}</strong></div>
+        <div>${summaryLabel("messageSquare", "Mensajes")}<strong>${agenda.mensajesEvangelio.length || agenda.testimonios.length || 0}</strong></div>
       </div>
       <div class="agenda-card-footer">
         <span class="item-meta">Asistencia: ${Number(agenda.asistencia || 0)}</span>
         <div class="item-actions">
-          <button class="secondary-button" data-read="${escapeAttr(agenda.id)}" type="button">Lectura</button>
-          <button class="secondary-button" data-print-agenda="${escapeAttr(agenda.id)}" type="button">PDF</button>
-          <button class="primary-button" data-open="${escapeAttr(agenda.id)}" type="button">Editar</button>
-          <button class="icon-button" data-delete-agenda="${escapeAttr(agenda.id)}" type="button" title="Eliminar">X</button>
+          <button class="secondary-button" data-read="${escapeAttr(agenda.id)}" type="button">${buttonIcon("bookOpen")}Lectura</button>
+          <button class="secondary-button" data-print-agenda="${escapeAttr(agenda.id)}" type="button">${buttonIcon("fileText")}PDF</button>
+          <button class="primary-button" data-open="${escapeAttr(agenda.id)}" type="button">${buttonIcon("pencil")}Editar</button>
+          <button class="icon-button" data-delete-agenda="${escapeAttr(agenda.id)}" type="button" title="Eliminar" aria-label="Eliminar agenda">${icon("x")}</button>
         </div>
       </div>
     </article>
   `;
+}
+
+function icon(name, className = "svg-icon") {
+  return `<svg class="${className}" viewBox="0 0 24 24" aria-hidden="true">${SVG_ICONS[name] || ""}</svg>`;
+}
+
+function buttonIcon(name) {
+  return `<span class="button-icon" aria-hidden="true">${icon(name)}</span>`;
+}
+
+function summaryLabel(iconName, label) {
+  return `<span>${icon(iconName, "summary-icon")} ${escapeHtml(label)}</span>`;
 }
 
 function bindAgendaListActions() {
