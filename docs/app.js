@@ -321,15 +321,18 @@ function routeTitle() {
 function renderLogin() {
   appShell.classList.add("setup-mode");
   screen.innerHTML = `
-    <div class="setup-wrap">
-      <section class="setup-panel">
-        <img class="login-mark" src="./assets/app-icon.webp" alt="">
+    <div class="setup-wrap auth-wrap">
+      <section class="auth-intro">
+        ${authMark()}
         <p class="eyebrow">Agenda Sacramental Web</p>
         <h2>Entrar con Google</h2>
         <p class="muted">Usa la misma cuenta y la misma unidad que en Android para trabajar sobre los datos existentes.</p>
-        <div class="button-row">
-          <button id="google-login" class="primary-button" type="button">Iniciar sesión con Google</button>
-        </div>
+      </section>
+      <section class="setup-panel auth-card">
+        <button id="google-login" class="google-button" type="button">
+          <span class="google-mark" aria-hidden="true">G</span>
+          Iniciar sesión con Google
+        </button>
       </section>
     </div>
   `;
@@ -349,23 +352,24 @@ function renderLogin() {
 function renderUnitAccess() {
   appShell.classList.add("setup-mode");
   screen.innerHTML = `
-    <div class="setup-wrap">
-      <section class="setup-panel">
+    <div class="setup-wrap auth-wrap">
+      <section class="auth-intro">
+        ${authMark()}
         <p class="eyebrow">${escapeHtml(userEmail())}</p>
         <h2>Acceso a unidad</h2>
         <p class="muted">Ingresa el número de unidad y su contraseña. Si la unidad no existe, podrás crearla con esa contraseña.</p>
+      </section>
+      <section class="setup-panel auth-card">
         <form id="unit-form" class="form-grid">
-          <div class="inline-fields">
-            <div class="field">
-              <label for="unit-number">Número de unidad</label>
-              <input id="unit-number" class="input" inputmode="numeric" autocomplete="off" required>
-            </div>
-            <div class="field">
-              <label for="unit-password">Contraseña</label>
-              <input id="unit-password" class="input" type="password" autocomplete="current-password" required>
-            </div>
+          <div class="field">
+            <label for="unit-number">Número de unidad</label>
+            <input id="unit-number" class="input" inputmode="numeric" autocomplete="off" required>
           </div>
-          <div class="button-row">
+          <div class="field">
+            <label for="unit-password">Contraseña</label>
+            <input id="unit-password" class="input" type="password" autocomplete="current-password" required>
+          </div>
+          <div class="auth-actions">
             <button class="primary-button" type="submit">Ingresar</button>
             <button id="logout-setup" class="secondary-button" type="button">Salir</button>
           </div>
@@ -384,6 +388,17 @@ function renderUnitAccess() {
       activateUnit(unitNumber);
     });
   });
+}
+
+function authMark() {
+  return `
+    <div class="auth-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M4.75 5.5c0-.69.56-1.25 1.25-1.25h4.2c1.02 0 1.8.33 2.3.86.5-.53 1.28-.86 2.3-.86H19c.69 0 1.25.56 1.25 1.25v12.75c0 .41-.34.75-.75.75h-4.7c-.86 0-1.4.2-1.78.54-.29.25-.75.25-1.04 0-.38-.34-.92-.54-1.78-.54H5.5a.75.75 0 0 1-.75-.75V5.5Z"/>
+        <path d="M12.5 6.1v12.5"/>
+      </svg>
+    </div>
+  `;
 }
 
 async function ensureUnitAccess(unitNumber, password) {
