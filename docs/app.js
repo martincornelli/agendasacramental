@@ -54,6 +54,8 @@ const SVG_ICONS = {
   fileText: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M8 13h8"></path><path d="M8 17h6"></path>`,
   pencil: `<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path>`,
   x: `<path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>`,
+  arrowUp: `<path d="m18 15-6-6-6 6"></path>`,
+  arrowDown: `<path d="m6 9 6 6 6-6"></path>`,
   mic: `<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><path d="M12 19v3"></path>`,
   users: `<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>`,
   messageSquare: `<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>`
@@ -865,7 +867,7 @@ function businessRow(item = {}) {
     <div class="dynamic-row business-row" data-business-row>
       <select class="select" data-business-type>${BUSINESS_TYPES.map((value) => option(value, labelBusiness(value), type)).join("")}</select>
       <div class="dynamic-row-fields">${fields}</div>
-      <button class="icon-button" data-remove-row type="button" title="Eliminar">X</button>
+      ${dynamicRowActions()}
     </div>
   `;
 }
@@ -898,32 +900,54 @@ function messageRow(item = {}) {
           `}
         `}
       </div>
-      <button class="icon-button" data-remove-row type="button" title="Eliminar">X</button>
+      ${dynamicRowActions()}
+    </div>
+  `;
+}
+
+function dynamicRowActions() {
+  return `
+    <div class="dynamic-row-actions" role="group" aria-label="Orden de fila">
+      <button class="icon-button" data-move-row="up" type="button" title="Subir" aria-label="Subir fila">${icon("arrowUp")}</button>
+      <button class="icon-button" data-move-row="down" type="button" title="Bajar" aria-label="Bajar fila">${icon("arrowDown")}</button>
+      <button class="icon-button danger-icon" data-remove-row type="button" title="Eliminar" aria-label="Eliminar fila">${icon("x")}</button>
     </div>
   `;
 }
 
 function addBusinessRow() {
-  screen.querySelector("#business-list").insertAdjacentHTML("beforeend", businessRow());
-  bindBusinessRow(screen.querySelector("#business-list [data-business-row]:last-child"));
+  const list = screen.querySelector("#business-list");
+  list.insertAdjacentHTML("beforeend", businessRow());
+  bindBusinessRow(list.querySelector("[data-business-row]:last-child"));
+  updateDynamicRowButtons(list);
 }
 
 function addMessageRow() {
-  screen.querySelector("#message-list").insertAdjacentHTML("beforeend", messageRow());
-  const row = screen.querySelector("#message-list [data-message-row]:last-child");
+  const list = screen.querySelector("#message-list");
+  list.insertAdjacentHTML("beforeend", messageRow());
+  const row = list.querySelector("[data-message-row]:last-child");
   bindMessageRow(row);
+  updateDynamicRowButtons(list);
 }
 
-function bindRemoveRow(button) {
-  button.addEventListener("click", () => button.closest(".dynamic-row")?.remove());
+function bindDynamicRowControls(row) {
+  row.querySelector("[data-remove-row]")?.addEventListener("click", () => {
+    const list = row.parentElement;
+    row.remove();
+    updateDynamicRowButtons(list);
+  });
+  row.querySelectorAll("[data-move-row]").forEach((button) => {
+    button.addEventListener("click", () => moveDynamicRow(row, button.dataset.moveRow));
+  });
 }
 
 function bindBusinessRows() {
   screen.querySelectorAll("[data-business-row]").forEach(bindBusinessRow);
+  updateDynamicRowButtons(screen.querySelector("#business-list"));
 }
 
 function bindBusinessRow(row) {
-  bindRemoveRow(row.querySelector("[data-remove-row]"));
+  bindDynamicRowControls(row);
   row.querySelector("[data-business-type]")?.addEventListener("change", (event) => {
     const nextItem = normalizeBusinessForType(readBusinessRow(row), event.target.value);
     replaceDynamicRow(row, businessRow(nextItem), bindBusinessRow);
@@ -937,10 +961,11 @@ function bindBusinessRow(row) {
 
 function bindMessageRows() {
   screen.querySelectorAll("[data-message-row]").forEach(bindMessageRow);
+  updateDynamicRowButtons(screen.querySelector("#message-list"));
 }
 
 function bindMessageRow(row) {
-  bindRemoveRow(row.querySelector("[data-remove-row]"));
+  bindDynamicRowControls(row);
   bindMessageHymnRow(row);
   row.querySelector("[data-message-type]")?.addEventListener("change", (event) => {
     const nextItem = normalizeMessageForType(readMessageRow(row), event.target.value);
@@ -951,8 +976,34 @@ function bindMessageRow(row) {
 function replaceDynamicRow(row, html, bind) {
   row.insertAdjacentHTML("afterend", html);
   const nextRow = row.nextElementSibling;
+  const list = row.parentElement;
   row.remove();
   bind(nextRow);
+  updateDynamicRowButtons(list);
+}
+
+function moveDynamicRow(row, direction) {
+  const list = row?.parentElement;
+  if (!list) return;
+  if (direction === "up" && row.previousElementSibling) {
+    list.insertBefore(row, row.previousElementSibling);
+  }
+  if (direction === "down" && row.nextElementSibling) {
+    list.insertBefore(row.nextElementSibling, row);
+  }
+  updateDynamicRowButtons(list);
+  row.querySelector(`[data-move-row="${direction}"]`)?.focus();
+}
+
+function updateDynamicRowButtons(list) {
+  if (!list) return;
+  const rows = [...list.children].filter((child) => child.classList.contains("dynamic-row"));
+  rows.forEach((row, index) => {
+    const up = row.querySelector('[data-move-row="up"]');
+    const down = row.querySelector('[data-move-row="down"]');
+    if (up) up.disabled = index === 0;
+    if (down) down.disabled = index === rows.length - 1;
+  });
 }
 
 function bindHymnAutoFill() {

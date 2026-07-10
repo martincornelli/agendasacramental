@@ -761,7 +761,7 @@ h3 {
 
 .dynamic-row.business-row,
 .dynamic-row.message-row {
-  grid-template-columns: minmax(150px, 0.9fr) minmax(0, 2fr) 42px;
+  grid-template-columns: minmax(150px, 0.9fr) minmax(0, 2fr) auto;
 }
 
 .dynamic-row-fields {
@@ -786,6 +786,22 @@ h3 {
 
 .compact-inline {
   width: 100%;
+}
+
+.dynamic-row-actions {
+  display: flex;
+  align-items: start;
+  justify-content: end;
+  gap: 6px;
+}
+
+.dynamic-row-actions .icon-button {
+  width: 38px;
+  min-height: 38px;
+}
+
+.danger-icon {
+  color: var(--red);
 }
 
 .topic-grid {
@@ -2063,6 +2079,14 @@ button:disabled,
 
   .dynamic-row .icon-button {
     width: 100%;
+  }
+
+  .dynamic-row-actions {
+    justify-content: flex-end;
+  }
+
+  .dynamic-row-actions .icon-button {
+    width: 42px;
   }
 
   .money-item,
