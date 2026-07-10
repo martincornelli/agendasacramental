@@ -4,7 +4,7 @@
     <!-- App -->
     <string name="app_name">Agenda Sacramental</string>
     <string name="app_subtitle">La Iglesia de Jesucristo de los\nSantos de los Últimos Días</string>
-    <string name="version">v1.2.5</string>
+    <string name="version">v1.2.9</string>
 
     <!-- Botones comunes -->
     <string name="btn_aceptar">Aceptar</string>
@@ -149,6 +149,9 @@
     <string name="editar_tema_discurso_placeholder">Nombre exacto del tema asignado</string>
     <string name="editar_etiqueta_tema">Etiqueta</string>
     <string name="editar_etiqueta_tema_placeholder">Ej.: Perdón</string>
+    <string name="editar_etiquetas_tema">Etiquetas</string>
+    <string name="editar_etiquetas_tema_placeholder">Ej.: Priorizar lo espiritual, Escrituras, Fe</string>
+    <string name="editar_etiquetas_tema_ayuda">Separá varias etiquetas con comas.</string>
     <string name="editar_nombre_estaca_placeholder">Ej.: Presidente García</string>
     <string name="editar_seleccionar_fecha">Seleccionar fecha</string>
     <string name="editar_ver_formula">Ver fórmula</string>
@@ -199,7 +202,7 @@
     <string name="plan_agregar_hermano">Agregar hermano</string>
     <string name="plan_configuracion">Configuración</string>
     <string name="plan_buscar">Buscar hermano/a...</string>
-    <string name="plan_buscar_tema">Buscar tema o etiqueta...</string>
+    <string name="plan_buscar_tema">Buscar tema o etiquetas...</string>
     <string name="plan_agregar_hermano_titulo">Agregar hermano/a</string>
     <string name="plan_editar_hermano_titulo">Editar hermano/a</string>
     <string name="plan_eliminar_hermano_titulo">Eliminar hermano/a</string>
@@ -239,8 +242,8 @@
     <string name="plan_tema_detalle">Último: %1$s · %2$d en 180 días · %3$d total</string>
     <string name="plan_ultimo_tema">Último tema: %s</string>
     <string name="plan_ultimo_tema_campo">Último tema</string>
-    <string name="plan_ultima_etiqueta_campo">Última etiqueta</string>
-    <string name="plan_ultima_etiqueta_resumen">Última etiqueta: %s</string>
+    <string name="plan_ultima_etiqueta_campo">Últimas etiquetas</string>
+    <string name="plan_ultima_etiqueta_resumen">Últimas etiquetas: %s</string>
     <string name="plan_asignar_tema_titulo">Asignar tema: %s</string>
     <string name="plan_asignar_tema_desc">Elegí una reunión borrador y un discurso ya asignado.</string>
     <string name="plan_discurso_asignado">Discurso asignado</string>
@@ -278,6 +281,7 @@
     <!-- Fórmulas litúrgicas -->
     <string name="formula_relevo">RELEVOS</string>
     <string name="formula_sostenimiento">SOSTENIMIENTOS</string>
+    <string name="formula_sostenimiento_oficiales">SOSTENIMIENTO DE OFICIALES</string>
     <string name="formula_estaca">ESTACA</string>
     <string name="formula_ordenacion_aaronica">ORDENACIÓN AL SACERDOCIO AARÓNICO</string>
     <string name="formula_otros">OTROS</string>
@@ -327,11 +331,15 @@
     <!-- Tipos de asunto -->
     <string name="tipo_relevo">Relevo</string>
     <string name="tipo_sostenimiento">Sostenimiento</string>
+    <string name="tipo_sostenimiento_oficiales">Sostenimiento de Oficiales</string>
     <string name="tipo_estaca">Estaca</string>
     <string name="tipo_ordenacion_aaronica">Ordenación</string>
     <string name="tipo_otros">Otros</string>
     <string name="asunto_estaca_descripcion">El %s tomará tiempo para asuntos de la estaca.</string>
     <string name="asunto_estaca_nombre_placeholder">[nombre]</string>
+    <string name="asunto_sostenimiento_oficiales_descripcion">%s tomará un tiempo para el sostenimiento de oficiales.</string>
+    <string name="asunto_sostenimiento_oficiales_nombre_placeholder">[Nombre del líder]</string>
+    <string name="editar_nombre_lider_placeholder">Ej.: Obispo García</string>
     <string name="oficio_diacono">Diácono</string>
     <string name="oficio_maestro">Maestro</string>
     <string name="oficio_presbitero">Presbítero</string>

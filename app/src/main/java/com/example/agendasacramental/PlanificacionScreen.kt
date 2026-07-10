@@ -957,17 +957,19 @@ fun calcularResumenTemas(agendas: List<Agenda>): List<TemaDiscursoResumen> {
     val hace90Dias = Date(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(90))
     val hace180Dias = Date(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(180))
     val registros = agendas.flatMap { agenda ->
-        agenda.mensajesEvangelio.mapNotNull { mensaje ->
-            if (mensaje.tipo != TipoMensaje.DISCURSO) return@mapNotNull null
+        agenda.mensajesEvangelio.flatMap { mensaje ->
+            if (mensaje.tipo != TipoMensaje.DISCURSO) return@flatMap emptyList()
             val tema = mensaje.tema.trim()
-            val etiqueta = mensaje.etiquetaTema.trim().ifBlank { tema }
-            if (tema.isBlank() && etiqueta.isBlank()) return@mapNotNull null
-            TemaDiscursoRegistro(
-                etiqueta = etiqueta,
-                tema = tema,
-                discursante = mensaje.nombre.trim(),
-                fecha = agenda.fecha
-            )
+            val etiquetas = etiquetasTemaDesdeTexto(mensaje.etiquetaTema, tema)
+            if (tema.isBlank() && etiquetas.isEmpty()) return@flatMap emptyList()
+            etiquetas.map { etiqueta ->
+                TemaDiscursoRegistro(
+                    etiqueta = etiqueta,
+                    tema = tema,
+                    discursante = mensaje.nombre.trim(),
+                    fecha = agenda.fecha
+                )
+            }
         }
     }
 
@@ -1903,7 +1905,7 @@ fun calcularRankings(
                     ) {
                         ultimaFechaTemaDiscurso = agenda.fecha
                         ultimoTemaDiscurso = msg.tema.trim()
-                        ultimaEtiquetaDiscurso = msg.etiquetaTema.trim().ifBlank { msg.tema.trim() }
+                        ultimaEtiquetaDiscurso = formatearEtiquetasTema(msg.etiquetaTema, msg.tema)
                     }
                     if (agenda.fecha.toDate().after(hace90Dias)) vecesDiscurso90++
                 }

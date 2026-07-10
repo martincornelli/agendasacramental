@@ -59,6 +59,7 @@ data class AsuntoEstacaBarrio(
 enum class TipoAsunto(val label: String, val stringResId: Int) {
     RELEVO("Relevo", R.string.tipo_relevo),
     SOSTENIMIENTO("Sostenimiento", R.string.tipo_sostenimiento),
+    SOSTENIMIENTO_OFICIALES("Sostenimiento de Oficiales", R.string.tipo_sostenimiento_oficiales),
     ESTACA("Estaca", R.string.tipo_estaca),
     ORDENACION_AARONICA("Ordenación", R.string.tipo_ordenacion_aaronica),
     OTROS("Otros", R.string.tipo_otros)
@@ -127,6 +128,31 @@ data class ConfiguracionPlanificacion(
 fun normalizarNombre(nombre: String): String {
     val normalized = Normalizer.normalize(nombre.trim(), Normalizer.Form.NFD)
     return normalized.replace(Regex("[\\p{InCombiningDiacriticalMarks}]"), "").lowercase()
+}
+
+fun formatearHimno(numero: Int, nombre: String): String {
+    val nombreLimpio = nombre.trim()
+    return when {
+        numero > 0 && nombreLimpio.isNotBlank() -> "$numero - $nombreLimpio"
+        numero > 0 -> numero.toString()
+        else -> nombreLimpio
+    }
+}
+
+fun etiquetasTemaDesdeTexto(texto: String, temaFallback: String = ""): List<String> {
+    val etiquetas = texto
+        .split(",")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinctBy { normalizarNombre(it) }
+
+    return etiquetas.ifEmpty {
+        temaFallback.trim().takeIf { it.isNotBlank() }?.let { listOf(it) } ?: emptyList()
+    }
+}
+
+fun formatearEtiquetasTema(texto: String, temaFallback: String = ""): String {
+    return etiquetasTemaDesdeTexto(texto, temaFallback).joinToString(", ")
 }
 
 fun esPrimerDomingoDelMes(fecha: Date): Boolean {

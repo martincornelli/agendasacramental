@@ -189,7 +189,7 @@ object GeneradorPDF {
         }
 
         // Himno apertura
-        val himnoAp = if (agenda.primerHimnoNumero > 0) "${agenda.primerHimnoNumero} - ${agenda.primerHimnoNombre}" else ""
+        val himnoAp = formatearHimno(agenda.primerHimnoNumero, agenda.primerHimnoNombre)
         campo(context.getString(R.string.pdf_himno_apertura), himnoAp, MARGIN_LEFT, y, COL_WIDTH)
         y += sp(16f)
 
@@ -264,7 +264,7 @@ object GeneradorPDF {
         y += sp(8f)
 
         // --- Himno Sacramental ---
-        val himnoSac = if (agenda.himnoSacramentalNumero > 0) "${agenda.himnoSacramentalNumero} - ${agenda.himnoSacramentalNombre}" else ""
+        val himnoSac = formatearHimno(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre)
         campo(context.getString(R.string.pdf_himno_sacramental), himnoSac, MARGIN_LEFT, y, COL_WIDTH)
         y += sp(16f)
 
@@ -302,7 +302,7 @@ object GeneradorPDF {
         var msgY = y + sp(14f)
         agenda.mensajesEvangelio.forEach { msg ->
             val texto = when (msg.tipo) {
-                TipoMensaje.HIMNO_INTERMEDIO -> "🎵 Himno: ${msg.himnoNumero} - ${msg.himnoNombre}"
+                TipoMensaje.HIMNO_INTERMEDIO -> "🎵 Himno: ${formatearHimno(msg.himnoNumero, msg.himnoNombre).ifBlank { "-" }}"
                 TipoMensaje.TESTIMONIO -> "Testimonio: ${msg.nombre}"
                 else -> "${context.getString(R.string.lectura_discurso)}: ${msg.nombre}"
             }
@@ -320,7 +320,7 @@ object GeneradorPDF {
         }
 
         // --- Himno Final ---
-        val himnoFin = if (agenda.himnoFinalNumero > 0) "${agenda.himnoFinalNumero} - ${agenda.himnoFinalNombre}" else ""
+        val himnoFin = formatearHimno(agenda.himnoFinalNumero, agenda.himnoFinalNombre)
         campo(context.getString(R.string.pdf_himno_final), himnoFin, MARGIN_LEFT, y, COL_WIDTH)
         y += sp(16f)
 
@@ -491,6 +491,7 @@ object GeneradorPDF {
         return when (tipo) {
             TipoAsunto.RELEVO -> context.getString(R.string.formula_relevo)
             TipoAsunto.SOSTENIMIENTO -> context.getString(R.string.formula_sostenimiento)
+            TipoAsunto.SOSTENIMIENTO_OFICIALES -> context.getString(R.string.formula_sostenimiento_oficiales)
             TipoAsunto.ESTACA -> context.getString(R.string.formula_estaca)
             TipoAsunto.ORDENACION_AARONICA -> context.getString(R.string.formula_ordenacion_aaronica)
             TipoAsunto.OTROS -> context.getString(R.string.formula_otros)
@@ -525,7 +526,7 @@ object GeneradorPDF {
         // Mantener el orden editable, agrupando solo asuntos consecutivos del mismo tipo.
         val bloques = bloquesAsuntosEnOrden(
             agenda.asuntosEstacaBarrio,
-            setOf(TipoAsunto.RELEVO, TipoAsunto.SOSTENIMIENTO, TipoAsunto.ORDENACION_AARONICA)
+            setOf(TipoAsunto.RELEVO, TipoAsunto.SOSTENIMIENTO, TipoAsunto.SOSTENIMIENTO_OFICIALES, TipoAsunto.ORDENACION_AARONICA)
         )
         var grupoIndex = 0
 

@@ -90,8 +90,7 @@ fun ModoLecturaScreen(
 
             // Himno apertura
             item {
-                val himno = if (agenda.primerHimnoNumero > 0)
-                    "${agenda.primerHimnoNumero} - ${agenda.primerHimnoNombre}" else "—"
+                val himno = formatearHimno(agenda.primerHimnoNumero, agenda.primerHimnoNombre)
                 CampoLectura(stringResource(R.string.lectura_himno_apertura), himno)
             }
 
@@ -118,6 +117,8 @@ fun ModoLecturaScreen(
                                     "• ${context.getString(asunto.tipo.stringResId)}:\n${asunto.columna2}"
                                 TipoAsunto.ESTACA ->
                                     "• ${context.getString(asunto.tipo.stringResId)}: ${descripcionAsuntoEstaca(asunto, context)}"
+                                TipoAsunto.SOSTENIMIENTO_OFICIALES ->
+                                    "• ${context.getString(asunto.tipo.stringResId)}: ${descripcionSostenimientoOficiales(asunto, context)}"
                                 TipoAsunto.ORDENACION_AARONICA ->
                                     "• ${context.getString(asunto.tipo.stringResId)}: ${asunto.columna2} — ${asunto.columna3}"
                                 TipoAsunto.RELEVO,
@@ -132,8 +133,7 @@ fun ModoLecturaScreen(
 
             // Himno sacramental
             item {
-                val himno = if (agenda.himnoSacramentalNumero > 0)
-                    "${agenda.himnoSacramentalNumero} - ${agenda.himnoSacramentalNombre}" else "—"
+                val himno = formatearHimno(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre)
                 CampoLectura(stringResource(R.string.lectura_himno_sacramental), himno)
             }
 
@@ -157,7 +157,7 @@ fun ModoLecturaScreen(
                         } else {
                             agenda.mensajesEvangelio.forEach { msg ->
                                 val texto = when (msg.tipo) {
-                                    TipoMensaje.HIMNO_INTERMEDIO -> "🎵 Himno: ${msg.himnoNumero} - ${msg.himnoNombre}"
+                                    TipoMensaje.HIMNO_INTERMEDIO -> "🎵 Himno: ${formatearHimno(msg.himnoNumero, msg.himnoNombre).ifBlank { "-" }}"
                                     TipoMensaje.TESTIMONIO -> stringResource(R.string.lectura_testimonio) + ": ${msg.nombre}"
                                     else -> buildString {
                                         append(stringResource(R.string.lectura_discurso) + ": ${msg.nombre}")
@@ -173,8 +173,7 @@ fun ModoLecturaScreen(
 
             // Himno final
             item {
-                val himno = if (agenda.himnoFinalNumero > 0)
-                    "${agenda.himnoFinalNumero} - ${agenda.himnoFinalNombre}" else "—"
+                val himno = formatearHimno(agenda.himnoFinalNumero, agenda.himnoFinalNombre)
                 CampoLectura(stringResource(R.string.lectura_himno_final), himno)
             }
 

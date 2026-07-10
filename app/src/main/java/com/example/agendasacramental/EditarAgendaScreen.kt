@@ -776,6 +776,7 @@ private fun oficiosAaronicos(context: Context): List<String> = listOf(
 private fun TipoAsunto.tieneFormulaLiturgica(): Boolean = when (this) {
     TipoAsunto.RELEVO,
     TipoAsunto.SOSTENIMIENTO,
+    TipoAsunto.SOSTENIMIENTO_OFICIALES,
     TipoAsunto.ORDENACION_AARONICA -> true
     TipoAsunto.ESTACA,
     TipoAsunto.OTROS -> false
@@ -783,7 +784,8 @@ private fun TipoAsunto.tieneFormulaLiturgica(): Boolean = when (this) {
 
 private fun AsuntoEstacaBarrio.normalizadoParaTipo(tipo: TipoAsunto, context: Context): AsuntoEstacaBarrio {
     return when (tipo) {
-        TipoAsunto.ESTACA -> copy(tipo = tipo, columna3 = "")
+        TipoAsunto.ESTACA,
+        TipoAsunto.SOSTENIMIENTO_OFICIALES -> copy(tipo = tipo, columna3 = "")
         TipoAsunto.OTROS -> copy(tipo = tipo, columna3 = "")
         TipoAsunto.ORDENACION_AARONICA -> {
             val oficio = columna3.takeIf { it in oficiosAaronicos(context) }.orEmpty()
@@ -804,6 +806,13 @@ fun descripcionAsuntoEstaca(asunto: AsuntoEstacaBarrio, context: android.content
         context.getString(R.string.asunto_estaca_nombre_placeholder)
     }
     return context.getString(R.string.asunto_estaca_descripcion, nombre)
+}
+
+fun descripcionSostenimientoOficiales(asunto: AsuntoEstacaBarrio, context: android.content.Context): String {
+    val nombre = asunto.columna2.trim().ifBlank {
+        context.getString(R.string.asunto_sostenimiento_oficiales_nombre_placeholder)
+    }
+    return context.getString(R.string.asunto_sostenimiento_oficiales_descripcion, nombre)
 }
 
 @Composable
@@ -944,6 +953,22 @@ fun AsuntoRow(
                     )
                     Text(
                         text = descripcionAsuntoEstaca(asunto, context),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+                TipoAsunto.SOSTENIMIENTO_OFICIALES -> {
+                    OutlinedTextField(
+                        value = asunto.columna2,
+                        onValueChange = { onAsuntoChange(asunto.copy(columna2 = it, columna3 = "")) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.editar_nombre)) },
+                        placeholder = { Text(stringResource(R.string.editar_nombre_lider_placeholder)) },
+                        singleLine = true
+                    )
+                    Text(
+                        text = descripcionSostenimientoOficiales(asunto, context),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
@@ -1153,8 +1178,9 @@ fun MensajeRow(
                     OutlinedTextField(
                         value = mensaje.etiquetaTema,
                         onValueChange = { onMensajeChange(mensaje.copy(etiquetaTema = it)) },
-                        label = { Text(stringResource(R.string.editar_etiqueta_tema)) },
-                        placeholder = { Text(stringResource(R.string.editar_etiqueta_tema_placeholder)) },
+                        label = { Text(stringResource(R.string.editar_etiquetas_tema)) },
+                        placeholder = { Text(stringResource(R.string.editar_etiquetas_tema_placeholder)) },
+                        supportingText = { Text(stringResource(R.string.editar_etiquetas_tema_ayuda)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -1184,7 +1210,8 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat, context: an
         anunciosStr.forEach { sb.appendLine("  • $it") }
     }
     sb.appendLine()
-    if (agenda.primerHimnoNumero > 0) sb.appendLine("🎵 ${context.getString(R.string.editar_primer_himno)}: ${agenda.primerHimnoNumero} - ${agenda.primerHimnoNombre}")
+    val himnoApertura = formatearHimno(agenda.primerHimnoNumero, agenda.primerHimnoNombre)
+    if (himnoApertura.isNotBlank()) sb.appendLine("🎵 ${context.getString(R.string.editar_primer_himno)}: $himnoApertura")
     if (agenda.directorMusica.isNotBlank()) sb.appendLine("🎼 ${context.getString(R.string.editar_director_musica)}: ${agenda.directorMusica}")
     if (agenda.pianista.isNotBlank()) sb.appendLine("🎹 ${context.getString(R.string.editar_pianista)}: ${agenda.pianista}")
     if (agenda.primeraOracion.isNotBlank()) sb.appendLine("🙏 ${context.getString(R.string.editar_primera_oracion)}: ${agenda.primeraOracion}")
@@ -1211,6 +1238,9 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat, context: an
                 TipoAsunto.ESTACA -> {
                     sb.appendLine("  • ${context.getString(it.tipo.stringResId)}: ${descripcionAsuntoEstaca(it, context)}")
                 }
+                TipoAsunto.SOSTENIMIENTO_OFICIALES -> {
+                    sb.appendLine("  • ${context.getString(it.tipo.stringResId)}: ${descripcionSostenimientoOficiales(it, context)}")
+                }
                 TipoAsunto.ORDENACION_AARONICA -> {
                     sb.appendLine("  • ${context.getString(it.tipo.stringResId)}: ${it.columna2} — ${it.columna3}")
                 }
@@ -1223,14 +1253,15 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat, context: an
     }
 
     sb.appendLine()
-    if (agenda.himnoSacramentalNumero > 0) sb.appendLine("🎵 ${context.getString(R.string.editar_himno_sacramental)}: ${agenda.himnoSacramentalNumero} - ${agenda.himnoSacramentalNombre}")
+    val himnoSacramental = formatearHimno(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre)
+    if (himnoSacramental.isNotBlank()) sb.appendLine("🎵 ${context.getString(R.string.editar_himno_sacramental)}: $himnoSacramental")
 
     if (agenda.mensajesEvangelio.isNotEmpty()) {
         sb.appendLine()
         sb.appendLine("📖 ${context.getString(R.string.editar_mensajes)}:")
         agenda.mensajesEvangelio.forEach {
             when (it.tipo) {
-                TipoMensaje.HIMNO_INTERMEDIO -> sb.appendLine("  🎵 Himno Intermedio: ${it.himnoNumero} - ${it.himnoNombre}")
+                TipoMensaje.HIMNO_INTERMEDIO -> sb.appendLine("  🎵 Himno Intermedio: ${formatearHimno(it.himnoNumero, it.himnoNombre).ifBlank { "-" }}")
                 TipoMensaje.TESTIMONIO -> sb.appendLine("  👁️‍🗨️ Testimonio: ${it.nombre}")
                 else -> {
                     sb.appendLine("  📖 ${context.getString(it.tipo.stringResId)}: ${it.nombre}")
@@ -1243,7 +1274,8 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat, context: an
     }
 
     sb.appendLine()
-    if (agenda.himnoFinalNumero > 0) sb.appendLine("🎵 ${context.getString(R.string.editar_himno_final)}: ${agenda.himnoFinalNumero} - ${agenda.himnoFinalNombre}")
+    val himnoFinal = formatearHimno(agenda.himnoFinalNumero, agenda.himnoFinalNombre)
+    if (himnoFinal.isNotBlank()) sb.appendLine("🎵 ${context.getString(R.string.editar_himno_final)}: $himnoFinal")
     if (agenda.oracionFinal.isNotBlank()) sb.appendLine("🙏 ${context.getString(R.string.editar_oracion_final)}: ${agenda.oracionFinal}")
 
     return sb.toString()
@@ -1254,6 +1286,7 @@ fun generarFormulaLiturgica(tipo: TipoAsunto, asuntos: List<AsuntoEstacaBarrio>,
 
     return when (tipo) {
         TipoAsunto.ESTACA -> asuntos.joinToString("\n") { descripcionAsuntoEstaca(it, context) }
+        TipoAsunto.SOSTENIMIENTO_OFICIALES -> asuntos.joinToString("\n") { descripcionSostenimientoOficiales(it, context) }
         TipoAsunto.ORDENACION_AARONICA -> asuntos.joinToString("\n\n") { asunto ->
             val nombre = asunto.columna2.ifBlank { "[Nombre]" }
             val oficio = oficioParaFormula(asunto.columna3)

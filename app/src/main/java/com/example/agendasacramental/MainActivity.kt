@@ -238,6 +238,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun verificarActualizacion() {
+        if (!puedeUsarActualizacionesDePlay()) return
+
         val appUpdateInfoTask = appUpdateManager.appUpdateInfo
 
         // Listener para cuando la descarga termina en segundo plano
@@ -251,6 +253,7 @@ class MainActivity : AppCompatActivity() {
 
         appUpdateInfoTask.addOnSuccessListener { appUpdateInfo ->
             if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
+                && appUpdateInfo.availableVersionCode() > BuildConfig.VERSION_CODE
                 && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)
             ) {
                 appUpdateManager.startUpdateFlowForResult(
@@ -262,8 +265,30 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun puedeUsarActualizacionesDePlay(): Boolean {
+        if (BuildConfig.DEBUG) return false
+
+        val installerPackage = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val sourceInfo = packageManager.getInstallSourceInfo(packageName)
+                sourceInfo.installingPackageName
+                    ?: sourceInfo.initiatingPackageName
+                    ?: sourceInfo.originatingPackageName
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getInstallerPackageName(packageName)
+            }
+        } catch (_: Exception) {
+            null
+        }
+
+        return installerPackage == "com.android.vending"
+    }
+
     override fun onResume() {
         super.onResume()
+        if (!puedeUsarActualizacionesDePlay()) return
+
         // Si el usuario vuelve a la app con una actualización ya descargada, completarla
         appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
             if (appUpdateInfo.installStatus() == InstallStatus.DOWNLOADED) {

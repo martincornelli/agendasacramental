@@ -4,7 +4,7 @@
     <!-- App -->
     <string name="app_name">Sacrament Meeting Agenda LDS</string>
     <string name="app_subtitle">The Church of Jesus Christ of\nLatter-day Saints</string>
-    <string name="version">v1.2.5</string>
+    <string name="version">v1.2.9</string>
 
     <!-- Common buttons -->
     <string name="btn_aceptar">Accept</string>
@@ -149,6 +149,9 @@
     <string name="editar_tema_discurso_placeholder">Exact assigned topic name</string>
     <string name="editar_etiqueta_tema">Tag</string>
     <string name="editar_etiqueta_tema_placeholder">E.g., Forgiveness</string>
+    <string name="editar_etiquetas_tema">Tags</string>
+    <string name="editar_etiquetas_tema_placeholder">E.g., Spiritual priorities, Scriptures, Faith</string>
+    <string name="editar_etiquetas_tema_ayuda">Separate multiple tags with commas.</string>
     <string name="editar_nombre_estaca_placeholder">E.g., President Garcia</string>
     <string name="editar_seleccionar_fecha">Select date</string>
     <string name="editar_ver_formula">View formula</string>
@@ -199,7 +202,7 @@
     <string name="plan_agregar_hermano">Add member</string>
     <string name="plan_configuracion">Settings</string>
     <string name="plan_buscar">Search member...</string>
-    <string name="plan_buscar_tema">Search topic or tag...</string>
+    <string name="plan_buscar_tema">Search topic or tags...</string>
     <string name="plan_agregar_hermano_titulo">Add member</string>
     <string name="plan_editar_hermano_titulo">Edit member</string>
     <string name="plan_eliminar_hermano_titulo">Remove member</string>
@@ -239,8 +242,8 @@
     <string name="plan_tema_detalle">Last: %1$s · %2$d in 180 days · %3$d total</string>
     <string name="plan_ultimo_tema">Last topic: %s</string>
     <string name="plan_ultimo_tema_campo">Last topic</string>
-    <string name="plan_ultima_etiqueta_campo">Last tag</string>
-    <string name="plan_ultima_etiqueta_resumen">Last tag: %s</string>
+    <string name="plan_ultima_etiqueta_campo">Last tags</string>
+    <string name="plan_ultima_etiqueta_resumen">Last tags: %s</string>
     <string name="plan_asignar_tema_titulo">Assign topic: %s</string>
     <string name="plan_asignar_tema_desc">Choose a draft meeting and an already assigned talk.</string>
     <string name="plan_discurso_asignado">Assigned talk</string>
@@ -278,6 +281,7 @@
     <!-- Liturgical formulas -->
     <string name="formula_relevo">RELEASES</string>
     <string name="formula_sostenimiento">CALLINGS</string>
+    <string name="formula_sostenimiento_oficiales">OFFICER SUSTAINING</string>
     <string name="formula_estaca">STAKE</string>
     <string name="formula_ordenacion_aaronica">AARONIC PRIESTHOOD ORDINATION</string>
     <string name="formula_otros">OTHER</string>
@@ -326,11 +330,15 @@
     <!-- Business types -->
     <string name="tipo_relevo">Release</string>
     <string name="tipo_sostenimiento">Calling</string>
+    <string name="tipo_sostenimiento_oficiales">Officer Sustaining</string>
     <string name="tipo_estaca">Stake</string>
     <string name="tipo_ordenacion_aaronica">Ordination</string>
     <string name="tipo_otros">Other</string>
     <string name="asunto_estaca_descripcion">%s will take time for stake business.</string>
     <string name="asunto_estaca_nombre_placeholder">[name]</string>
+    <string name="asunto_sostenimiento_oficiales_descripcion">%s will take time for the sustaining of officers.</string>
+    <string name="asunto_sostenimiento_oficiales_nombre_placeholder">[Leader name]</string>
+    <string name="editar_nombre_lider_placeholder">E.g., Bishop Garcia</string>
     <string name="oficio_diacono">Deacon</string>
     <string name="oficio_maestro">Teacher</string>
     <string name="oficio_presbitero">Priest</string>
