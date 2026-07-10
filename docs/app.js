@@ -222,10 +222,21 @@ async function loadFirebase() {
 function bindChrome() {
   document.querySelector("#brand-home").addEventListener("click", () => navigate("agendas"));
   document.querySelectorAll(".nav-item").forEach((button) => {
-    button.addEventListener("click", () => navigate(button.dataset.route));
+    button.addEventListener("click", () => {
+      closeMobileMenu();
+      navigate(button.dataset.route);
+    });
   });
-  document.querySelector("#change-unit").addEventListener("click", openChangeUnitDialog);
+  document.querySelector("#mobile-menu-toggle")?.addEventListener("click", () => {
+    const isOpen = appShell.classList.toggle("mobile-menu-open");
+    document.querySelector("#mobile-menu-toggle")?.setAttribute("aria-expanded", String(isOpen));
+  });
+  document.querySelector("#change-unit").addEventListener("click", () => {
+    closeMobileMenu();
+    openChangeUnitDialog();
+  });
   document.querySelector("#sign-out").addEventListener("click", async () => {
+    closeMobileMenu();
     await signOut(auth);
     state.unitNumber = "";
     localStorage.removeItem(UNIT_STORAGE_KEY);
@@ -233,13 +244,20 @@ function bindChrome() {
     render();
   });
   window.addEventListener("hashchange", () => {
+    closeMobileMenu();
     state.route = routeFromHash();
     state.activeAgendaId = null;
     render();
   });
 }
 
+function closeMobileMenu() {
+  appShell.classList.remove("mobile-menu-open");
+  document.querySelector("#mobile-menu-toggle")?.setAttribute("aria-expanded", "false");
+}
+
 function navigate(route) {
+  closeMobileMenu();
   state.route = route;
   state.activeAgendaId = null;
   if (location.hash !== `#${route}`) location.hash = route;
@@ -653,8 +671,8 @@ function agendaCard(agenda) {
         <span class="status-pill status-${escapeAttr(agenda.estado)}">${escapeHtml(labelState(agenda.estado))}</span>
       </div>
       <div class="agenda-summary">
-        <div>${summaryLabel("mic", "Preside")}<strong>${escapeHtml(agenda.preside || "Sin datos")}</strong></div>
-        <div>${summaryLabel("users", "Dirige")}<strong>${escapeHtml(agenda.dirige || "Sin datos")}</strong></div>
+        <div>${summaryLabel("users", "Preside")}<strong>${escapeHtml(agenda.preside || "Sin datos")}</strong></div>
+        <div>${summaryLabel("mic", "Dirige")}<strong>${escapeHtml(agenda.dirige || "Sin datos")}</strong></div>
         <div>${summaryLabel("messageSquare", "Mensajes")}<strong>${agenda.mensajesEvangelio.length || agenda.testimonios.length || 0}</strong></div>
       </div>
       <div class="agenda-card-footer">
@@ -1442,7 +1460,8 @@ function renderReadingMode() {
       </div>
       <div class="toolbar-right">
         <button class="secondary-button" data-action="copy" type="button">Copiar texto</button>
-        <button class="primary-button" data-action="print" type="button">Imprimir / PDF</button>
+        <button class="secondary-button" data-action="print-reading" type="button">Imprimir lectura</button>
+        <button class="primary-button" data-action="pdf-agenda" type="button">PDF agenda</button>
       </div>
     </div>
     <article class="reading-page">
@@ -1450,7 +1469,8 @@ function renderReadingMode() {
     </article>
   `;
   screen.querySelector('[data-action="back"]').addEventListener("click", () => navigate("agendas"));
-  screen.querySelector('[data-action="print"]').addEventListener("click", () => window.print());
+  screen.querySelector('[data-action="print-reading"]').addEventListener("click", () => window.print());
+  screen.querySelector('[data-action="pdf-agenda"]').addEventListener("click", () => exportAgendaPdf(agenda));
   screen.querySelector('[data-action="copy"]').addEventListener("click", async () => {
     await navigator.clipboard.writeText(agendaText(agenda));
     toastMessage("Texto copiado");
