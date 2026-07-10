@@ -90,7 +90,9 @@ const state = {
   unsubscribers: [],
   theme: localStorage.getItem(THEME_STORAGE_KEY) || "system",
   draftReadingAgenda: null,
-  draftPdfAgenda: null
+  draftPdfAgenda: null,
+  pdfReturnRoute: "agendas",
+  pdfReturnAgendaId: null
 };
 
 const appShell = document.querySelector("#app");
@@ -290,6 +292,7 @@ function render() {
 function renderChrome() {
   const setupMode = state.isBooting || !state.user || !state.unitNumber || Boolean(state.fatalError);
   appShell.classList.toggle("setup-mode", setupMode);
+  appShell.classList.toggle("pdf-mode", state.route === "pdf");
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.classList.toggle("active", button.dataset.route === state.route);
     button.disabled = !state.user || !state.unitNumber;
@@ -937,19 +940,29 @@ async function saveAgendaFromForm(event) {
     if (duplicate) throw new Error("Ya existe una agenda para esa fecha.");
     const data = agendaToFirestore(agenda, oldAgenda);
     let savedAgenda = agenda;
+    let message = "Agenda guardada";
     if (agenda.id) {
       await setDoc(agendaRef(agenda.id), data);
-      toastMessage("Agenda guardada");
     } else {
       const ref = await addDoc(collection(db, "agendas"), data);
       state.activeAgendaId = ref.id;
       savedAgenda = { ...agenda, id: ref.id };
-      toastMessage("Agenda creada");
+      message = "Agenda creada";
     }
     await syncAgendaParticipants(savedAgenda);
     await syncRemovedAgendaParticipants(oldAgenda, savedAgenda, agendasAfterSave(savedAgenda));
-    navigate("agendas");
+    upsertLocalAgenda(savedAgenda);
+    state.activeAgendaId = savedAgenda.id;
+    state.route = "edit";
+    render();
+    toastMessage(message);
   });
+}
+
+function upsertLocalAgenda(agenda) {
+  const index = state.agendas.findIndex((item) => item.id === agenda.id);
+  if (index >= 0) state.agendas[index] = { ...state.agendas[index], ...agenda };
+  else state.agendas = [{ ...agenda }, ...state.agendas];
 }
 
 function readAgendaForm(baseAgenda) {
@@ -1304,11 +1317,13 @@ function renderReadingMode() {
 }
 
 function exportAgendaPdf(agenda) {
+  state.pdfReturnRoute = state.route === "edit" ? "edit" : "agendas";
+  state.pdfReturnAgendaId = state.route === "edit" ? state.activeAgendaId : null;
   state.draftPdfAgenda = agenda;
   state.activeAgendaId = agenda.id || "__draft__";
   state.route = "pdf";
   render();
-  window.setTimeout(() => window.print(), 120);
+  window.setTimeout(() => window.print(), 220);
 }
 
 function readingHtml(agenda) {
@@ -1357,25 +1372,35 @@ function renderPdfMode() {
     screen.innerHTML = emptyPanel("No se encontro la agenda.");
     return;
   }
+  const returnLabel = state.pdfReturnRoute === "edit" ? "Volver a editar" : "Salir del PDF";
   screen.innerHTML = `
     <div class="toolbar">
       <div class="toolbar-left">
-        <button class="secondary-button" data-action="back" type="button">Volver</button>
+        <button class="secondary-button" data-action="back" type="button">${escapeHtml(returnLabel)}</button>
       </div>
       <div class="toolbar-right">
         <button class="primary-button" data-action="print" type="button">Imprimir / PDF</button>
       </div>
     </div>
-    <article class="pdf-page">
+    <div class="pdf-document">
       ${pdfHtml(agenda)}
-    </article>
+    </div>
   `;
-  screen.querySelector('[data-action="back"]').addEventListener("click", () => navigate("agendas"));
+  screen.querySelector('[data-action="back"]').addEventListener("click", closePdfMode);
   screen.querySelector('[data-action="print"]').addEventListener("click", () => window.print());
+  window.requestAnimationFrame(fitPdfPages);
+}
+
+function closePdfMode() {
+  state.route = state.pdfReturnRoute || "agendas";
+  state.activeAgendaId = state.pdfReturnAgendaId;
+  state.draftPdfAgenda = null;
+  render();
 }
 
 function pdfHtml(agenda) {
   return `
+    <article class="pdf-page pdf-main-page ${escapeAttr(pdfDensityClass(agenda))}">
     <div class="pdf-title">
       <h2>AGENDA REUNIÓN SACRAMENTAL</h2>
       <p>Una Experiencia Espiritual</p>
@@ -1407,6 +1432,8 @@ function pdfHtml(agenda) {
     <p class="pdf-muted">Postludio (10 minutos - sólo música)</p>
     <p class="pdf-quote">"Pero a pesar de las cosas que están escritas, siempre se ha concedido a los élderes de mi iglesia desde el principio, y siempre será así, dirigir todas las reuniones conforme los oriente y los guíe el Santo Espíritu." D y C 46:2</p>
     <p class="pdf-area">Área Sudamérica Sur</p>
+    </article>
+    ${agenda.reunionTestimonios ? pdfTestimonyPage(agenda) : ""}
   `;
 }
 
@@ -1432,11 +1459,9 @@ function pdfListSection(title, items, emptyLines = 1, muted = false) {
 }
 
 function pdfBusinessSection(agenda) {
-  const rows = agenda.asuntosEstacaBarrio
-    .map((item) => ({ label: labelBusiness(item.tipo), text: businessDescription(item) }))
-    .filter((item) => item.text);
-  const content = rows.length
-    ? `<ul class="pdf-list">${rows.map((item) => `<li><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.text)}</li>`).join("")}</ul>`
+  const blocks = businessBlocksInOrder(agenda.asuntosEstacaBarrio || []);
+  const content = blocks.length
+    ? blocks.map(pdfBusinessBlock).join("")
     : pdfEmptyLines(3);
   return `
     <section class="pdf-section">
@@ -1446,15 +1471,24 @@ function pdfBusinessSection(agenda) {
   `;
 }
 
+function pdfBusinessBlock(block) {
+  const type = block[0]?.tipo || "OTROS";
+  const text = liturgicalBusinessText(type, block);
+  return `
+    <div class="pdf-business-block">
+      <strong>${escapeHtml(businessFormulaLabel(type))}</strong>
+      <p>${escapeHtml(text).replaceAll("\n", "<br>")}</p>
+    </div>
+  `;
+}
+
 function pdfMessagesSection(agenda) {
   if (agenda.reunionTestimonios) {
-    const testimonies = (agenda.testimonios || []).filter(Boolean);
     return `
       <section class="pdf-section">
         <h3>Reunión de Testimonios</h3>
         <div class="pdf-box">
           <p class="pdf-box-lead">Tiempo de testimonios de la congregación</p>
-          ${testimonies.length ? `<ul class="pdf-list">${testimonies.map((name) => `<li>${escapeHtml(name)}</li>`).join("")}</ul>` : ""}
         </div>
       </section>
     `;
@@ -1473,16 +1507,37 @@ function pdfMessagesSection(agenda) {
 
 function pdfMessageItem(message) {
   if (message.tipo === "HIMNO_INTERMEDIO") {
-    return `<div class="pdf-message-line"><strong>Himno:</strong> ${escapeHtml(hymnLabel(message.himnoNumero, message.himnoNombre) || "-")}</div>`;
+    return `<div class="pdf-message-item"><div class="pdf-message-line"><strong>Himno:</strong> ${escapeHtml(hymnLabel(message.himnoNumero, message.himnoNombre) || "-")}</div></div>`;
   }
   if (message.tipo === "TESTIMONIO") {
-    return `<div class="pdf-message-line"><strong>Testimonio:</strong> ${escapeHtml(message.nombre || "-")}</div>`;
+    return `<div class="pdf-message-item"><div class="pdf-message-line"><strong>Testimonio:</strong> ${escapeHtml(message.nombre || "-")}</div></div>`;
   }
   const details = [
     `<div class="pdf-message-line"><strong>Discurso:</strong> ${escapeHtml(message.nombre || "-")}</div>`,
     message.tema ? `<div class="pdf-message-detail">Tema: ${escapeHtml(message.tema)}</div>` : ""
   ].filter(Boolean);
-  return details.join("");
+  return `<div class="pdf-message-item">${details.join("")}</div>`;
+}
+
+function pdfTestimonyPage(agenda) {
+  const names = (agenda.testimonios || []).filter(Boolean);
+  const lineCount = Math.max(28, names.length);
+  return `
+    <article class="pdf-page pdf-testimony-page">
+      <div class="pdf-testimony-title">
+        <h2>REUNIÓN DE TESTIMONIOS</h2>
+        <p>${escapeHtml(formatDateShort(agenda.fecha))}</p>
+      </div>
+      <div class="pdf-testimony-list">
+        ${Array.from({ length: lineCount }, (_, index) => `
+          <div class="pdf-testimony-row">
+            <span>${index + 1}.</span>
+            <strong>${escapeHtml(names[index] || "")}</strong>
+          </div>
+        `).join("")}
+      </div>
+    </article>
+  `;
 }
 
 function pdfEmptyLines(count) {
@@ -1494,6 +1549,37 @@ function splitCommaItems(value) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function fitPdfPages() {
+  const fitClasses = ["pdf-fit-normal", "pdf-fit-compact", "pdf-fit-dense", "pdf-fit-tiny"];
+  document.querySelectorAll(".pdf-main-page").forEach((page) => {
+    fitClasses.forEach((className) => page.classList.remove(className));
+    for (const className of fitClasses) {
+      page.classList.add(className);
+      const maxHeight = Math.max(1123, page.getBoundingClientRect().width * 1.4142);
+      if (page.scrollHeight <= maxHeight + 2 || className === fitClasses[fitClasses.length - 1]) break;
+      page.classList.remove(className);
+    }
+  });
+}
+
+function pdfDensityClass(agenda) {
+  const textLength = [
+    agenda.reconocimientos,
+    agenda.anuncios,
+    ...(agenda.asuntosEstacaBarrio || []).map((item) => liturgicalBusinessText(item.tipo, [item])),
+    ...(agenda.mensajesEvangelio || []).map(messageText)
+  ].join(" ").length;
+  const score = 28 +
+    Math.ceil(textLength / 115) +
+    (agenda.asuntosEstacaBarrio?.length || 0) * 3 +
+    (agenda.mensajesEvangelio?.length || 0) * 4;
+  if (agenda.reunionTestimonios) return score > 58 ? "pdf-fit-compact" : "pdf-fit-normal";
+  if (score > 78) return "pdf-fit-tiny";
+  if (score > 64) return "pdf-fit-dense";
+  if (score > 50) return "pdf-fit-compact";
+  return "pdf-fit-normal";
 }
 
 function renderPlanning() {
@@ -2466,14 +2552,86 @@ function labelMessage(value) {
   }[value] || value;
 }
 
+function businessBlocksInOrder(items, allowedTypes = null) {
+  const allowed = allowedTypes ? new Set(allowedTypes) : null;
+  const blocks = [];
+  (items || []).forEach((item) => {
+    if (!item || allowed?.has(item.tipo) === false) return;
+    if (item.tipo === "OTROS" && !item.columna2?.trim()) return;
+    if (!item.columna2?.trim() && !item.columna3?.trim()) return;
+    const last = blocks[blocks.length - 1];
+    if (last && last[0]?.tipo === item.tipo) last.push(item);
+    else blocks.push([item]);
+  });
+  return blocks;
+}
+
+function businessFormulaLabel(type) {
+  return {
+    RELEVO: "RELEVOS",
+    SOSTENIMIENTO: "SOSTENIMIENTOS",
+    ESTACA: "ESTACA",
+    ORDENACION_AARONICA: "ORDENACIÓN AL SACERDOCIO AARÓNICO",
+    OTROS: "OTROS"
+  }[type] || labelBusiness(type);
+}
+
+function liturgicalBusinessText(type, items) {
+  const clean = (items || []).filter((item) => item?.columna2?.trim() || item?.columna3?.trim());
+  if (!clean.length) return "";
+  if (type === "OTROS") return clean.map((item) => item.columna2?.trim()).filter(Boolean).join("\n");
+  if (type === "ESTACA") return clean.map(descripcionAsuntoEstaca).join("\n");
+  if (type === "ORDENACION_AARONICA") return clean.map(aaronicOrdinationFormula).join("\n");
+  if (type === "RELEVO") return releaseFormula(clean);
+  if (type === "SOSTENIMIENTO") return sustainingFormula(clean);
+  return clean.map(businessDescription).filter(Boolean).join("\n");
+}
+
+function releaseFormula(items) {
+  if (items.length === 1) {
+    const item = items[0];
+    return `"${businessName(item)} ha sido relevado como ${businessRole(item)}. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano."`;
+  }
+  return `Los siguientes hermanos/as han sido relevados de sus llamamientos: "${businessList(items)}. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano."`;
+}
+
+function sustainingFormula(items) {
+  if (items.length === 1) {
+    const item = items[0];
+    return `"${businessName(item)} ha sido llamado como ${businessRole(item)}. Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa]."`;
+  }
+  return `Los siguientes hermanos/as han sido llamados a los siguientes llamamientos: "${businessList(items)}. Los que estén a favor de sostenerlos, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa]."`;
+}
+
+function aaronicOrdinationFormula(item) {
+  return `Pedirle al hermano que se ponga de pie.\n"Proponemos que ${businessName(item)} reciba el Sacerdocio de Aarón y que sea ordenado ${oficioParaFormula(item.columna3)}. Los que estén a favor, sírvanse indicarlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa]"`;
+}
+
+function businessList(items) {
+  return items.map((item) => `${businessName(item)} como ${businessRole(item)}`).join("; ");
+}
+
+function businessName(item) {
+  return item?.columna2?.trim() || "[Nombre]";
+}
+
+function businessRole(item) {
+  return item?.columna3?.trim() || "[Llamamiento]";
+}
+
 function descripcionAsuntoEstaca(item) {
-  const nombre = item?.columna2?.trim() || "[Nombre]";
-  return `Con la aprobacion de la presidencia de estaca, ${nombre}.`;
+  const nombre = item?.columna2?.trim() || "[nombre]";
+  return `El ${nombre} tomará tiempo para asuntos de la estaca.`;
 }
 
 function oficioParaFormula(oficio) {
   const clean = oficio?.trim();
-  return clean ? clean.charAt(0).toLowerCase() + clean.slice(1) : "[Oficio]";
+  const labels = {
+    Diacono: "diácono",
+    Maestro: "maestro",
+    Presbitero: "presbítero"
+  };
+  return labels[clean] || (clean ? clean.charAt(0).toLowerCase() + clean.slice(1) : "[Oficio]");
 }
 
 function businessDescription(item) {

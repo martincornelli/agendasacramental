@@ -98,6 +98,13 @@ button:disabled {
   grid-template-columns: 1fr;
 }
 
+.app-shell.pdf-mode,
+.app-shell.setup-mode {
+  grid-template-columns: 1fr;
+}
+
+.pdf-mode .sidebar,
+.pdf-mode .topbar,
 .setup-mode .sidebar,
 .setup-mode .topbar {
   display: none;
@@ -819,15 +826,66 @@ h3 {
   font-size: 0.94em;
 }
 
+.pdf-document {
+  display: grid;
+  gap: 18px;
+}
+
 .pdf-page {
-  max-width: 794px;
+  --pdf-pad-y: 38px;
+  --pdf-pad-x: 44px;
+  --pdf-title-size: 1.03rem;
+  --pdf-main-size: 0.82rem;
+  --pdf-small-size: 0.76rem;
+  --pdf-detail-size: 0.72rem;
+  --pdf-quote-size: 0.68rem;
+  --pdf-gap: 10px;
+  --pdf-line: 1.35;
+  width: min(794px, 100%);
+  min-height: 1123px;
   margin: 0 auto;
-  padding: 38px 44px;
+  padding: var(--pdf-pad-y) var(--pdf-pad-x);
   background: #ffffff;
   color: #111111;
   font-family: Arial, Helvetica, sans-serif;
-  line-height: 1.35;
+  line-height: var(--pdf-line);
   box-shadow: var(--shadow);
+}
+
+.pdf-fit-compact {
+  --pdf-pad-y: 32px;
+  --pdf-pad-x: 38px;
+  --pdf-title-size: 0.98rem;
+  --pdf-main-size: 0.78rem;
+  --pdf-small-size: 0.71rem;
+  --pdf-detail-size: 0.67rem;
+  --pdf-quote-size: 0.64rem;
+  --pdf-gap: 7px;
+  --pdf-line: 1.26;
+}
+
+.pdf-fit-dense {
+  --pdf-pad-y: 26px;
+  --pdf-pad-x: 34px;
+  --pdf-title-size: 0.92rem;
+  --pdf-main-size: 0.72rem;
+  --pdf-small-size: 0.66rem;
+  --pdf-detail-size: 0.62rem;
+  --pdf-quote-size: 0.6rem;
+  --pdf-gap: 5px;
+  --pdf-line: 1.18;
+}
+
+.pdf-fit-tiny {
+  --pdf-pad-y: 22px;
+  --pdf-pad-x: 30px;
+  --pdf-title-size: 0.86rem;
+  --pdf-main-size: 0.66rem;
+  --pdf-small-size: 0.6rem;
+  --pdf-detail-size: 0.57rem;
+  --pdf-quote-size: 0.55rem;
+  --pdf-gap: 4px;
+  --pdf-line: 1.12;
 }
 
 .pdf-title {
@@ -835,18 +893,18 @@ h3 {
   text-align: center;
   border-bottom: 1px solid #111111;
   padding: 0 112px 12px;
-  margin-bottom: 14px;
+  margin-bottom: calc(var(--pdf-gap) + 4px);
 }
 
 .pdf-title h2 {
   margin: 0;
-  font-size: 1.03rem;
+  font-size: var(--pdf-title-size);
   letter-spacing: 0;
 }
 
 .pdf-title p {
   margin: 6px 0 0;
-  font-size: 0.78rem;
+  font-size: var(--pdf-small-size);
 }
 
 .pdf-attendance {
@@ -857,7 +915,7 @@ h3 {
   grid-template-columns: auto 64px;
   align-items: center;
   gap: 8px;
-  font-size: 0.72rem;
+  font-size: var(--pdf-detail-size);
 }
 
 .pdf-attendance strong {
@@ -865,7 +923,7 @@ h3 {
   display: grid;
   place-items: center;
   border: 1px solid #111111;
-  font-size: 0.78rem;
+  font-size: var(--pdf-small-size);
 }
 
 .pdf-row {
@@ -879,8 +937,8 @@ h3 {
   align-items: baseline;
   gap: 5px;
   min-width: 0;
-  margin: 8px 0;
-  font-size: 0.82rem;
+  margin: var(--pdf-gap) 0;
+  font-size: var(--pdf-main-size);
 }
 
 .pdf-field span {
@@ -898,36 +956,36 @@ h3 {
 }
 
 .pdf-muted {
-  margin: 10px 0;
+  margin: var(--pdf-gap) 0;
   color: #666666;
-  font-size: 0.76rem;
+  font-size: var(--pdf-small-size);
   font-style: italic;
 }
 
 .pdf-section {
-  margin: 10px 0;
+  margin: var(--pdf-gap) 0;
 }
 
 .pdf-section h3 {
   margin: 0 0 6px;
   color: #111111;
-  font-size: 0.82rem;
+  font-size: var(--pdf-main-size);
 }
 
 .pdf-section-muted h3 {
   color: #666666;
-  font-size: 0.76rem;
+  font-size: var(--pdf-small-size);
   font-style: italic;
 }
 
 .pdf-list {
   margin: 0;
   padding-left: 20px;
-  font-size: 0.8rem;
+  font-size: var(--pdf-main-size);
 }
 
 .pdf-box {
-  min-height: 68px;
+  min-height: 60px;
   padding: 8px 10px;
   border: 1px solid #111111;
 }
@@ -940,17 +998,17 @@ h3 {
 
 .pdf-message-box {
   display: grid;
-  gap: 5px;
+  gap: calc(var(--pdf-gap) * 0.55);
 }
 
 .pdf-message-line {
-  font-size: 0.8rem;
+  font-size: var(--pdf-main-size);
 }
 
 .pdf-message-detail {
   margin: -2px 0 3px 12px;
   color: #444444;
-  font-size: 0.72rem;
+  font-size: var(--pdf-detail-size);
 }
 
 .pdf-empty-line {
@@ -959,16 +1017,79 @@ h3 {
 }
 
 .pdf-quote {
-  margin: 14px 0 0;
+  margin: calc(var(--pdf-gap) + 4px) 0 0;
   padding-top: 10px;
   border-top: 1px solid #111111;
-  font-size: 0.68rem;
+  font-size: var(--pdf-quote-size);
 }
 
 .pdf-area {
   margin: 8px 0 0;
   text-align: right;
-  font-size: 0.68rem;
+  font-size: var(--pdf-quote-size);
+}
+
+.pdf-business-block + .pdf-business-block {
+  margin-top: calc(var(--pdf-gap) * 0.75);
+  padding-top: calc(var(--pdf-gap) * 0.75);
+  border-top: 1px solid #dddddd;
+}
+
+.pdf-business-block strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: var(--pdf-main-size);
+}
+
+.pdf-business-block p {
+  margin: 0;
+  font-size: var(--pdf-small-size);
+}
+
+.pdf-message-item {
+  break-inside: avoid;
+}
+
+.pdf-testimony-title {
+  text-align: center;
+  border-bottom: 1px solid #bbbbbb;
+  padding-bottom: 22px;
+  margin-bottom: 34px;
+}
+
+.pdf-testimony-title h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.pdf-testimony-title p {
+  margin: 8px 0 0;
+  color: #444444;
+  font-size: 0.82rem;
+}
+
+.pdf-testimony-list {
+  display: grid;
+  gap: 0;
+}
+
+.pdf-testimony-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: end;
+  min-height: 24px;
+  font-size: 0.82rem;
+}
+
+.pdf-testimony-row span {
+  text-align: right;
+  padding-right: 10px;
+}
+
+.pdf-testimony-row strong {
+  min-height: 18px;
+  border-bottom: 1px solid #bbbbbb;
+  font-weight: 400;
 }
 
 .setup-wrap {
@@ -1200,8 +1321,15 @@ h3 {
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html,
   body {
     background: #ffffff;
+    margin: 0;
   }
 
   .sidebar,
@@ -1224,14 +1352,39 @@ h3 {
   .reading-page,
   .pdf-page {
     border: 0;
-    padding: 0;
     box-shadow: none;
+    width: 210mm;
     max-width: none;
+    min-height: 297mm;
     border-radius: 0;
   }
 
   .pdf-page {
     color: #111111;
     background: #ffffff;
+    padding: 10mm 12mm;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .pdf-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .pdf-section,
+  .pdf-box,
+  .pdf-message-item,
+  .pdf-business-block {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .pdf-document {
+    display: block;
+  }
+
+  .pdf-testimony-row {
+    min-height: 7.25mm;
   }
 }
