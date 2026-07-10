@@ -286,6 +286,7 @@
     <string name="formula_ordenacion_aaronica">ORDENACIÓN AL SACERDOCIO AARÓNICO</string>
     <string name="formula_otros">OTROS</string>
     <string name="pdf_como">como</string>
+    <string name="pdf_conjuncion_y">y</string>
 
     <!-- PDF -->
     <string name="pdf_titulo">AGENDA REUNIÓN SACRAMENTAL</string>

@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.google.firebase.Timestamp
 import kotlinx.coroutines.launch
+import java.text.Normalizer
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -1305,11 +1306,7 @@ fun generarFormulaLiturgica(tipo: TipoAsunto, asuntos: List<AsuntoEstacaBarrio>,
                 }
             } else {
                 val como = context.getString(R.string.pdf_como)
-                val lista = asuntos.joinToString(", ") { asunto ->
-                    val nombre = asunto.columna2.ifBlank { "[Nombre]" }
-                    val cargo = asunto.columna3.ifBlank { "[Cargo]" }
-                    "$nombre $como $cargo"
-                }
+                val lista = listaLlamamientosAgrupada(asuntos, como, context)
                 if (tipo == TipoAsunto.RELEVO) {
                     context.getString(R.string.pdf_relevo_plural, lista)
                 } else {
@@ -1317,6 +1314,106 @@ fun generarFormulaLiturgica(tipo: TipoAsunto, asuntos: List<AsuntoEstacaBarrio>,
                 }
             }
         }
+    }
+}
+
+private data class LlamamientoAgrupado(
+    val cargo: String,
+    val nombres: MutableList<String>,
+    val nombresClave: MutableSet<String>
+)
+
+private val pluralesLlamamiento = mapOf(
+    "presidente" to "presidentes",
+    "presidenta" to "presidentas",
+    "presidente/a" to "presidentes/as",
+    "consejero" to "consejeros",
+    "consejera" to "consejeras",
+    "consejero/a" to "consejeros/as",
+    "maestro" to "maestros",
+    "maestra" to "maestras",
+    "maestro/a" to "maestros/as",
+    "lider" to "líderes",
+    "asesor" to "asesores",
+    "asesora" to "asesoras",
+    "asesor/a" to "asesores/as",
+    "ayudante" to "ayudantes",
+    "secretario" to "secretarios",
+    "secretaria" to "secretarias",
+    "secretario/a" to "secretarios/as",
+    "especialista" to "especialistas",
+    "president" to "presidents",
+    "counselor" to "counselors",
+    "counsellor" to "counsellors",
+    "teacher" to "teachers",
+    "leader" to "leaders",
+    "advisor" to "advisors",
+    "adviser" to "advisers",
+    "assistant" to "assistants",
+    "secretary" to "secretaries",
+    "specialist" to "specialists"
+)
+
+private fun listaLlamamientosAgrupada(
+    asuntos: List<AsuntoEstacaBarrio>,
+    como: String,
+    context: android.content.Context
+): String {
+    val grupos = mutableListOf<LlamamientoAgrupado>()
+    val gruposPorCargo = mutableMapOf<String, LlamamientoAgrupado>()
+
+    asuntos.forEach { asunto ->
+        val nombre = asunto.columna2.ifBlank { "[Nombre]" }
+        val cargo = asunto.columna3.ifBlank { "[Cargo]" }
+        val cargoClave = claveComparacion(cargo)
+        val grupo = gruposPorCargo.getOrPut(cargoClave) {
+            LlamamientoAgrupado(cargo = cargo, nombres = mutableListOf(), nombresClave = mutableSetOf()).also {
+                grupos += it
+            }
+        }
+        val nombreClave = claveComparacion(nombre)
+        if (grupo.nombresClave.add(nombreClave)) {
+            grupo.nombres += nombre
+        }
+    }
+
+    return grupos.joinToString("; ") { grupo ->
+        val cargo = if (grupo.nombres.size > 1) pluralizarLlamamiento(grupo.cargo) else grupo.cargo
+        "${unirNombresParaFormula(grupo.nombres, context)} $como $cargo"
+    }
+}
+
+private fun claveComparacion(texto: String): String {
+    return Normalizer.normalize(texto.trim(), Normalizer.Form.NFD)
+        .replace(Regex("\\p{Mn}+"), "")
+        .lowercase(Locale.ROOT)
+        .replace(Regex("\\s+"), " ")
+}
+
+private fun unirNombresParaFormula(nombres: List<String>, context: android.content.Context): String {
+    val conjuncion = context.getString(R.string.pdf_conjuncion_y)
+    return when (nombres.size) {
+        0 -> "[Nombre]"
+        1 -> nombres.first()
+        2 -> "${nombres[0]} $conjuncion ${nombres[1]}"
+        else -> "${nombres.dropLast(1).joinToString(", ")} $conjuncion ${nombres.last()}"
+    }
+}
+
+private fun pluralizarLlamamiento(cargo: String): String {
+    val primeraPalabra = Regex("^\\S+").find(cargo)?.value ?: return cargo
+    val pluralBase = pluralesLlamamiento[claveComparacion(primeraPalabra)] ?: return cargo
+    val plural = aplicarCapitalizacion(pluralBase, primeraPalabra)
+    return plural + cargo.drop(primeraPalabra.length)
+}
+
+private fun aplicarCapitalizacion(texto: String, referencia: String): String {
+    val letras = referencia.filter { it.isLetter() }
+    return when {
+        letras.isNotEmpty() && letras.all { it.isUpperCase() } -> texto.uppercase(Locale.ROOT)
+        referencia.firstOrNull()?.isUpperCase() == true ->
+            texto.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
+        else -> texto
     }
 }
 @Composable

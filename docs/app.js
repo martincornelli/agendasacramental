@@ -63,6 +63,36 @@ const SVG_ICONS = {
 const BUSINESS_TYPES = ["RELEVO", "SOSTENIMIENTO", "SOSTENIMIENTO_OFICIALES", "ESTACA", "ORDENACION_AARONICA", "OTROS"];
 const MESSAGE_TYPES = ["DISCURSO", "TESTIMONIO", "HIMNO_INTERMEDIO"];
 const AARONIC_OFFICES = ["Diacono", "Maestro", "Presbitero"];
+const CALLING_PLURALS = {
+  presidente: "presidentes",
+  presidenta: "presidentas",
+  "presidente/a": "presidentes/as",
+  consejero: "consejeros",
+  consejera: "consejeras",
+  "consejero/a": "consejeros/as",
+  maestro: "maestros",
+  maestra: "maestras",
+  "maestro/a": "maestros/as",
+  lider: "líderes",
+  asesor: "asesores",
+  asesora: "asesoras",
+  "asesor/a": "asesores/as",
+  ayudante: "ayudantes",
+  secretario: "secretarios",
+  secretaria: "secretarias",
+  "secretario/a": "secretarios/as",
+  especialista: "especialistas",
+  president: "presidents",
+  counselor: "counselors",
+  counsellor: "counsellors",
+  teacher: "teachers",
+  leader: "leaders",
+  advisor: "advisors",
+  adviser: "advisers",
+  assistant: "assistants",
+  secretary: "secretaries",
+  specialist: "specialists"
+};
 const BASE_TOPIC_TAGS = [
   "Jesucristo",
   "Expiacion",
@@ -2666,11 +2696,24 @@ function labelMessage(value) {
 
 function businessBlocksInOrder(items, allowedTypes = null) {
   const allowed = allowedTypes ? new Set(allowedTypes) : null;
+  const groupAcrossAgenda = new Set(["RELEVO", "SOSTENIMIENTO"]);
+  const blocksByType = new Map();
   const blocks = [];
   (items || []).forEach((item) => {
     if (!item || allowed?.has(item.tipo) === false) return;
     if (item.tipo === "OTROS" && !item.columna2?.trim()) return;
     if (!item.columna2?.trim() && !item.columna3?.trim()) return;
+
+    if (groupAcrossAgenda.has(item.tipo)) {
+      if (!blocksByType.has(item.tipo)) {
+        const block = [];
+        blocksByType.set(item.tipo, block);
+        blocks.push(block);
+      }
+      blocksByType.get(item.tipo).push(item);
+      return;
+    }
+
     const last = blocks[blocks.length - 1];
     if (last && last[0]?.tipo === item.tipo) last.push(item);
     else blocks.push([item]);
@@ -2722,7 +2765,28 @@ function aaronicOrdinationFormula(item) {
 }
 
 function businessList(items) {
-  return items.map((item) => `${businessName(item)} como ${businessRole(item)}`).join("; ");
+  const groups = [];
+  const groupsByRole = new Map();
+  (items || []).forEach((item) => {
+    const name = businessName(item);
+    const role = businessRole(item);
+    const roleKey = comparableText(role);
+    if (!groupsByRole.has(roleKey)) {
+      const group = { role, names: [], nameKeys: new Set() };
+      groupsByRole.set(roleKey, group);
+      groups.push(group);
+    }
+    const group = groupsByRole.get(roleKey);
+    const nameKey = comparableText(name);
+    if (!group.nameKeys.has(nameKey)) {
+      group.nameKeys.add(nameKey);
+      group.names.push(name);
+    }
+  });
+  return groups.map((group) => {
+    const role = group.names.length > 1 ? pluralizeCallingRole(group.role) : group.role;
+    return `${joinFormulaNames(group.names)} como ${role}`;
+  }).join("; ");
 }
 
 function businessName(item) {
@@ -2731,6 +2795,39 @@ function businessName(item) {
 
 function businessRole(item) {
   return item?.columna3?.trim() || "[Llamamiento]";
+}
+
+function comparableText(value) {
+  return (value || "")
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function joinFormulaNames(names) {
+  if (!names.length) return "[Nombre]";
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} y ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
+}
+
+function pluralizeCallingRole(role) {
+  const firstWord = role.match(/^\S+/)?.[0];
+  if (!firstWord) return role;
+  const pluralBase = CALLING_PLURALS[comparableText(firstWord)];
+  if (!pluralBase) return role;
+  return applyCapitalization(pluralBase, firstWord) + role.slice(firstWord.length);
+}
+
+function applyCapitalization(value, reference) {
+  const letters = reference.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, "");
+  if (letters && letters === letters.toUpperCase()) return value.toUpperCase();
+  if (reference[0] === reference[0]?.toUpperCase()) {
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  }
+  return value;
 }
 
 function descripcionAsuntoEstaca(item) {

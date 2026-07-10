@@ -471,10 +471,20 @@ object GeneradorPDF {
         tiposPermitidos: Set<TipoAsunto>? = null
     ): List<List<AsuntoEstacaBarrio>> {
         val bloques = mutableListOf<MutableList<AsuntoEstacaBarrio>>()
+        val bloquesPorTipo = mutableMapOf<TipoAsunto, MutableList<AsuntoEstacaBarrio>>()
+        val tiposAgrupablesEnTodaLaAgenda = setOf(TipoAsunto.RELEVO, TipoAsunto.SOSTENIMIENTO)
 
         asuntos.forEach { asunto ->
             if (tiposPermitidos != null && asunto.tipo !in tiposPermitidos) return@forEach
             if (asunto.tipo == TipoAsunto.OTROS && asunto.columna2.isBlank()) return@forEach
+
+            if (asunto.tipo in tiposAgrupablesEnTodaLaAgenda) {
+                val bloque = bloquesPorTipo.getOrPut(asunto.tipo) {
+                    mutableListOf<AsuntoEstacaBarrio>().also { bloques += it }
+                }
+                bloque += asunto
+                return@forEach
+            }
 
             val ultimoBloque = bloques.lastOrNull()
             if (ultimoBloque != null && ultimoBloque.first().tipo == asunto.tipo) {

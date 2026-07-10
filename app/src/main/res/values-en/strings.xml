@@ -286,6 +286,7 @@
     <string name="formula_ordenacion_aaronica">AARONIC PRIESTHOOD ORDINATION</string>
     <string name="formula_otros">OTHER</string>
     <string name="pdf_como">as</string>
+    <string name="pdf_conjuncion_y">and</string>
 
     <!-- PDF -->
     <string name="pdf_titulo">SACRAMENT MEETING AGENDA</string>
