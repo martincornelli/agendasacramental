@@ -28,6 +28,24 @@
   --toast-fg: #ffffff;
   --shadow: 0 22px 50px rgba(55, 74, 64, 0.12);
   --shadow-soft: 0 10px 26px rgba(55, 74, 64, 0.08);
+  --app-bg: linear-gradient(135deg, rgba(232, 241, 231, 0.88) 0%, rgba(251, 250, 246, 0.96) 48%, rgba(255, 248, 237, 0.94) 100%);
+  --sidebar-bg: rgba(255, 255, 255, 0.78);
+  --panel-bg: rgba(255, 255, 255, 0.9);
+  --panel-alt-bg: rgba(250, 252, 248, 0.92);
+  --card-bg: rgba(255, 255, 255, 0.94);
+  --card-subtle-bg: #f6f8f3;
+  --control-bg: rgba(255, 255, 255, 0.82);
+  --control-muted-bg: #eef2ec;
+  --metric-bg: rgba(255, 255, 255, 0.74);
+  --nav-active-bg: #e8f1ea;
+  --nav-active-fg: #244d3a;
+  --summary-bg: linear-gradient(135deg, #e9f1ea 0%, #f7faf3 100%);
+  --next-bg: linear-gradient(135deg, #fff6e4 0%, #fbefd9 100%);
+  --next-shadow: 0 18px 36px rgba(189, 145, 80, 0.16);
+  --disabled-bg: #edf1ed;
+  --disabled-fg: #889991;
+  --primary-hover: #346448;
+  --focus-ring: rgba(63, 117, 87, 0.14);
   --display-font: Georgia, "Times New Roman", serif;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -61,10 +79,29 @@
   --toast-bg: #d9efeb;
   --toast-fg: #071b18;
   --shadow: 0 20px 45px rgba(0, 0, 0, 0.34);
+  --shadow-soft: 0 12px 34px rgba(0, 0, 0, 0.25);
+  --app-bg: radial-gradient(circle at top left, rgba(36, 77, 58, 0.24), transparent 32%), linear-gradient(135deg, #0f1714 0%, #101916 52%, #15130f 100%);
+  --sidebar-bg: rgba(19, 27, 24, 0.9);
+  --panel-bg: rgba(22, 31, 27, 0.94);
+  --panel-alt-bg: rgba(27, 38, 33, 0.92);
+  --card-bg: rgba(17, 26, 23, 0.96);
+  --card-subtle-bg: #1c2823;
+  --control-bg: rgba(24, 34, 30, 0.94);
+  --control-muted-bg: #22302a;
+  --metric-bg: rgba(18, 28, 25, 0.9);
+  --nav-active-bg: rgba(130, 216, 207, 0.14);
+  --nav-active-fg: #d8fffa;
+  --summary-bg: linear-gradient(135deg, rgba(28, 45, 39, 0.96), rgba(22, 34, 30, 0.96));
+  --next-bg: linear-gradient(135deg, rgba(58, 46, 25, 0.94), rgba(35, 29, 20, 0.96));
+  --next-shadow: 0 18px 38px rgba(0, 0, 0, 0.28);
+  --disabled-bg: #2a3430;
+  --disabled-fg: #7e9189;
+  --primary-hover: #9ce9de;
+  --focus-ring: rgba(130, 216, 207, 0.2);
 }
 
 :root[data-theme="dark"] body {
-  background: #0f1413;
+  background: var(--app-bg);
 }
 
 * {
@@ -74,8 +111,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    linear-gradient(135deg, rgba(232, 241, 231, 0.88) 0%, rgba(251, 250, 246, 0.96) 48%, rgba(255, 248, 237, 0.94) 100%);
+  background: var(--app-bg);
   color: var(--ink);
 }
 
@@ -441,13 +477,19 @@ h3 {
 .section-title {
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .section-title-left {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.section-title h3 {
+  font-family: var(--display-font);
+  font-size: 1.08rem;
+  font-weight: 600;
 }
 
 .soft-badge {
@@ -496,6 +538,11 @@ h3 {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--outline-soft);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-soft);
 }
 
 .input,
@@ -1349,6 +1396,215 @@ h3 {
 .toast.visible {
   transform: translateY(0);
   opacity: 1;
+}
+
+/* Cohesive surface system for the Base44-inspired visual refresh. */
+.sidebar {
+  background: var(--sidebar-bg);
+  box-shadow: 16px 0 46px rgba(37, 52, 45, 0.08);
+}
+
+.brand-link {
+  padding: 6px;
+}
+
+.brand-link:hover {
+  background: var(--control-bg);
+}
+
+.brand-mark,
+.auth-mark {
+  background: var(--primary-container);
+}
+
+.session-chip,
+.chip-button,
+.filter-chip,
+.secondary-button,
+.icon-button,
+.google-button {
+  background: var(--control-bg);
+  color: var(--ink);
+  border-color: var(--outline);
+}
+
+.nav-item {
+  color: var(--muted);
+}
+
+.nav-item.active,
+.nav-item:hover {
+  background: var(--nav-active-bg);
+  color: var(--nav-active-fg);
+  border-color: color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+.topbar {
+  background: var(--topbar-bg);
+}
+
+.panel,
+.agenda-card,
+.setup-panel,
+.loading-panel,
+.empty-panel,
+.modal-content {
+  background: var(--panel-bg);
+  border-color: var(--outline-soft);
+  box-shadow: var(--shadow-soft);
+}
+
+.panel.prominent {
+  background: var(--summary-bg);
+  color: var(--ink);
+}
+
+.next-agenda-panel {
+  background: var(--next-bg);
+  box-shadow: var(--next-shadow);
+}
+
+.next-agenda-panel .agenda-card,
+.agenda-card {
+  background: var(--card-bg);
+}
+
+.metric-pill,
+.agenda-summary div,
+.dynamic-row,
+.topic-card,
+.money-item,
+.brother-item,
+.setup-option {
+  background: var(--card-subtle-bg);
+  border-color: var(--outline-soft);
+}
+
+.agenda-group {
+  background: var(--panel-alt-bg);
+  border-color: var(--outline-soft);
+}
+
+.agenda-group summary {
+  background: var(--control-muted-bg);
+}
+
+.agenda-group summary strong,
+.status-pill {
+  background: var(--control-bg);
+  color: var(--ink);
+}
+
+.input,
+.select,
+.textarea {
+  background: var(--field-bg);
+  color: var(--ink);
+  border-color: var(--outline);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: color-mix(in srgb, var(--muted) 78%, transparent);
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.primary-button:hover,
+.google-button:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+button:disabled,
+.filter-chip:disabled,
+.chip-button:disabled,
+.secondary-button:disabled {
+  background: var(--disabled-bg);
+  color: var(--disabled-fg);
+  border-color: var(--outline-soft);
+  box-shadow: none;
+}
+
+.auth-intro h2,
+.google-button {
+  color: var(--ink);
+}
+
+.auth-card {
+  background: var(--panel-bg);
+}
+
+.modal::backdrop {
+  background: rgba(8, 15, 12, 0.54);
+}
+
+:root[data-theme="dark"] .primary-button {
+  color: #081312;
+}
+
+:root[data-theme="dark"] .primary-button:hover,
+:root[data-theme="dark"] .google-button:hover {
+  color: #081312;
+}
+
+:root[data-theme="dark"] .google-button:hover .google-mark {
+  color: #081312;
+}
+
+:root[data-theme="dark"] .status-BORRADOR {
+  background: rgba(242, 193, 102, 0.18);
+  color: #ffe0a3;
+  border-color: rgba(242, 193, 102, 0.28);
+}
+
+:root[data-theme="dark"] .status-CONFIRMADA {
+  background: rgba(114, 217, 154, 0.16);
+  color: #a9efc1;
+  border-color: rgba(114, 217, 154, 0.24);
+}
+
+:root[data-theme="dark"] .status-REALIZADA {
+  background: #202b27;
+  color: var(--muted);
+}
+
+:root[data-theme="dark"] .topic-card.rank-green {
+  background: rgba(114, 217, 154, 0.12);
+}
+
+:root[data-theme="dark"] .topic-card.rank-yellow {
+  background: rgba(255, 215, 118, 0.13);
+}
+
+:root[data-theme="dark"] .topic-card.rank-red {
+  background: rgba(255, 180, 171, 0.12);
+}
+
+:root[data-theme="dark"] .danger-chip {
+  background: rgba(255, 180, 171, 0.12);
+  color: #ffcac3;
+  border-color: rgba(255, 180, 171, 0.34);
+}
+
+.screen-grid > .panel,
+.agenda-card,
+.topic-card,
+.brother-item,
+.money-item {
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.agenda-card:hover,
+.topic-card:hover,
+.brother-item:hover,
+.money-item:hover {
+  border-color: color-mix(in srgb, var(--primary) 32%, var(--outline-soft));
+  transform: translateY(-1px);
 }
 
 .skeleton {
