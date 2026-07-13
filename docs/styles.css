@@ -407,6 +407,10 @@ h3 {
   font-size: 1rem;
 }
 
+.icon-button.mobile-menu-toggle {
+  display: none;
+}
+
 .primary-button:hover,
 .google-button:hover {
   background: #346448;
@@ -2096,7 +2100,7 @@ button:disabled,
     font-size: 0.66rem;
   }
 
-  .mobile-menu-toggle {
+  .icon-button.mobile-menu-toggle {
     display: grid;
     flex: 0 0 42px;
     margin-left: auto;

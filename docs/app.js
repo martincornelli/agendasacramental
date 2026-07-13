@@ -139,6 +139,7 @@ const state = {
   pdfReturnRoute: "agendas",
   pdfReturnAgendaId: null
 };
+const autoCompletingAgendaIds = new Set();
 
 const appShell = document.querySelector("#app");
 const screen = document.querySelector("#screen");
@@ -287,7 +288,7 @@ function subscribeUnitData(unitNumber) {
     orderBy("fecha", "desc")
   );
   state.unsubscribers.push(onSnapshot(agendasQuery, (snapshot) => {
-    state.agendas = snapshot.docs.map((item) => normalizeAgenda(item.id, item.data()));
+    state.agendas = applyAutomaticAgendaStatus(snapshot.docs.map((item) => normalizeAgenda(item.id, item.data())));
     state.isReady = true;
     render();
   }, handleFatal));
@@ -316,6 +317,43 @@ function subscribeUnitData(unitNumber) {
 function handleFatal(error) {
   state.fatalError = error;
   render();
+}
+
+function applyAutomaticAgendaStatus(agendas) {
+  const pastDrafts = agendas.filter(shouldAutoCompleteAgenda);
+  if (pastDrafts.length) {
+    pastDrafts.forEach((agenda) => {
+      agenda.estado = "REALIZADA";
+    });
+    autoCompletePastAgendas(pastDrafts).catch((error) => {
+      console.warn("No se pudieron marcar agendas pasadas como realizadas.", error);
+    });
+  }
+  return agendas;
+}
+
+function shouldAutoCompleteAgenda(agenda) {
+  return Boolean(
+    agenda?.id &&
+    agenda.estado !== "REALIZADA" &&
+    startOfDay(agenda.fecha) < startOfDay(new Date()) &&
+    !autoCompletingAgendaIds.has(agenda.id)
+  );
+}
+
+async function autoCompletePastAgendas(agendas) {
+  const updates = agendas.filter((agenda) => !autoCompletingAgendaIds.has(agenda.id));
+  if (!updates.length) return;
+  updates.forEach((agenda) => autoCompletingAgendaIds.add(agenda.id));
+  try {
+    await Promise.all(updates.map((agenda) => updateDoc(agendaRef(agenda.id), {
+      estado: "REALIZADA",
+      ultimaEdicionPor: userEmail(),
+      ultimaEdicionEn: serverTimestamp()
+    })));
+  } finally {
+    updates.forEach((agenda) => autoCompletingAgendaIds.delete(agenda.id));
+  }
 }
 
 function render() {
@@ -807,7 +845,7 @@ function renderAgendaEditor() {
           Reunión de ayuno y testimonios
         </label>
         <div id="message-list" class="dynamic-list">${agenda.mensajesEvangelio.map(messageRow).join("")}</div>
-        <div class="field">
+        <div class="field ${agenda.reunionTestimonios ? "" : "hidden"}" data-testimonies-field>
           <label for="testimonios">Testimonios o nombres, uno por línea</label>
           <textarea id="testimonios" class="textarea">${escapeHtml((agenda.testimonios || []).join("\n"))}</textarea>
         </div>
@@ -831,9 +869,15 @@ function renderAgendaEditor() {
   });
   screen.querySelector("#add-business").addEventListener("click", addBusinessRow);
   screen.querySelector("#add-message").addEventListener("click", addMessageRow);
+  screen.querySelector("#reunionTestimonios").addEventListener("change", syncTestimoniesFieldVisibility);
   bindHymnAutoFill();
   bindBusinessRows();
   bindMessageRows();
+}
+
+function syncTestimoniesFieldVisibility() {
+  const isTestimonyMeeting = Boolean(screen.querySelector("#reunionTestimonios")?.checked);
+  screen.querySelector("[data-testimonies-field]")?.classList.toggle("hidden", !isTestimonyMeeting);
 }
 
 function field(id, label, control, hint = "") {
@@ -1125,10 +1169,13 @@ function upsertLocalAgenda(agenda) {
 }
 
 function readAgendaForm(baseAgenda) {
-  const testimonios = screen.querySelector("#testimonios").value
-    .split("\n")
-    .map((item) => item.trim())
-    .filter(Boolean);
+  const isTestimonyMeeting = screen.querySelector("#reunionTestimonios").checked;
+  const testimonios = isTestimonyMeeting
+    ? screen.querySelector("#testimonios").value
+      .split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean)
+    : [];
   return {
     ...baseAgenda,
     id: baseAgenda.id || "",
@@ -1156,7 +1203,7 @@ function readAgendaForm(baseAgenda) {
     mensajesEvangelio: [...screen.querySelectorAll("[data-message-row]")]
       .map(readMessageRow)
       .filter((item) => item.nombre || item.himnoNumero || item.himnoNombre || item.tema || item.etiquetaTema),
-    reunionTestimonios: screen.querySelector("#reunionTestimonios").checked,
+    reunionTestimonios: isTestimonyMeeting,
     testimonios
   };
 }
