@@ -10,6 +10,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
@@ -70,6 +72,7 @@ fun EditarAgendaScreen(
     var asuntos by remember { mutableStateOf<List<AsuntoEstacaBarrio>>(emptyList()) }
     var mensajes by remember { mutableStateOf<List<MensajeEvangelio>>(emptyList()) }
     var reunionTestimonios by remember { mutableStateOf(esPrimerDomingoDelMes(fechaDate)) }
+    var presentacionPrimaria by remember { mutableStateOf(false) }
     var testimonios by remember { mutableStateOf<List<String>>(emptyList()) }
     var metadataInfo by remember { mutableStateOf("") }
 
@@ -101,7 +104,8 @@ fun EditarAgendaScreen(
                 oracionFinal = agenda.oracionFinal
                 asuntos = agenda.asuntosEstacaBarrio
                 mensajes = agenda.mensajesEvangelio
-                reunionTestimonios = agenda.reunionTestimonios
+                presentacionPrimaria = agenda.presentacionPrimaria
+                reunionTestimonios = agenda.reunionTestimonios && !agenda.presentacionPrimaria
                 testimonios = agenda.testimonios
                 metadataInfo = if (agenda.ultimaEdicionPor.isNotBlank())
                     "Última edición: ${agenda.ultimaEdicionPor} — ${dateFormat.format(agenda.ultimaEdicionEn.toDate())}"
@@ -118,24 +122,25 @@ fun EditarAgendaScreen(
             fecha = Timestamp(fechaDate),
             estado = estado,
             asistencia = asistencia.toIntOrNull() ?: 0,
-            preside = preside,
-            dirige = dirige,
+            preside = preside.trimEnd(),
+            dirige = dirige.trimEnd(),
             reconocimientos = reconocimientos.filter { it.isNotBlank() }.joinToString(", "),
             anuncios = anuncios.filter { it.isNotBlank() }.joinToString(", "),
             primerHimnoNumero = primerHimnoNumero.toIntOrNull() ?: 0,
             primerHimnoNombre = primerHimnoNombre,
-            directorMusica = directorMusica,
-            pianista = pianista,
+            directorMusica = directorMusica.trimEnd(),
+            pianista = pianista.trimEnd(),
             himnoSacramentalNumero = himnoSacramentalNumero.toIntOrNull() ?: 0,
             himnoSacramentalNombre = himnoSacramentalNombre,
             himnoFinalNumero = himnoFinalNumero.toIntOrNull() ?: 0,
             himnoFinalNombre = himnoFinalNombre,
-            primeraOracion = primeraOracion,
-            oracionFinal = oracionFinal,
+            primeraOracion = primeraOracion.trimEnd(),
+            oracionFinal = oracionFinal.trimEnd(),
             asuntosEstacaBarrio = asuntos,
-            mensajesEvangelio = if (reunionTestimonios) emptyList() else mensajes,
+            mensajesEvangelio = if (reunionTestimonios || presentacionPrimaria) emptyList() else mensajes.map { it.copy(nombre = it.nombre.trimEnd()) },
             reunionTestimonios = reunionTestimonios,
-            testimonios = testimonios.filter { it.isNotBlank() },
+            presentacionPrimaria = presentacionPrimaria,
+            testimonios = if (reunionTestimonios) testimonios.map { it.trimEnd() }.filter { it.isNotBlank() } else emptyList(),
             creadoPor = userEmail,
             creadoEn = Timestamp.now(),
             ultimaEdicionPor = userEmail,
@@ -299,7 +304,7 @@ fun EditarAgendaScreen(
                                     val fechaAnteriorEraPrimerDomingo = esPrimerDomingoDelMes(fechaDate)
                                     fechaDate = nuevaFecha
                                     when {
-                                        esPrimerDomingoDelMes(nuevaFecha) -> reunionTestimonios = true
+                                        esPrimerDomingoDelMes(nuevaFecha) && !presentacionPrimaria -> reunionTestimonios = true
                                         fechaAnteriorEraPrimerDomingo && testimonios.all { it.isBlank() } -> reunionTestimonios = false
                                     }
                                 },
@@ -323,9 +328,24 @@ fun EditarAgendaScreen(
                     SeccionTestimonios(
                         activa = reunionTestimonios,
                         testimonios = testimonios,
-                        onActivaChange = { reunionTestimonios = it },
+                        onActivaChange = { reunionTestimonios = it; if (it) presentacionPrimaria = false },
                         onTestimoniosChange = { testimonios = it }
                     )
+                }
+
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(R.string.editar_presentacion_primaria),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(checked = presentacionPrimaria, onCheckedChange = {
+                            presentacionPrimaria = it
+                            if (it) reunionTestimonios = false
+                        })
+                    }
                 }
 
                 item {
@@ -420,7 +440,9 @@ fun EditarAgendaScreen(
                 }
 
                 item {
-                    if (reunionTestimonios) {
+                    if (presentacionPrimaria) {
+                        Text(stringResource(R.string.tiempo_presentacion_primaria), style = MaterialTheme.typography.bodyLarge)
+                    } else if (reunionTestimonios) {
                         AvisoTiempoTestimonios()
                     } else {
                         TablaMensajes(
@@ -637,48 +659,42 @@ fun CampoConAutocompletado(
     valor: String, onValorChange: (String) -> Unit,
     label: String, sugerencias: List<String>
 ) {
-    val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
-    val filtradas = remember(valor, sugerencias) {
-        if (valor.isBlank()) emptyList()
-        else sugerencias.filter { it.contains(valor, ignoreCase = true) && it != valor }
-    }
-
-    // Detectar nombre similar (misma normalización pero texto diferente)
-    val nombreSimilar = remember(valor, sugerencias) {
-        if (valor.isBlank()) null
-        else sugerencias.firstOrNull { s ->
-            normalizarNombre(s) == normalizarNombre(valor) && s != valor
-        }
-    }
-
+    var nombreResuelto by remember { mutableStateOf<String?>(null) }
+    val limpias = remember(sugerencias) { sugerencias.map { it.trimEnd() }.distinct() }
+    val filtradas = limpias.filter { valor.isNotBlank() && it.contains(valor.trimEnd(), ignoreCase = true) && it != valor.trimEnd() }
+    val nombreSimilar = if (valor.isBlank() || nombreResuelto == valor.trimEnd() || valor.trimEnd() in limpias) null
+        else limpias.firstOrNull { normalizarNombre(it) == normalizarNombre(valor) }
     Column {
-        ExposedDropdownMenuBox(
-            expanded = expanded && filtradas.isNotEmpty(),
-            onExpandedChange = { expanded = it }
-        ) {
+        ExposedDropdownMenuBox(expanded = expanded && filtradas.isNotEmpty(), onExpandedChange = { expanded = it }) {
             OutlinedTextField(
-                value = valor, onValueChange = { onValorChange(it); expanded = true },
+                value = valor,
+                onValueChange = { nombreResuelto = null; onValorChange(it); expanded = true },
                 label = { Text(label) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(), singleLine = true
+                modifier = Modifier.fillMaxWidth().menuAnchor().onFocusChanged {
+                    if (!it.isFocused && valor != valor.trimEnd()) onValorChange(valor.trimEnd())
+                }, singleLine = true
             )
             if (filtradas.isNotEmpty()) {
                 ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     filtradas.take(5).forEach { sugerencia ->
-                        DropdownMenuItem(text = { Text(sugerencia) }, onClick = { onValorChange(sugerencia); expanded = false })
+                        DropdownMenuItem(text = { Text(sugerencia) }, onClick = {
+                            nombreResuelto = sugerencia; onValorChange(sugerencia); expanded = false
+                        })
                     }
                 }
             }
         }
         if (nombreSimilar != null) {
-            Text(
-                "¿Quisiste decir \"$nombreSimilar\"?",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.tertiary,
-                modifier = Modifier
-                    .padding(start = 4.dp, top = 2.dp)
-                    .clickable { onValorChange(nombreSimilar); expanded = false }
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.nombre_sugerencia, nombreSimilar), modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
+                IconButton(onClick = { nombreResuelto = nombreSimilar; onValorChange(nombreSimilar); expanded = false }) {
+                    Icon(Icons.Default.Check, stringResource(R.string.nombre_aceptar), tint = Color(0xFF2E7D32))
+                }
+                IconButton(onClick = { nombreResuelto = valor.trimEnd(); onValorChange(valor.trimEnd()); expanded = false }) {
+                    Icon(Icons.Default.Close, stringResource(R.string.nombre_descartar), tint = Color(0xFFC62828))
+                }
+            }
         }
     }
 }
@@ -1217,7 +1233,7 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat, context: an
     if (agenda.pianista.isNotBlank()) sb.appendLine("🎹 ${context.getString(R.string.editar_pianista)}: ${agenda.pianista}")
     if (agenda.primeraOracion.isNotBlank()) sb.appendLine("🙏 ${context.getString(R.string.editar_primera_oracion)}: ${agenda.primeraOracion}")
 
-    if (agenda.reunionTestimonios) {
+    if (agenda.reunionTestimonios && !agenda.presentacionPrimaria) {
         sb.appendLine()
         sb.appendLine("🗣 ${context.getString(R.string.pdf_reunion_testimonios)}:")
         if (agenda.testimonios.isEmpty()) {
@@ -1257,7 +1273,10 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat, context: an
     val himnoSacramental = formatearHimno(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre)
     if (himnoSacramental.isNotBlank()) sb.appendLine("🎵 ${context.getString(R.string.editar_himno_sacramental)}: $himnoSacramental")
 
-    if (agenda.mensajesEvangelio.isNotEmpty()) {
+    if (agenda.presentacionPrimaria) {
+        sb.appendLine()
+        sb.appendLine(context.getString(R.string.tiempo_presentacion_primaria))
+    } else if (!agenda.reunionTestimonios && agenda.mensajesEvangelio.isNotEmpty()) {
         sb.appendLine()
         sb.appendLine("📖 ${context.getString(R.string.editar_mensajes)}:")
         agenda.mensajesEvangelio.forEach {

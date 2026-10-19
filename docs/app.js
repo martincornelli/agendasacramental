@@ -36,6 +36,15 @@ let signOut;
 let updateDoc;
 let where;
 
+const MEETING_TEXT = {
+  es: { primary: "Presentación de la Primaria", announcement: "Hoy tendremos el privilegio de disfrutar de la Presentación de la Primaria. Ahora el tiempo de la reunión estará a cargo de los niños del barrio y sus líderes", suggestion: "¿Quisiste decir {name}?", accept: "Usar nombre sugerido", dismiss: "Conservar nombre escrito" },
+  en: { primary: "Primary Presentation", announcement: "Today we will have the privilege of enjoying the Primary Presentation. The meeting will now be turned over to the children of the ward and their leaders.", suggestion: "Did you mean {name}?", accept: "Use suggested name", dismiss: "Keep entered name" }
+};
+function meetingText(key) {
+  const language = (navigator.language || "es").toLowerCase().startsWith("en") ? "en" : "es";
+  return MEETING_TEXT[language][key];
+}
+
 const UNIT_STORAGE_KEY = "agenda_sacramental_web_unit";
 const THEME_STORAGE_KEY = "agenda_sacramental_web_theme";
 const GITHUB_PAGES_DOMAIN = "martincornelli.github.io";
@@ -704,7 +713,7 @@ function agendaCard(agenda) {
       <div class="agenda-card-header">
         <div>
           <h3>${escapeHtml(formatDateLong(agenda.fecha))}</h3>
-          <p class="item-meta">${agenda.reunionTestimonios ? "Reunión de ayuno y testimonios" : "Reunión sacramental"}</p>
+          <p class="item-meta">${agenda.presentacionPrimaria ? meetingText("primary") : agenda.reunionTestimonios ? "Reunión de ayuno y testimonios" : "Reunión sacramental"}</p>
         </div>
         <span class="status-pill status-${escapeAttr(agenda.estado)}">${escapeHtml(labelState(agenda.estado))}</span>
       </div>
@@ -839,11 +848,17 @@ function renderAgendaEditor() {
       </section>
 
       <section class="panel">
-        ${sectionTitle("Mensajes del Evangelio", "M", `<button class="secondary-button" id="add-message" type="button">Agregar</button>`)}
+        ${sectionTitle("Tipo de reunión", "M", `<button class="secondary-button" id="add-message" type="button">Agregar</button>`)}
         <label class="checkbox-line">
           <input id="reunionTestimonios" type="checkbox" ${agenda.reunionTestimonios ? "checked" : ""}>
           Reunión de ayuno y testimonios
         </label>
+        <label class="checkbox-line">
+          <input id="presentacionPrimaria" type="checkbox" ${agenda.presentacionPrimaria ? "checked" : ""}>
+          ${meetingText("primary")}
+        </label>
+        <p data-primary-announcement class="hidden">${meetingText("announcement")}</p>
+        <h3 data-messages-heading>Mensajes del Evangelio</h3>
         <div id="message-list" class="dynamic-list">${agenda.mensajesEvangelio.map(messageRow).join("")}</div>
         <div class="field ${agenda.reunionTestimonios ? "" : "hidden"}" data-testimonies-field>
           <label for="testimonios">Testimonios o nombres, uno por línea</label>
@@ -870,14 +885,65 @@ function renderAgendaEditor() {
   screen.querySelector("#add-business").addEventListener("click", addBusinessRow);
   screen.querySelector("#add-message").addEventListener("click", addMessageRow);
   screen.querySelector("#reunionTestimonios").addEventListener("change", syncTestimoniesFieldVisibility);
+  screen.querySelector("#presentacionPrimaria").addEventListener("change", syncTestimoniesFieldVisibility);
+  syncTestimoniesFieldVisibility();
+  bindNameSuggestions(screen);
   bindHymnAutoFill();
   bindBusinessRows();
   bindMessageRows();
 }
 
-function syncTestimoniesFieldVisibility() {
-  const isTestimonyMeeting = Boolean(screen.querySelector("#reunionTestimonios")?.checked);
-  screen.querySelector("[data-testimonies-field]")?.classList.toggle("hidden", !isTestimonyMeeting);
+function syncTestimoniesFieldVisibility(event) {
+  const primary = screen.querySelector("#presentacionPrimaria");
+  const testimony = screen.querySelector("#reunionTestimonios");
+  if (event?.target === testimony && testimony.checked) primary.checked = false;
+  if (primary.checked) testimony.checked = false;
+  const special = primary.checked || testimony.checked;
+  screen.querySelector("[data-testimonies-field]")?.classList.toggle("hidden", !testimony.checked);
+  screen.querySelector("[data-primary-announcement]")?.classList.toggle("hidden", !primary.checked);
+  for (const selector of ["#message-list", "#add-message", "[data-messages-heading]"]) {
+    screen.querySelector(selector)?.classList.toggle("hidden", special);
+  }
+}
+
+function bindNameSuggestions(root) {
+  root.querySelectorAll('input[list="names-list"]').forEach(input => {
+    if (input.dataset.nameBound) return;
+    input.dataset.nameBound = "true";
+    input.value = input.value.trimEnd();
+    let resolved = null;
+    const hint = document.createElement("div");
+    hint.className = "name-suggestion";
+    input.after(hint);
+    function refresh() {
+      hint.replaceChildren();
+      const value = input.value.trimEnd();
+      const names = usedNames();
+      if (!value || value === resolved || names.includes(value)) return;
+      const similar = names.find(name => normalizeText(name) === normalizeText(value));
+      if (!similar) return;
+      const label = document.createElement("span");
+      label.textContent = meetingText("suggestion").replace("{name}", similar);
+      hint.append(label);
+      for (const accept of [true, false]) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = accept ? "name-accept" : "name-dismiss";
+        button.textContent = accept ? "✓" : "✕";
+        button.setAttribute("aria-label", meetingText(accept ? "accept" : "dismiss"));
+        button.title = button.getAttribute("aria-label");
+        button.addEventListener("click", () => {
+          input.value = accept ? similar : value;
+          resolved = input.value;
+          refresh();
+        });
+        hint.append(button);
+      }
+    }
+    input.addEventListener("input", () => { resolved = null; refresh(); });
+    input.addEventListener("blur", () => { input.value = input.value.trimEnd(); });
+    refresh();
+  });
 }
 
 function field(id, label, control, hint = "") {
@@ -1070,6 +1136,7 @@ function bindMessageRows() {
 }
 
 function bindMessageRow(row) {
+  bindNameSuggestions(row);
   bindDynamicRowControls(row);
   bindMessageHymnRow(row);
   row.querySelector("[data-message-type]")?.addEventListener("change", (event) => {
@@ -1169,7 +1236,8 @@ function upsertLocalAgenda(agenda) {
 }
 
 function readAgendaForm(baseAgenda) {
-  const isTestimonyMeeting = screen.querySelector("#reunionTestimonios").checked;
+  const isPrimary = screen.querySelector("#presentacionPrimaria").checked;
+  const isTestimonyMeeting = !isPrimary && screen.querySelector("#reunionTestimonios").checked;
   const testimonios = isTestimonyMeeting
     ? screen.querySelector("#testimonios").value
       .split("\n")
@@ -1200,10 +1268,11 @@ function readAgendaForm(baseAgenda) {
     asuntosEstacaBarrio: [...screen.querySelectorAll("[data-business-row]")]
       .map(readBusinessRow)
       .filter((item) => item.columna2 || item.columna3),
-    mensajesEvangelio: [...screen.querySelectorAll("[data-message-row]")]
+    mensajesEvangelio: isPrimary || isTestimonyMeeting ? [] : [...screen.querySelectorAll("[data-message-row]")]
       .map(readMessageRow)
       .filter((item) => item.nombre || item.himnoNumero || item.himnoNombre || item.tema || item.etiquetaTema),
     reunionTestimonios: isTestimonyMeeting,
+    presentacionPrimaria: isPrimary,
     testimonios
   };
 }
@@ -1302,7 +1371,8 @@ function agendaToFirestore(agenda, oldAgenda = null) {
     oracionFinal: agenda.oracionFinal || "",
     asuntosEstacaBarrio: agenda.asuntosEstacaBarrio || [],
     mensajesEvangelio: agenda.mensajesEvangelio || [],
-    reunionTestimonios: Boolean(agenda.reunionTestimonios),
+    reunionTestimonios: Boolean(agenda.reunionTestimonios) && !agenda.presentacionPrimaria,
+    presentacionPrimaria: Boolean(agenda.presentacionPrimaria),
     testimonios: agenda.testimonios || [],
     creadoPor: createdBy,
     creadoEn: createdAt,
@@ -1535,7 +1605,9 @@ function exportAgendaPdf(agenda) {
 }
 
 function readingHtml(agenda) {
-  const messages = agenda.reunionTestimonios
+  const messages = agenda.presentacionPrimaria
+    ? `<li>${escapeHtml(meetingText("announcement"))}</li>`
+    : agenda.reunionTestimonios
     ? agenda.testimonios.map((name) => `<li>Testimonio: ${escapeHtml(name)}</li>`).join("")
     : agenda.mensajesEvangelio.map((message) => {
       if (message.tipo === "HIMNO_INTERMEDIO") return `<li>Himno intermedio: ${escapeHtml(hymnLabel(message.himnoNumero, message.himnoNombre))}</li>`;
@@ -1563,7 +1635,7 @@ function readingHtml(agenda) {
     ${readingLine("Primera oración", agenda.primeraOracion)}
     ${agenda.asuntosEstacaBarrio.length ? `<section class="reading-section"><strong>Asuntos Estaca/Barrio</strong><ul>${agenda.asuntosEstacaBarrio.map((item) => `<li>${escapeHtml(labelBusiness(item.tipo))}: ${escapeHtml(businessDescription(item) || "Sin datos")}</li>`).join("")}</ul></section>` : ""}
     ${readingLine("Himno Sacramental", hymnLabel(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre))}
-    <section class="reading-section"><strong>${agenda.reunionTestimonios ? "Reunión de testimonios" : "Mensajes del Evangelio"}</strong>${messages ? `<ul>${messages}</ul>` : "<p>Sin datos</p>"}</section>
+    <section class="reading-section"><strong>${agenda.presentacionPrimaria ? meetingText("primary") : agenda.reunionTestimonios ? "Reunión de testimonios" : "Mensajes del Evangelio"}</strong>${messages ? `<ul>${messages}</ul>` : "<p>Sin datos</p>"}</section>
     ${readingLine("Himno final", hymnLabel(agenda.himnoFinalNumero, agenda.himnoFinalNombre))}
     ${readingLine("Oración final", agenda.oracionFinal)}
   `;
@@ -1691,6 +1763,8 @@ function pdfBusinessBlock(block) {
 }
 
 function pdfMessagesSection(agenda) {
+  if (agenda.presentacionPrimaria) return `<section class="pdf-section"><h3>${escapeHtml(meetingText("primary"))}</h3><div class="pdf-box"><p>${escapeHtml(meetingText("announcement"))}</p></div></section>`;
+
   if (agenda.reunionTestimonios) {
     return `
       <section class="pdf-section">
@@ -2456,7 +2530,7 @@ function collectHistoryNames() {
 }
 
 function usedNames() {
-  return [...new Set([...collectHistoryNames(), ...state.hermanos.map((item) => item.nombre).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
+  return [...new Set([...collectHistoryNames(), ...state.hermanos.map((item) => item.nombre).filter(Boolean)].map(name => name.trimEnd()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
 function isInactiveForTab(item, tab) {
@@ -2678,7 +2752,8 @@ function normalizeAgenda(id, data) {
     oracionFinal: data.oracionFinal || "",
     asuntosEstacaBarrio: data.asuntosEstacaBarrio || [],
     mensajesEvangelio: data.mensajesEvangelio || [],
-    reunionTestimonios: Boolean(data.reunionTestimonios),
+    reunionTestimonios: Boolean(data.reunionTestimonios) && !data.presentacionPrimaria,
+    presentacionPrimaria: Boolean(data.presentacionPrimaria),
     testimonios: data.testimonios || [],
     creadoPor: data.creadoPor || "",
     creadoEn: data.creadoEn || null,
@@ -2711,6 +2786,7 @@ function createBlankAgenda(date) {
     asuntosEstacaBarrio: [],
     mensajesEvangelio: [],
     reunionTestimonios: isFirstSunday(date),
+    presentacionPrimaria: false,
     testimonios: [],
     creadoPor: userEmail(),
     creadoEn: null,
@@ -2952,7 +3028,9 @@ function agendaText(agenda) {
       ? `Asuntos: ${agenda.asuntosEstacaBarrio.map((item) => `${labelBusiness(item.tipo)} - ${businessDescription(item)}`).join("; ")}`
       : "",
     `Himno Sacramental: ${hymnLabel(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre)}`,
-    agenda.reunionTestimonios
+    agenda.presentacionPrimaria
+      ? meetingText("announcement")
+      : agenda.reunionTestimonios
       ? `Testimonios: ${(agenda.testimonios || []).join(", ") || "Sin datos"}`
       : `Mensajes: ${agenda.mensajesEvangelio.map((item) => messageText(item)).join("; ") || "Sin datos"}`,
     `Himno final: ${hymnLabel(agenda.himnoFinalNumero, agenda.himnoFinalNombre)}`,

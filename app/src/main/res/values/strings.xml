@@ -4,7 +4,7 @@
     <!-- App -->
     <string name="app_name">Agenda Sacramental</string>
     <string name="app_subtitle">La Iglesia de Jesucristo de los\nSantos de los Últimos Días</string>
-    <string name="version">v1.2.9</string>
+    <string name="version">v1.2.11</string>
 
     <!-- Botones comunes -->
     <string name="btn_aceptar">Aceptar</string>
@@ -378,4 +378,9 @@
 
     <!-- Disclaimer -->
     <string name="disclaimer">Esta es una aplicación no oficial. No está afiliada ni respaldada por La Iglesia de Jesucristo de los Santos de los Últimos Días.</string>
+    <string name="editar_presentacion_primaria">Presentación de la Primaria</string>
+    <string name="tiempo_presentacion_primaria">Hoy tendremos el privilegio de disfrutar de la Presentación de la Primaria. Ahora el tiempo de la reunión estará a cargo de los niños del barrio y sus líderes</string>
+    <string name="nombre_sugerencia">¿Quisiste decir %1$s?</string>
+    <string name="nombre_aceptar">Usar nombre sugerido</string>
+    <string name="nombre_descartar">Conservar nombre escrito</string>
 </resources>

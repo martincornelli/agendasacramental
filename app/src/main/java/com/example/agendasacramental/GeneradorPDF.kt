@@ -46,7 +46,7 @@ object GeneradorPDF {
 
         document.finishPage(page)
 
-        if (agenda.reunionTestimonios) {
+        if (agenda.reunionTestimonios && !agenda.presentacionPrimaria) {
             val pageInfoTestimonios = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, 2).create()
             val pageTestimonios = document.startPage(pageInfoTestimonios)
             dibujarPaginaTestimonios(pageTestimonios.canvas, agenda, dateFormat, context)
@@ -273,7 +273,22 @@ object GeneradorPDF {
             Paint().apply { color = Color.GRAY; textSize = sp(8f); isAntiAlias = true; typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.ITALIC) })
         y += sp(20f)
 
-        if (agenda.reunionTestimonios) {
+        if (agenda.presentacionPrimaria) {
+            canvas.drawText(context.getString(R.string.editar_presentacion_primaria), MARGIN_LEFT, y, paintBold)
+            y += sp(18f)
+            val primaryPaint = Paint().apply { color = Color.BLACK; textSize = sp(9.5f); isAntiAlias = true }
+            var line = ""
+            context.getString(R.string.tiempo_presentacion_primaria).split(" ").forEach { word ->
+                val next = if (line.isEmpty()) word else "$line $word"
+                if (primaryPaint.measureText(next) > MARGIN_RIGHT - MARGIN_LEFT) {
+                    canvas.drawText(line, MARGIN_LEFT, y, primaryPaint)
+                    y += sp(14f)
+                    line = word
+                } else line = next
+            }
+            canvas.drawText(line, MARGIN_LEFT, y, primaryPaint)
+            y += sp(24f)
+        } else if (agenda.reunionTestimonios) {
             canvas.drawText(context.getString(R.string.pdf_reunion_testimonios), MARGIN_LEFT, y, paintBold)
             y += sp(8f)
             val msgBoxH = 60f * fontScale

@@ -139,7 +139,11 @@ fun ModoLecturaScreen(
 
             // Mensajes del evangelio / testimonios
             item {
-                if (agenda.reunionTestimonios) {
+                if (agenda.presentacionPrimaria) {
+                    SeccionLectura(stringResource(R.string.editar_presentacion_primaria)) {
+                        Text(stringResource(R.string.tiempo_presentacion_primaria), style = MaterialTheme.typography.bodyLarge)
+                    }
+                } else if (agenda.reunionTestimonios) {
                     SeccionLectura(stringResource(R.string.pdf_reunion_testimonios)) {
                         Text(
                             stringResource(R.string.tiempo_testimonios_congregacion),

@@ -37,6 +37,7 @@ data class Agenda(
     val asuntosEstacaBarrio: List<AsuntoEstacaBarrio> = emptyList(),
     val mensajesEvangelio: List<MensajeEvangelio> = emptyList(),
     val reunionTestimonios: Boolean = false,
+    val presentacionPrimaria: Boolean = false,
     val testimonios: List<String> = emptyList(),
     val creadoPor: String = "",
     val creadoEn: Timestamp = Timestamp.now(),

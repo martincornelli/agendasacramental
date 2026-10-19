@@ -216,7 +216,7 @@ class AgendaRepository {
                 }
             }
 
-            nombres.sorted()
+            nombres.map { it.trimEnd() }.distinct().sorted()
         } catch (e: Exception) {
             emptyList()
         }
@@ -258,6 +258,7 @@ class AgendaRepository {
             },
             "mensajesEvangelio" to agenda.mensajesEvangelio.map { mensajeToMap(it) },
             "reunionTestimonios" to agenda.reunionTestimonios,
+            "presentacionPrimaria" to agenda.presentacionPrimaria,
             "testimonios" to agenda.testimonios.filter { it.isNotBlank() },
             "creadoPor" to agenda.creadoPor,
             "creadoEn" to agenda.creadoEn,
