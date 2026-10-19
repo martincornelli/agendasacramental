@@ -2898,9 +2898,9 @@ function releaseFormula(items) {
 function sustainingFormula(items) {
   if (items.length === 1) {
     const item = items[0];
-    return `"${businessName(item)} ha sido llamado como ${businessRole(item)}. Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa]."`;
+    return `Pedirle al hermano que se ponga de pie.\n"${businessName(item)} ha sido llamado como ${businessRole(item)}. Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa]."`;
   }
-  return `Los siguientes hermanos/as han sido llamados a los siguientes llamamientos: "${businessList(items)}. Los que estén a favor de sostenerlos, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa]."`;
+  return `Pedirles a los hermanos que se pongan de pie.\nLos siguientes hermanos/as han sido llamados a los siguientes llamamientos: "${businessList(items)}. Los que estén a favor de sostenerlos, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa]."`;
 }
 
 function aaronicOrdinationFormula(item) {

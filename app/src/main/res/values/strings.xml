@@ -312,7 +312,7 @@
     <string name="pdf_cita">\"Pero a pesar de las cosas que están escritas, siempre se ha concedido a los élderes de mi iglesia desde el principio, y siempre será así, dirigir todas las reuniones conforme los oriente y los guíe el Santo Espíritu.\"  D y C 46:2</string>
     <string name="pdf_area" translatable="false">Área Sudamérica Sur</string>
     <string name="pdf_relevo_singular">\"%s ha sido relevado como %s. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano.\"</string>
-    <string name="pdf_sostenimiento_singular">\"%s ha sido llamado como %s. Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\"</string>
+    <string name="pdf_sostenimiento_singular">Pedirle al hermano que se ponga de pie.\n\"%s ha sido llamado como %s. Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\"</string>
     <string name="pdf_ordenacion_aaronica">Pedirle al hermano que se ponga de pie.\n\"Proponemos que %1$s reciba el Sacerdocio de Aarón y que sea ordenado %2$s. Los que estén a favor, sírvanse indicarlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa]\"</string>
     <string name="plan_hoy">Hoy</string>
     <string name="plan_hace_dias">Hace %s día(s)</string>
@@ -328,7 +328,7 @@
 
     <!-- PDF fórmulas plural -->
     <string name="pdf_relevo_plural">Los siguientes hermanos/as han sido relevados de sus llamamientos: \"%s. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano.\"</string>
-    <string name="pdf_sostenimiento_plural">Los siguientes hermanos/as han sido llamados a los siguientes llamamientos: \"%s. Los que estén a favor de sostenerlos, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\"</string>
+    <string name="pdf_sostenimiento_plural">Pedirles a los hermanos que se pongan de pie.\nLos siguientes hermanos/as han sido llamados a los siguientes llamamientos: \"%s. Los que estén a favor de sostenerlos, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\"</string>
     <!-- Tipos de asunto -->
     <string name="tipo_relevo">Relevo</string>
     <string name="tipo_sostenimiento">Sostenimiento</string>

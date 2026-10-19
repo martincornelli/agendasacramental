@@ -311,7 +311,7 @@
     <string name="pdf_postludio">Postlude  (10 minutes - music only)</string>
     <string name="pdf_cita">\"But notwithstanding those things which are written, it always has been given to the elders of my church from the beginning, and ever shall be, to conduct all meetings as they are directed and guided by the Holy Spirit.\"  D&amp;C 46:2</string>
     <string name="pdf_relevo_singular">\"%s has been released as %s. Those who would like to express thanks for [his or her] service may show it by the uplifted hand.\"</string>
-    <string name="pdf_sostenimiento_singular">\"%s has been called as %s. Those in favor of sustaining [him or her]may show it by the uplifted hand. [Pause briefly]. Those opposed, if any, may also show it. [Pause briefly].\"</string>
+    <string name="pdf_sostenimiento_singular">Ask the member to stand.\n\"%s has been called as %s. Those in favor of sustaining [him or her]may show it by the uplifted hand. [Pause briefly]. Those opposed, if any, may also show it. [Pause briefly].\"</string>
     <string name="pdf_ordenacion_aaronica">Ask the brother to stand.\n\"We propose that %1$s receive the Aaronic Priesthood and be ordained a %2$s. Those in favor may show it by the uplifted hand. [Pause briefly]. Those opposed, if any, may also show it. [Pause briefly]\"</string>
     <string name="plan_hoy">Today</string>
     <string name="plan_hace_dias">%s day(s) ago</string>
@@ -327,7 +327,7 @@
 
     <!-- PDF liturgical formulas plural -->
     <string name="pdf_relevo_plural">The following members have been released from their callings: \"%s. Those who would like to express thanks for [his or her] service may show it by the uplifted hand.\"</string>
-    <string name="pdf_sostenimiento_plural">The following members have been called to the following callings: \"%s. Those in favor of sustaining [him or her]may show it by the uplifted hand. [Pause briefly]. Those opposed, if any, may also show it. [Pause briefly].\"</string>
+    <string name="pdf_sostenimiento_plural">Ask the members to stand.\nThe following members have been called to the following callings: \"%s. Those in favor of sustaining [him or her]may show it by the uplifted hand. [Pause briefly]. Those opposed, if any, may also show it. [Pause briefly].\"</string>
     <!-- Business types -->
     <string name="tipo_relevo">Release</string>
     <string name="tipo_sostenimiento">Calling</string>

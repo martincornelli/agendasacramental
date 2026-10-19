@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.example.agendasacramental"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.martincornelli.agendasacramental"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 36
         versionName = "1.2.11"
     }
