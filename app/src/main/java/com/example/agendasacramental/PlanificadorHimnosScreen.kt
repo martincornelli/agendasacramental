@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -73,6 +74,28 @@ private data class FechaPlanificador(
 
 private enum class FiltroBiblioteca { TODOS, NUEVOS, NO_USADOS, PLANIFICADOS }
 
+private fun indiceCabeceraMesActual(fechas: List<FechaPlanificador>): Int {
+    if (fechas.isEmpty()) return 0
+
+    val hoy = Calendar.getInstance()
+    val primeraFecha = Calendar.getInstance().apply { time = fechas.first().fecha }
+    if (primeraFecha.get(Calendar.YEAR) != hoy.get(Calendar.YEAR)) return 0
+
+    val mesObjetivo = hoy.get(Calendar.MONTH)
+    var indiceLista = 0
+    var mesAnterior = -1
+    for (item in fechas) {
+        val mesItem = Calendar.getInstance().apply { time = item.fecha }.get(Calendar.MONTH)
+        if (mesItem != mesAnterior) {
+            if (mesItem == mesObjetivo) return indiceLista
+            indiceLista++ // Cabecera del mes.
+            mesAnterior = mesItem
+        }
+        indiceLista++ // Tarjeta del domingo.
+    }
+    return 0
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlanificadorHimnosScreen(
@@ -93,10 +116,10 @@ fun PlanificadorHimnosScreen(
     var tab by remember { mutableStateOf(0) }
     var fechaEnEdicion by remember { mutableStateOf<FechaPlanificador?>(null) }
 
-    suspend fun recargar() {
-        cargando = true
+    suspend fun recargar(mostrarIndicador: Boolean = true) {
+        if (mostrarIndicador) cargando = true
         agendas = repository.getAgendas(numeroUnidad).getOrElse { emptyList() }
-        cargando = false
+        if (mostrarIndicador) cargando = false
     }
 
     LaunchedEffect(numeroUnidad) { recargar() }
@@ -104,6 +127,15 @@ fun PlanificadorHimnosScreen(
     val agendasPorFecha = remember(agendas) { agendas.associateBy { claveFecha(it.fecha.toDate()) } }
     val fechas = remember(anio, agendasPorFecha) {
         domingosDelAnio(anio).map { FechaPlanificador(it, agendasPorFecha[claveFecha(it)]) }
+    }
+    val estadoListaFechas = remember(anio) { LazyListState() }
+    var listaFechasInicializada by remember(anio) { mutableStateOf(false) }
+
+    LaunchedEffect(cargando, fechas, anio) {
+        if (!cargando && !listaFechasInicializada && fechas.isNotEmpty()) {
+            estadoListaFechas.scrollToItem(indiceCabeceraMesActual(fechas))
+            listaFechasInicializada = true
+        }
     }
 
     fechaEnEdicion?.let { fechaPlanificador ->
@@ -122,7 +154,7 @@ fun PlanificadorHimnosScreen(
                     )
                     if (result.isSuccess) {
                         fechaEnEdicion = null
-                        recargar()
+                        recargar(mostrarIndicador = false)
                         snackbar.showSnackbar(context.getString(R.string.hymn_planner_saved))
                     } else {
                         snackbar.showSnackbar(context.getString(R.string.hymn_planner_save_error))
@@ -176,6 +208,7 @@ fun PlanificadorHimnosScreen(
             } else if (tab == 0) {
                 PlanificacionPorFechas(
                     fechas = fechas,
+                    estadoLista = estadoListaFechas,
                     onEditar = { fechaEnEdicion = it }
                 )
             } else {
@@ -192,12 +225,14 @@ fun PlanificadorHimnosScreen(
 @Composable
 private fun PlanificacionPorFechas(
     fechas: List<FechaPlanificador>,
+    estadoLista: LazyListState,
     onEditar: (FechaPlanificador) -> Unit
 ) {
     val locale = LocalContext.current.resources.configuration.locales[0]
     val mes = remember(locale) { SimpleDateFormat("MMMM yyyy", locale) }
     val fecha = remember(locale) { SimpleDateFormat("EEEE d", locale) }
     LazyColumn(
+        state = estadoLista,
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -382,7 +417,13 @@ private fun BibliotecaHimnos(
                         val ultimo = resumen.ultimaUtilizacion?.let { formatoFecha.format(it.toDate()) }
                             ?: context.getString(R.string.hymn_never_used)
                         Text(
-                            context.getString(R.string.hymn_usage_summary, resumen.usosEnAnio, anio, resumen.usosTotales),
+                            context.resources.getQuantityString(
+                                R.plurals.hymn_usage_summary,
+                                resumen.usosEnAnio,
+                                resumen.usosEnAnio,
+                                anio,
+                                resumen.usosTotales
+                            ),
                             style = MaterialTheme.typography.bodySmall
                         )
                         Text(

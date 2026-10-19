@@ -104,7 +104,10 @@
     <string name="hymn_filter_planned">Planned</string>
     <string name="hymn_new_collection">New hymnbook</string>
     <string name="hymn_never_used">Never used</string>
-    <string name="hymn_usage_summary">%1$d use(s) in %2$d · %3$d total</string>
+    <plurals name="hymn_usage_summary">
+        <item quantity="one">%1$d use in %2$d · %3$d total</item>
+        <item quantity="other">%1$d uses in %2$d · %3$d total</item>
+    </plurals>
     <string name="hymn_last_used">Last used: %s</string>
     <string name="hymn_next_planned">Next planned: %s</string>
 
