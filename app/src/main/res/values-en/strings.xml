@@ -4,7 +4,7 @@
     <!-- App -->
     <string name="app_name">Sacrament Meeting Agenda LDS</string>
     <string name="app_subtitle">The Church of Jesus Christ of\nLatter-day Saints</string>
-    <string name="version">v1.2.11</string>
+    <string name="version">v1.3.0</string>
 
     <!-- Common buttons -->
     <string name="btn_aceptar">Accept</string>
@@ -72,6 +72,41 @@
     <string name="home_agendas_desc">Create and manage meetings</string>
     <string name="home_planificacion">Planning</string>
     <string name="home_planificacion_desc">Speaker and prayer ranking</string>
+    <string name="home_hymn_planner">Hymn Planner</string>
+    <string name="home_hymn_planner_desc">Plan by date and review hymn history</string>
+
+    <!-- Hymn planner -->
+    <string name="hymn_planner_title">Hymn Planner</string>
+    <string name="hymn_planner_dates_tab">By date</string>
+    <string name="hymn_planner_library_tab">Library</string>
+    <string name="hymn_planner_previous_year">Previous year</string>
+    <string name="hymn_planner_next_year">Next year</string>
+    <string name="hymn_planner_no_agenda">No agenda created</string>
+    <string name="hymn_planner_unplanned">No hymns planned. Tap to assign them.</string>
+    <string name="hymn_planner_edit_date">Plan hymns</string>
+    <string name="hymn_planner_date_pattern">EEEE, MMMM d</string>
+    <string name="hymn_planner_saved">Hymn plan saved.</string>
+    <string name="hymn_planner_save_error">The hymn plan could not be saved.</string>
+    <string name="hymn_planner_duplicate_warning">A hymn cannot be repeated within the same meeting.</string>
+    <string name="hymn_planner_unsaved">There are unsaved changes.</string>
+    <string name="hymn_position_opening">Opening</string>
+    <string name="hymn_position_sacrament">Sacrament</string>
+    <string name="hymn_position_intermediate">Intermediate (optional)</string>
+    <string name="hymn_position_closing">Closing</string>
+    <string name="hymn_picker_placeholder">Search by number or name</string>
+    <string name="hymn_origin_planner_manual">Manual selection from the planner</string>
+    <string name="hymn_origin_agenda">Manual selection from the agenda</string>
+    <string name="hymn_origin_automatic">Automatic selection</string>
+    <string name="hymn_library_search">Search hymns by number or name</string>
+    <string name="hymn_filter_all">All</string>
+    <string name="hymn_filter_new_collection">New hymnbook</string>
+    <string name="hymn_filter_unused">Not used this year</string>
+    <string name="hymn_filter_planned">Planned</string>
+    <string name="hymn_new_collection">New hymnbook</string>
+    <string name="hymn_never_used">Never used</string>
+    <string name="hymn_usage_summary">%1$d use(s) in %2$d · %3$d total</string>
+    <string name="hymn_last_used">Last used: %s</string>
+    <string name="hymn_next_planned">Next planned: %s</string>
 
     <!-- Settings menu -->
     <string name="ajustes">Settings</string>

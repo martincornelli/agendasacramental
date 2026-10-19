@@ -150,6 +150,7 @@ class AgendaRepository {
 
             val ahora = Timestamp.now()
             val data = agendaToMap(agenda).toMutableMap()
+            aplicarOrigenesEdicionAgenda(data, agendaAnterior, agenda)
             data["ultimaEdicionPor"] = userEmail
             data["ultimaEdicionEn"] = ahora
 
@@ -251,6 +252,10 @@ class AgendaRepository {
             "himnoSacramentalNombre" to agenda.himnoSacramentalNombre,
             "himnoFinalNumero" to agenda.himnoFinalNumero,
             "himnoFinalNombre" to agenda.himnoFinalNombre,
+            "primerHimnoOrigen" to agenda.primerHimnoOrigen,
+            "himnoSacramentalOrigen" to agenda.himnoSacramentalOrigen,
+            "himnoIntermedioOrigen" to agenda.himnoIntermedioOrigen,
+            "himnoFinalOrigen" to agenda.himnoFinalOrigen,
             "primeraOracion" to agenda.primeraOracion,
             "oracionFinal" to agenda.oracionFinal,
             "asuntosEstacaBarrio" to agenda.asuntosEstacaBarrio.map {
@@ -265,6 +270,138 @@ class AgendaRepository {
             "ultimaEdicionPor" to agenda.ultimaEdicionPor,
             "ultimaEdicionEn" to agenda.ultimaEdicionEn
         )
+    }
+
+    private fun aplicarOrigenesEdicionAgenda(
+        data: MutableMap<String, Any>,
+        anterior: Agenda?,
+        actual: Agenda
+    ) {
+        fun resolver(
+            numero: Int,
+            nombre: String,
+            origenSolicitado: String,
+            numeroAnterior: Int,
+            nombreAnterior: String,
+            origenAnterior: String
+        ): String {
+            if (numero <= 0 && nombre.isBlank()) return ""
+            val cambio = anterior == null || numero != numeroAnterior || nombre.trim() != nombreAnterior.trim()
+            return if (cambio) OrigenHimno.AGENDA_MANUAL
+            else origenSolicitado.ifBlank { origenAnterior.ifBlank { OrigenHimno.AGENDA_MANUAL } }
+        }
+
+        val intermedioActual = actual.mensajesEvangelio.firstOrNull { it.tipo == TipoMensaje.HIMNO_INTERMEDIO }
+        val intermedioAnterior = anterior?.mensajesEvangelio?.firstOrNull { it.tipo == TipoMensaje.HIMNO_INTERMEDIO }
+        data["primerHimnoOrigen"] = resolver(
+            actual.primerHimnoNumero, actual.primerHimnoNombre, actual.primerHimnoOrigen,
+            anterior?.primerHimnoNumero ?: 0, anterior?.primerHimnoNombre.orEmpty(), anterior?.primerHimnoOrigen.orEmpty()
+        )
+        data["himnoSacramentalOrigen"] = resolver(
+            actual.himnoSacramentalNumero, actual.himnoSacramentalNombre, actual.himnoSacramentalOrigen,
+            anterior?.himnoSacramentalNumero ?: 0, anterior?.himnoSacramentalNombre.orEmpty(), anterior?.himnoSacramentalOrigen.orEmpty()
+        )
+        data["himnoIntermedioOrigen"] = resolver(
+            intermedioActual?.himnoNumero ?: 0, intermedioActual?.himnoNombre.orEmpty(), actual.himnoIntermedioOrigen,
+            intermedioAnterior?.himnoNumero ?: 0, intermedioAnterior?.himnoNombre.orEmpty(), anterior?.himnoIntermedioOrigen.orEmpty()
+        )
+        data["himnoFinalOrigen"] = resolver(
+            actual.himnoFinalNumero, actual.himnoFinalNombre, actual.himnoFinalOrigen,
+            anterior?.himnoFinalNumero ?: 0, anterior?.himnoFinalNombre.orEmpty(), anterior?.himnoFinalOrigen.orEmpty()
+        )
+    }
+
+    suspend fun guardarPlanificacionHimnos(
+        numeroUnidad: String,
+        fecha: Date,
+        planificacion: PlanificacionHimnos,
+        userEmail: String
+    ): Result<String> {
+        return try {
+            if (numerosDuplicados(planificacion).isNotEmpty()) {
+                return Result.failure(IllegalArgumentException("HIMNOS_DUPLICADOS"))
+            }
+
+            val snapshot = agendasRef.whereEqualTo("numeroUnidad", numeroUnidad).get().await()
+            val documento = snapshot.documents.firstOrNull { doc ->
+                doc.getTimestamp("fecha")?.let { mismoDia(it, Timestamp(fecha)) } == true
+            }
+            val anterior = documento?.toObject(Agenda::class.java)?.copy(id = documento.id)
+            val mensajes = anterior?.mensajesEvangelio.orEmpty().toMutableList()
+            val indiceIntermedio = mensajes.indexOfFirst { it.tipo == TipoMensaje.HIMNO_INTERMEDIO }
+            val intermedio = planificacion.intermedio
+            if (intermedio.numero > 0 || intermedio.nombre.isNotBlank()) {
+                val mensaje = MensajeEvangelio(
+                    tipo = TipoMensaje.HIMNO_INTERMEDIO,
+                    himnoNumero = intermedio.numero,
+                    himnoNombre = intermedio.nombre
+                )
+                if (indiceIntermedio >= 0) mensajes[indiceIntermedio] = mensaje else mensajes += mensaje
+            } else if (indiceIntermedio >= 0) {
+                mensajes.removeAt(indiceIntermedio)
+            }
+
+            fun origenPlanner(nueva: SeleccionHimno, anteriorSeleccion: SeleccionHimno): String {
+                if (nueva.numero <= 0 && nueva.nombre.isBlank()) return ""
+                val cambio = nueva.numero != anteriorSeleccion.numero || nueva.nombre.trim() != anteriorSeleccion.nombre.trim()
+                return if (cambio) OrigenHimno.PLANIFICADOR_MANUAL
+                else anteriorSeleccion.origen.ifBlank { OrigenHimno.PLANIFICADOR_MANUAL }
+            }
+
+            val planAnterior = planificacionDesdeAgenda(anterior)
+            val ahora = Timestamp.now()
+            val origenApertura = origenPlanner(planificacion.apertura, planAnterior.apertura)
+            val origenSacramental = origenPlanner(planificacion.sacramental, planAnterior.sacramental)
+            val origenIntermedio = origenPlanner(planificacion.intermedio, planAnterior.intermedio)
+            val origenFinal = origenPlanner(planificacion.final, planAnterior.final)
+
+            if (documento != null) {
+                documento.reference.update(
+                    mapOf(
+                        "primerHimnoNumero" to planificacion.apertura.numero,
+                        "primerHimnoNombre" to planificacion.apertura.nombre,
+                        "primerHimnoOrigen" to origenApertura,
+                        "himnoSacramentalNumero" to planificacion.sacramental.numero,
+                        "himnoSacramentalNombre" to planificacion.sacramental.nombre,
+                        "himnoSacramentalOrigen" to origenSacramental,
+                        "mensajesEvangelio" to mensajes.map { mensajeToMap(it) },
+                        "himnoIntermedioOrigen" to origenIntermedio,
+                        "himnoFinalNumero" to planificacion.final.numero,
+                        "himnoFinalNombre" to planificacion.final.nombre,
+                        "himnoFinalOrigen" to origenFinal,
+                        "ultimaEdicionPor" to userEmail,
+                        "ultimaEdicionEn" to ahora
+                    )
+                ).await()
+                Result.success(documento.id)
+            } else {
+                val agenda = Agenda(
+                    numeroUnidad = numeroUnidad,
+                    fecha = Timestamp(fecha),
+                    estado = EstadoAgenda.BORRADOR,
+                    primerHimnoNumero = planificacion.apertura.numero,
+                    primerHimnoNombre = planificacion.apertura.nombre,
+                    primerHimnoOrigen = origenApertura,
+                    himnoSacramentalNumero = planificacion.sacramental.numero,
+                    himnoSacramentalNombre = planificacion.sacramental.nombre,
+                    himnoSacramentalOrigen = origenSacramental,
+                    mensajesEvangelio = mensajes,
+                    himnoIntermedioOrigen = origenIntermedio,
+                    himnoFinalNumero = planificacion.final.numero,
+                    himnoFinalNombre = planificacion.final.nombre,
+                    himnoFinalOrigen = origenFinal,
+                    reunionTestimonios = esPrimerDomingoDelMes(fecha),
+                    creadoPor = userEmail,
+                    creadoEn = ahora,
+                    ultimaEdicionPor = userEmail,
+                    ultimaEdicionEn = ahora
+                )
+                val reference = agendasRef.add(agendaToMap(agenda)).await()
+                Result.success(reference.id)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     suspend fun excluirHermanoHistorial(numeroUnidad: String, nombre: String): Result<Unit> {

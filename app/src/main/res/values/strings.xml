@@ -4,7 +4,7 @@
     <!-- App -->
     <string name="app_name">Agenda Sacramental</string>
     <string name="app_subtitle">La Iglesia de Jesucristo de los\nSantos de los Últimos Días</string>
-    <string name="version">v1.2.11</string>
+    <string name="version">v1.3.0</string>
 
     <!-- Botones comunes -->
     <string name="btn_aceptar">Aceptar</string>
@@ -72,6 +72,41 @@
     <string name="home_agendas_desc">Crear y gestionar reuniones</string>
     <string name="home_planificacion">Planificación</string>
     <string name="home_planificacion_desc">Ranking de oradores y oraciones</string>
+    <string name="home_hymn_planner">Planificador de himnos</string>
+    <string name="home_hymn_planner_desc">Planificar por fecha y consultar el historial</string>
+
+    <!-- Planificador de himnos -->
+    <string name="hymn_planner_title">Planificador de himnos</string>
+    <string name="hymn_planner_dates_tab">Por fechas</string>
+    <string name="hymn_planner_library_tab">Biblioteca</string>
+    <string name="hymn_planner_previous_year">Año anterior</string>
+    <string name="hymn_planner_next_year">Año siguiente</string>
+    <string name="hymn_planner_no_agenda">Sin agenda creada</string>
+    <string name="hymn_planner_unplanned">Sin himnos planificados. Tocá para asignarlos.</string>
+    <string name="hymn_planner_edit_date">Planificar himnos</string>
+    <string name="hymn_planner_date_pattern">EEEE d \'de\' MMMM</string>
+    <string name="hymn_planner_saved">Planificación guardada.</string>
+    <string name="hymn_planner_save_error">No se pudo guardar la planificación.</string>
+    <string name="hymn_planner_duplicate_warning">Un himno no puede repetirse dentro de la misma reunión.</string>
+    <string name="hymn_planner_unsaved">Hay cambios sin guardar.</string>
+    <string name="hymn_position_opening">Apertura</string>
+    <string name="hymn_position_sacrament">Sacramental</string>
+    <string name="hymn_position_intermediate">Intermedio (opcional)</string>
+    <string name="hymn_position_closing">Final</string>
+    <string name="hymn_picker_placeholder">Buscar por número o nombre</string>
+    <string name="hymn_origin_planner_manual">Selección manual desde el planificador</string>
+    <string name="hymn_origin_agenda">Selección manual desde la agenda</string>
+    <string name="hymn_origin_automatic">Selección automática</string>
+    <string name="hymn_library_search">Buscar himno por número o nombre</string>
+    <string name="hymn_filter_all">Todos</string>
+    <string name="hymn_filter_new_collection">Himnario nuevo</string>
+    <string name="hymn_filter_unused">No usados este año</string>
+    <string name="hymn_filter_planned">Planificados</string>
+    <string name="hymn_new_collection">Himnario nuevo</string>
+    <string name="hymn_never_used">Nunca utilizado</string>
+    <string name="hymn_usage_summary">%1$d uso(s) en %2$d · %3$d total</string>
+    <string name="hymn_last_used">Último uso: %s</string>
+    <string name="hymn_next_planned">Próxima planificación: %s</string>
 
     <!-- Menú ajustes -->
     <string name="ajustes">Ajustes</string>

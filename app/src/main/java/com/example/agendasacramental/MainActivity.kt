@@ -130,6 +130,7 @@ class MainActivity : AppCompatActivity() {
                             Screen.ListaAgendas -> currentScreen.value = Screen.Home
                             Screen.EditarAgenda -> currentScreen.value = Screen.ListaAgendas
                             Screen.Planificacion -> currentScreen.value = Screen.Home
+                            Screen.PlanificadorHimnos -> currentScreen.value = Screen.Home
                             Screen.ModoLectura -> currentScreen.value = Screen.ListaAgendas
                             Screen.Notificaciones -> currentScreen.value = Screen.Home
                             else -> {}
@@ -178,6 +179,7 @@ class MainActivity : AppCompatActivity() {
                             },
                             onIrAgendas = { currentScreen.value = Screen.ListaAgendas },
                             onIrPlanificacion = { currentScreen.value = Screen.Planificacion },
+                            onIrPlanificadorHimnos = { currentScreen.value = Screen.PlanificadorHimnos },
                             onIrNotificaciones = { currentScreen.value = Screen.Notificaciones },
                             onCambiarUnidad = { currentUnidad.value = ""; currentScreen.value = Screen.SeleccionUnidad },
                             onLogout = { logout() }
@@ -211,6 +213,11 @@ class MainActivity : AppCompatActivity() {
                         )
                         Screen.Planificacion -> PlanificacionScreen(
                             numeroUnidad = unidad,
+                            onBack = { currentScreen.value = Screen.Home }
+                        )
+                        Screen.PlanificadorHimnos -> PlanificadorHimnosScreen(
+                            numeroUnidad = unidad,
+                            userEmail = auth.currentUser?.email ?: "",
                             onBack = { currentScreen.value = Screen.Home }
                         )
                         Screen.Notificaciones -> ConfiguracionNotificacionesScreen(
@@ -339,6 +346,7 @@ sealed class Screen {
     object ListaAgendas : Screen()
     object EditarAgenda : Screen()
     object Planificacion : Screen()
+    object PlanificadorHimnos : Screen()
     object ModoLectura : Screen()
     object Notificaciones : Screen()
 }

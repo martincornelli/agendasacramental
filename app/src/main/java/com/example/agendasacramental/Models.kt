@@ -32,6 +32,10 @@ data class Agenda(
     val himnoSacramentalNombre: String = "",
     val himnoFinalNumero: Int = 0,
     val himnoFinalNombre: String = "",
+    val primerHimnoOrigen: String = "",
+    val himnoSacramentalOrigen: String = "",
+    val himnoIntermedioOrigen: String = "",
+    val himnoFinalOrigen: String = "",
     val primeraOracion: String = "",
     val oracionFinal: String = "",
     val asuntosEstacaBarrio: List<AsuntoEstacaBarrio> = emptyList(),
@@ -43,6 +47,25 @@ data class Agenda(
     val creadoEn: Timestamp = Timestamp.now(),
     val ultimaEdicionPor: String = "",
     val ultimaEdicionEn: Timestamp = Timestamp.now()
+)
+
+object OrigenHimno {
+    const val AGENDA_MANUAL = "AGENDA_MANUAL"
+    const val PLANIFICADOR_MANUAL = "PLANIFICADOR_MANUAL"
+    const val AUTOMATICA = "AUTOMATICA"
+}
+
+data class SeleccionHimno(
+    val numero: Int = 0,
+    val nombre: String = "",
+    val origen: String = ""
+)
+
+data class PlanificacionHimnos(
+    val apertura: SeleccionHimno = SeleccionHimno(),
+    val sacramental: SeleccionHimno = SeleccionHimno(),
+    val intermedio: SeleccionHimno = SeleccionHimno(),
+    val final: SeleccionHimno = SeleccionHimno()
 )
 
 enum class EstadoAgenda(val label: String, val stringResId: Int) {
