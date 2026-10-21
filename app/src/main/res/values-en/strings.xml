@@ -125,6 +125,8 @@
     <string name="hymn_generate_intermediate">Also generate an intermediate hymn</string>
     <string name="hymn_generate_manual_note">Manual selections are always preserved.</string>
     <string name="hymn_generate_preview_action">Generate preview</string>
+    <string name="hymn_generating_preview">Generating preview…</string>
+    <string name="hymn_generation_error">The preview could not be generated.</string>
     <string name="hymn_preview_title">Preview</string>
     <string name="hymn_preview_summary">%1$d meetings evaluated · %2$d with changes · %3$d unchanged</string>
     <string name="hymn_preview_empty">No changes were found for these options.</string>

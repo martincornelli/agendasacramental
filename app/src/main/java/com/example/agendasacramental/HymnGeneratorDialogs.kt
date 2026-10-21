@@ -276,6 +276,31 @@ private fun OpcionGeneracion(
 }
 
 @Composable
+fun GenerandoPrevisualizacionHimnosDialog() {
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
+        )
+    ) {
+        Surface(shape = MaterialTheme.shapes.extraLarge, tonalElevation = 6.dp) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CircularProgressIndicator()
+                Text(
+                    stringResource(R.string.hymn_generating_preview),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun PrevisualizacionGeneracionHimnosDialog(
     resultado: ResultadoGeneracionHimnos,
     guardando: Boolean,

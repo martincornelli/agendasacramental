@@ -1,5 +1,7 @@
 package com.example.agendasacramental
 
+import java.util.concurrent.ConcurrentHashMap
+
 enum class CategoriaHimno(
     val stringResId: Int,
     val aliases: Set<String>
@@ -31,7 +33,16 @@ data class MetadataHimno(
     val sacramental: Boolean
 )
 
-fun metadataHimno(numero: Int, nombre: String): MetadataHimno {
+private data class ClaveMetadataHimno(val numero: Int, val nombre: String)
+
+private val cacheMetadataHimnos = ConcurrentHashMap<ClaveMetadataHimno, MetadataHimno>()
+
+fun metadataHimno(numero: Int, nombre: String): MetadataHimno =
+    cacheMetadataHimnos.getOrPut(ClaveMetadataHimno(numero, nombre)) {
+        calcularMetadataHimno(numero, nombre)
+    }
+
+private fun calcularMetadataHimno(numero: Int, nombre: String): MetadataHimno {
     val categorias = linkedSetOf<CategoriaHimno>()
     val nombreNormalizado = normalizarNombre(nombre)
     val coincideCatalogoEspanol = Himnos.lista[numero]

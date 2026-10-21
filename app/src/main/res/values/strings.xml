@@ -125,6 +125,8 @@
     <string name="hymn_generate_intermediate">Generar también un himno intermedio</string>
     <string name="hymn_generate_manual_note">Las selecciones manuales siempre se conservan.</string>
     <string name="hymn_generate_preview_action">Generar vista previa</string>
+    <string name="hymn_generating_preview">Generando vista previa…</string>
+    <string name="hymn_generation_error">No se pudo generar la vista previa.</string>
     <string name="hymn_preview_title">Vista previa</string>
     <string name="hymn_preview_summary">%1$d reuniones evaluadas · %2$d con cambios · %3$d sin cambios</string>
     <string name="hymn_preview_empty">No se encontraron cambios para aplicar con estas opciones.</string>

@@ -64,7 +64,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -122,6 +124,7 @@ fun PlanificadorHimnosScreen(
         mutableStateOf(ConfiguracionPlanificacion(numeroUnidad = numeroUnidad))
     }
     var mostrarGenerador by remember { mutableStateOf(false) }
+    var generandoPrevisualizacion by remember { mutableStateOf(false) }
     var previsualizacion by remember { mutableStateOf<ResultadoGeneracionHimnos?>(null) }
     var guardandoGeneracion by remember { mutableStateOf(false) }
 
@@ -161,29 +164,45 @@ fun PlanificadorHimnosScreen(
             onPreview = { fechasElegidas, nuevaConfiguracion ->
                 configuracion = nuevaConfiguracion
                 mostrarGenerador = false
-                previsualizacion = generarPlanificacionHimnos(
-                    catalogo = catalogo,
-                    agendas = agendas,
-                    fechas = fechasElegidas,
-                    opciones = OpcionesGeneracionHimnos(
-                        intervaloMinimoDias = nuevaConfiguracion.intervaloMinimoHimnosDias,
-                        soloFechasSinPlanificacion = nuevaConfiguracion.soloFechasSinHimnos,
-                        reemplazarAutomaticas = nuevaConfiguracion.reemplazarHimnosAutomaticos,
-                        priorizarTemas = nuevaConfiguracion.priorizarTemasHimnos,
-                        forzarHimnoNuevo = nuevaConfiguracion.forzarHimnoNuevo,
-                        incluirIntermedio = nuevaConfiguracion.generarHimnoIntermedio,
-                        himnosExcluidos = nuevaConfiguracion.himnosExcluidos.toSet(),
-                        semilla = numeroUnidad.hashCode().toLong() * 31L +
-                                (fechasElegidas.firstOrNull()?.time ?: 0L)
-                    )
+                generandoPrevisualizacion = true
+                val opciones = OpcionesGeneracionHimnos(
+                    intervaloMinimoDias = nuevaConfiguracion.intervaloMinimoHimnosDias,
+                    soloFechasSinPlanificacion = nuevaConfiguracion.soloFechasSinHimnos,
+                    reemplazarAutomaticas = nuevaConfiguracion.reemplazarHimnosAutomaticos,
+                    priorizarTemas = nuevaConfiguracion.priorizarTemasHimnos,
+                    forzarHimnoNuevo = nuevaConfiguracion.forzarHimnoNuevo,
+                    incluirIntermedio = nuevaConfiguracion.generarHimnoIntermedio,
+                    himnosExcluidos = nuevaConfiguracion.himnosExcluidos.toSet(),
+                    semilla = numeroUnidad.hashCode().toLong() * 31L +
+                            (fechasElegidas.firstOrNull()?.time ?: 0L)
                 )
                 scope.launch {
+                    val resultado = runCatching {
+                        withContext(Dispatchers.Default) {
+                            generarPlanificacionHimnos(
+                                catalogo = catalogo,
+                                agendas = agendas,
+                                fechas = fechasElegidas,
+                                opciones = opciones
+                            )
+                        }
+                    }
+                    generandoPrevisualizacion = false
+                    if (resultado.isSuccess) {
+                        previsualizacion = resultado.getOrThrow()
+                    } else {
+                        snackbar.showSnackbar(context.getString(R.string.hymn_generation_error))
+                    }
                     if (repository.guardarConfiguracion(nuevaConfiguracion).isFailure) {
                         snackbar.showSnackbar(context.getString(R.string.hymn_config_save_error))
                     }
                 }
             }
         )
+    }
+
+    if (generandoPrevisualizacion) {
+        GenerandoPrevisualizacionHimnosDialog()
     }
 
     previsualizacion?.let { resultado ->

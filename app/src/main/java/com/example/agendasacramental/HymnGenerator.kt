@@ -53,6 +53,9 @@ fun generarPlanificacionHimnos(
     opciones: OpcionesGeneracionHimnos
 ): ResultadoGeneracionHimnos {
     val random = Random(opciones.semilla)
+    val catalogoPreparado = catalogo.map { (numero, nombre) ->
+        CandidatoHimno(numero, nombre, metadataHimno(numero, nombre))
+    }
     val agendasPorFecha = agendas.associateBy { claveFecha(it.fecha.toDate()) }
     val fechasOrdenadas = fechas.distinctBy(::claveFecha).sorted()
     val fechasObjetivo = fechasOrdenadas.filter { fecha ->
@@ -107,7 +110,7 @@ fun generarPlanificacionHimnos(
             if (!conservar) {
                 val usadosEnReunion = propuesta.numerosSeleccionados() - actual.numero
                 val eleccion = elegirHimno(
-                    catalogo = catalogo,
+                    catalogo = catalogoPreparado,
                     posicion = posicion,
                     fecha = fecha,
                     temas = temas,
@@ -138,7 +141,7 @@ fun generarPlanificacionHimnos(
             for (posicion in reemplazables) {
                 val actual = propuesta.seleccion(posicion)
                 val eleccion = elegirHimno(
-                    catalogo = catalogo,
+                    catalogo = catalogoPreparado,
                     posicion = posicion,
                     fecha = fecha,
                     temas = temas,
@@ -199,8 +202,14 @@ private data class EleccionHimno(
     val advertencias: List<AdvertenciaGeneracionHimnos>
 )
 
+private data class CandidatoHimno(
+    val numero: Int,
+    val nombre: String,
+    val metadata: MetadataHimno
+)
+
 private fun elegirHimno(
-    catalogo: Map<Int, String>,
+    catalogo: List<CandidatoHimno>,
     posicion: PosicionHimno,
     fecha: Date,
     temas: List<String>,
@@ -211,15 +220,15 @@ private fun elegirHimno(
     soloHimnarioNuevo: Boolean,
     random: Random
 ): EleccionHimno {
-    val candidatos = catalogo.entries.asSequence()
-        .filter { it.key !in opciones.himnosExcluidos }
-        .filter { it.key !in numerosYaElegidos }
-        .filter { !soloHimnarioNuevo || it.key.toString().length == 4 }
-        .filter {
-            val metadata = metadataHimno(it.key, it.value)
-            if (posicion == PosicionHimno.SACRAMENTAL) metadata.sacramental else !metadata.sacramental
+    val candidatos = catalogo.asSequence()
+        .filter { it.numero !in opciones.himnosExcluidos }
+        .filter { it.numero !in numerosYaElegidos }
+        .filter { !soloHimnarioNuevo || it.metadata.himnarioNuevo }
+        .filter { candidato ->
+            if (posicion == PosicionHimno.SACRAMENTAL) candidato.metadata.sacramental
+            else !candidato.metadata.sacramental
         }
-        .sortedBy { it.key }
+        .sortedBy { it.numero }
         .toList()
 
     if (candidatos.isEmpty()) {
@@ -231,14 +240,15 @@ private fun elegirHimno(
 
     val intervalo = opciones.intervaloMinimoDias.coerceAtLeast(0)
     val candidatosConIntervalo = candidatos.filter { candidato ->
-        fechasOcupadas[candidato.key].orEmpty().all { otraFecha ->
+        fechasOcupadas[candidato.numero].orEmpty().all { otraFecha ->
             diferenciaDias(fecha, otraFecha) >= intervalo
         }
     }
     val relajaIntervalo = candidatosConIntervalo.isEmpty()
     val disponibles = if (relajaIntervalo) candidatos else candidatosConIntervalo
 
-    val elegido = disponibles.maxByOrNull { (numero, nombre) ->
+    val elegido = disponibles.maxByOrNull { candidato ->
+        val numero = candidato.numero
         val usos = usosReales[numero].orEmpty()
         val ultimaAnterior = usos.filter { !it.after(fecha) }.maxOrNull()
         val puntosHistorial = if (usos.isEmpty()) {
@@ -252,15 +262,14 @@ private fun elegirHimno(
             ?.coerceAtMost(365)
             ?.times(0.5) ?: 180.0
         val puntosTema = if (opciones.priorizarTemas) {
-            coincidenciasTematicas(metadataHimno(numero, nombre), temas) * 350.0
+            coincidenciasTematicas(candidato.metadata, temas) * 350.0
         } else 0.0
-        val bonoNuevo = if (numero.toString().length == 4) 12.0 else 0.0
-        puntosHistorial + distanciaPlanificada + puntosTema + bonoNuevo + random.nextDouble(0.0, 10.0)
+        puntosHistorial + distanciaPlanificada + puntosTema + random.nextDouble(0.0, 10.0)
     }
 
     return EleccionHimno(
         seleccion = elegido?.let {
-            SeleccionHimno(it.key, it.value, OrigenHimno.AUTOMATICA)
+            SeleccionHimno(it.numero, it.nombre, OrigenHimno.AUTOMATICA)
         },
         advertencias = if (relajaIntervalo) {
             listOf(AdvertenciaGeneracionHimnos(CodigoAdvertenciaGeneracion.INTERVALO_MINIMO_RELAJADO, posicion))
