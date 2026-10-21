@@ -31,8 +31,8 @@ class AppUpdatePromptPolicyTest {
 
     @Test
     fun `no ofrece una version igual o inferior`() {
+        assertFalse(shouldOffer(availableVersion = 39))
         assertFalse(shouldOffer(availableVersion = 38))
-        assertFalse(shouldOffer(availableVersion = 37))
     }
 
     @Test
@@ -44,7 +44,7 @@ class AppUpdatePromptPolicyTest {
     fun `no repite el aviso de la misma version durante siete dias`() {
         assertFalse(
             shouldOffer(
-                lastPromptVersion = 39,
+                lastPromptVersion = 40,
                 lastPromptTime = now - AppUpdatePromptPolicy.REPEAT_PROMPT_COOLDOWN_MS + 1L
             )
         )
@@ -54,7 +54,7 @@ class AppUpdatePromptPolicyTest {
     fun `vuelve a ofrecer la misma version luego de siete dias`() {
         assertTrue(
             shouldOffer(
-                lastPromptVersion = 39,
+                lastPromptVersion = 40,
                 lastPromptTime = now - AppUpdatePromptPolicy.REPEAT_PROMPT_COOLDOWN_MS
             )
         )
@@ -64,22 +64,22 @@ class AppUpdatePromptPolicyTest {
     fun `permite avisar una version nueva aunque otra se haya mostrado recientemente`() {
         assertTrue(
             shouldOffer(
-                availableVersion = 40,
-                lastPromptVersion = 39,
+                availableVersion = 41,
+                lastPromptVersion = 40,
                 lastPromptTime = now - 1_000L
             )
         )
     }
 
     private fun shouldOffer(
-        availableVersion: Int = 39,
+        availableVersion: Int = 40,
         firstInstall: Long = oldInstall,
         lastUpdate: Long = oldInstall,
         lastPromptVersion: Int = -1,
         lastPromptTime: Long = 0L
     ) = AppUpdatePromptPolicy.shouldOfferUpdate(
         nowMillis = now,
-        installedVersionCode = 38,
+        installedVersionCode = 39,
         availableVersionCode = availableVersion,
         firstInstallTimeMillis = firstInstall,
         lastUpdateTimeMillis = lastUpdate,

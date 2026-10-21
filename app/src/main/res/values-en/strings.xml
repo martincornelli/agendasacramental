@@ -4,7 +4,7 @@
     <!-- App -->
     <string name="app_name">Sacrament Meeting Agenda LDS</string>
     <string name="app_subtitle">The Church of Jesus Christ of\nLatter-day Saints</string>
-    <string name="version">v1.4.0</string>
+    <string name="version">v1.4.1</string>
 
     <!-- Common buttons -->
     <string name="btn_aceptar">Accept</string>
@@ -110,6 +110,20 @@
     </plurals>
     <string name="hymn_last_used">Last used: %s</string>
     <string name="hymn_next_planned">Next planned: %s</string>
+    <string name="hymn_library_assign_action">Assign to a Sunday</string>
+    <string name="hymn_library_assignment_title">Assign hymn</string>
+    <string name="hymn_library_assignment_intro">Choose the Sunday and its position in the meeting.</string>
+    <string name="hymn_library_assignment_date">Sunday</string>
+    <string name="hymn_library_assignment_position">Position</string>
+    <string name="hymn_library_no_future_dates">There are no future Sundays available in this year.</string>
+    <string name="hymn_library_sacrament_unavailable">This hymn is not classified as suitable for the sacrament.</string>
+    <string name="hymn_library_position_with_hymn">%1$s · %2$s</string>
+    <string name="hymn_library_replace_warning">This position already has %s. It will be replaced when you confirm.</string>
+    <string name="hymn_library_duplicate_warning">This hymn is already assigned as %s in that meeting.</string>
+    <string name="hymn_library_already_assigned">This hymn is already assigned in that position.</string>
+    <string name="hymn_library_confirm_replace">Replace hymn</string>
+    <string name="hymn_library_assignment_saved">Hymn assigned successfully.</string>
+    <string name="hymn_library_assignment_error">The hymn could not be assigned.</string>
     <string name="hymn_generate_action">Generate automatic plan</string>
     <string name="hymn_generate_title">Generate plan</string>
     <string name="hymn_generate_intro">Choose the date range and rules. You will be able to review every meeting before saving.</string>

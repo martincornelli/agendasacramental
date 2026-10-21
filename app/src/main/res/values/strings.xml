@@ -4,7 +4,7 @@
     <!-- App -->
     <string name="app_name">Agenda Sacramental</string>
     <string name="app_subtitle">La Iglesia de Jesucristo de los\nSantos de los Últimos Días</string>
-    <string name="version">v1.4.0</string>
+    <string name="version">v1.4.1</string>
 
     <!-- Botones comunes -->
     <string name="btn_aceptar">Aceptar</string>
@@ -110,6 +110,20 @@
     </plurals>
     <string name="hymn_last_used">Último uso: %s</string>
     <string name="hymn_next_planned">Próxima planificación: %s</string>
+    <string name="hymn_library_assign_action">Asignar a un domingo</string>
+    <string name="hymn_library_assignment_title">Asignar himno</string>
+    <string name="hymn_library_assignment_intro">Elegí el domingo y la posición en la reunión.</string>
+    <string name="hymn_library_assignment_date">Domingo</string>
+    <string name="hymn_library_assignment_position">Posición</string>
+    <string name="hymn_library_no_future_dates">No hay domingos futuros disponibles en este año.</string>
+    <string name="hymn_library_sacrament_unavailable">Este himno no está clasificado como apto para la Santa Cena.</string>
+    <string name="hymn_library_position_with_hymn">%1$s · %2$s</string>
+    <string name="hymn_library_replace_warning">Esta posición ya tiene %s. Se reemplazará al confirmar.</string>
+    <string name="hymn_library_duplicate_warning">Este himno ya está asignado como %s en esa reunión.</string>
+    <string name="hymn_library_already_assigned">Este himno ya está asignado en esa posición.</string>
+    <string name="hymn_library_confirm_replace">Reemplazar himno</string>
+    <string name="hymn_library_assignment_saved">Himno asignado correctamente.</string>
+    <string name="hymn_library_assignment_error">No se pudo asignar el himno.</string>
     <string name="hymn_generate_action">Generar planificación automática</string>
     <string name="hymn_generate_title">Generar planificación</string>
     <string name="hymn_generate_intro">Elegí el período y las reglas. Antes de guardar vas a poder revisar cada reunión.</string>
@@ -151,7 +165,7 @@
     <string name="hymn_exclusions_saved">Preferencia actualizada.</string>
     <string name="hymn_category_praise">Alabanza</string>
     <string name="hymn_category_jesus_christ">Jesucristo</string>
-    <string name="hymn_category_sacrament">Sacramento</string>
+    <string name="hymn_category_sacrament">Santa Cena</string>
     <string name="hymn_category_faith">Fe y testimonio</string>
     <string name="hymn_category_prayer">Oración</string>
     <string name="hymn_category_holy_ghost">Espíritu Santo</string>

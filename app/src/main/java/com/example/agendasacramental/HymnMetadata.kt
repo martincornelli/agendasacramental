@@ -93,7 +93,8 @@ private fun calcularMetadataHimno(numero: Int, nombre: String): MetadataHimno {
         categorias += setOf(CategoriaHimno.JESUCRISTO, CategoriaHimno.FE)
     }
 
-    val sacramental = CategoriaHimno.SACRAMENTO in categorias || numero in setOf(
+    val sacramental = CategoriaHimno.SACRAMENTO in categorias ||
+            (coincideCatalogoEspanol && numero == 101) || numero in setOf(
         1007, 1008, 1009, 1015, 1016, 1017, 1041, 1043, 1072, 1206, 1210
     )
     if (sacramental) categorias += setOf(CategoriaHimno.SACRAMENTO, CategoriaHimno.JESUCRISTO)

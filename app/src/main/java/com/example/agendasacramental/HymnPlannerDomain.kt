@@ -87,6 +87,33 @@ fun numerosDuplicados(planificacion: PlanificacionHimnos): Set<Int> =
         .filterValues { it > 1 }
         .keys
 
+val posicionesHimnoEnOrden = listOf(
+    PosicionHimno.APERTURA,
+    PosicionHimno.SACRAMENTAL,
+    PosicionHimno.INTERMEDIO,
+    PosicionHimno.FINAL
+)
+
+fun posicionesAsignables(metadata: MetadataHimno): List<PosicionHimno> =
+    posicionesHimnoEnOrden.filter { it != PosicionHimno.SACRAMENTAL || metadata.sacramental }
+
+fun PlanificacionHimnos.seleccionEn(posicion: PosicionHimno): SeleccionHimno = when (posicion) {
+    PosicionHimno.APERTURA -> apertura
+    PosicionHimno.SACRAMENTAL -> sacramental
+    PosicionHimno.INTERMEDIO -> intermedio
+    PosicionHimno.FINAL -> final
+}
+
+fun PlanificacionHimnos.conSeleccionEn(
+    posicion: PosicionHimno,
+    seleccion: SeleccionHimno
+): PlanificacionHimnos = when (posicion) {
+    PosicionHimno.APERTURA -> copy(apertura = seleccion)
+    PosicionHimno.SACRAMENTAL -> copy(sacramental = seleccion)
+    PosicionHimno.INTERMEDIO -> copy(intermedio = seleccion)
+    PosicionHimno.FINAL -> copy(final = seleccion)
+}
+
 fun calcularHistorialHimnos(
     catalogo: Map<Int, String>,
     agendas: List<Agenda>,

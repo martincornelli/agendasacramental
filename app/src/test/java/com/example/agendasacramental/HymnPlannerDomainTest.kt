@@ -2,6 +2,7 @@ package com.example.agendasacramental
 
 import com.google.firebase.Timestamp
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -34,6 +35,40 @@ class HymnPlannerDomainTest {
         )
 
         assertEquals(setOf(10), numerosDuplicados(plan))
+    }
+
+    @Test
+    fun `solo ofrece la posicion sacramental para himnos aptos`() {
+        val posicionesNoSacramentales = posicionesAsignables(metadataHimno(10, Himnos.lista.getValue(10)))
+        val posicionesSacramentales = posicionesAsignables(metadataHimno(101, Himnos.lista.getValue(101)))
+
+        assertFalse(PosicionHimno.SACRAMENTAL in posicionesNoSacramentales)
+        assertTrue(PosicionHimno.SACRAMENTAL in posicionesSacramentales)
+    }
+
+    @Test
+    fun `el himno 101 espanol es sacramental pero el 101 ingles no`() {
+        val espanol = metadataHimno(101, Himnos.lista.getValue(101))
+        val ingles = metadataHimno(101, HimnosEn.himnos.getValue(101))
+
+        assertTrue(espanol.sacramental)
+        assertTrue(CategoriaHimno.SACRAMENTO in espanol.categorias)
+        assertFalse(ingles.sacramental)
+    }
+
+    @Test
+    fun `asigna un himno manual a una posicion sin alterar las demas`() {
+        val original = PlanificacionHimnos(
+            apertura = SeleccionHimno(10, "Apertura"),
+            final = SeleccionHimno(20, "Final")
+        )
+        val manual = SeleccionHimno(101, "Dios, escúchanos orar", OrigenHimno.PLANIFICADOR_MANUAL)
+
+        val actualizado = original.conSeleccionEn(PosicionHimno.SACRAMENTAL, manual)
+
+        assertEquals(original.apertura, actualizado.apertura)
+        assertEquals(manual, actualizado.seleccionEn(PosicionHimno.SACRAMENTAL))
+        assertEquals(original.final, actualizado.final)
     }
 
     @Test
