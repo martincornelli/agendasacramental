@@ -46,11 +46,16 @@ class MainActivity : AppCompatActivity() {
     private val appUpdateManager by lazy { AppUpdateManagerFactory.create(this) }
     private var installStateListener: InstallStateUpdatedListener? = null
 
+    private val updatePreferences by lazy {
+        getSharedPreferences("app_update_prefs", Context.MODE_PRIVATE)
+    }
+
     private val updateLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode != Activity.RESULT_OK) {
-            // Usuario canceló o falló — no pasa nada, lo intentará la próxima vez
+            // Si el usuario cancela o el flujo falla, la misma versión no se vuelve a ofrecer
+            // hasta que venza el período de espera.
         }
     }
 
@@ -247,6 +252,19 @@ class MainActivity : AppCompatActivity() {
     private fun verificarActualizacion() {
         if (!puedeUsarActualizacionesDePlay()) return
 
+        val packageInfo = try {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(packageName, 0)
+        } catch (_: Exception) {
+            return
+        }
+        val ahora = System.currentTimeMillis()
+        val instalacionReciente = ahora - maxOf(
+            packageInfo.firstInstallTime,
+            packageInfo.lastUpdateTime
+        ) < AppUpdatePromptPolicy.INSTALL_GRACE_PERIOD_MS
+        if (instalacionReciente) return
+
         val appUpdateInfoTask = appUpdateManager.appUpdateInfo
 
         // Listener para cuando la descarga termina en segundo plano
@@ -259,10 +277,24 @@ class MainActivity : AppCompatActivity() {
         installStateListener?.let { appUpdateManager.registerListener(it) }
 
         appUpdateInfoTask.addOnSuccessListener { appUpdateInfo ->
-            if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
-                && appUpdateInfo.availableVersionCode() > BuildConfig.VERSION_CODE
-                && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)
+            val versionDisponible = appUpdateInfo.availableVersionCode()
+            val debeOfrecer = AppUpdatePromptPolicy.shouldOfferUpdate(
+                nowMillis = System.currentTimeMillis(),
+                installedVersionCode = BuildConfig.VERSION_CODE,
+                availableVersionCode = versionDisponible,
+                firstInstallTimeMillis = packageInfo.firstInstallTime,
+                lastUpdateTimeMillis = packageInfo.lastUpdateTime,
+                lastPromptVersionCode = updatePreferences.getInt("last_prompt_version", -1),
+                lastPromptTimeMillis = updatePreferences.getLong("last_prompt_time", 0L)
+            )
+            if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE &&
+                debeOfrecer &&
+                appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)
             ) {
+                updatePreferences.edit()
+                    .putInt("last_prompt_version", versionDisponible)
+                    .putLong("last_prompt_time", System.currentTimeMillis())
+                    .apply()
                 appUpdateManager.startUpdateFlowForResult(
                     appUpdateInfo,
                     updateLauncher,
