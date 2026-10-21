@@ -145,7 +145,14 @@ data class ConfiguracionPlanificacion(
     val diasAmarilloOracion: Int = 14,
     val diasVerdeTema: Int = 180,
     val diasAmarilloTema: Int = 90,
-    val etiquetasTema: List<String> = emptyList()
+    val etiquetasTema: List<String> = emptyList(),
+    val intervaloMinimoHimnosDias: Int = 180,
+    val forzarHimnoNuevo: Boolean = false,
+    val priorizarTemasHimnos: Boolean = true,
+    val generarHimnoIntermedio: Boolean = false,
+    val soloFechasSinHimnos: Boolean = true,
+    val reemplazarHimnosAutomaticos: Boolean = true,
+    val himnosExcluidos: List<Int> = emptyList()
 )
 
 // Normalizar nombre: quita tildes y pone en minúsculas para comparar

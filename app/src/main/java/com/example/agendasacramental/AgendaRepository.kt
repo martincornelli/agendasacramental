@@ -344,7 +344,7 @@ class AgendaRepository {
             fun origenPlanner(nueva: SeleccionHimno, anteriorSeleccion: SeleccionHimno): String {
                 if (nueva.numero <= 0 && nueva.nombre.isBlank()) return ""
                 val cambio = nueva.numero != anteriorSeleccion.numero || nueva.nombre.trim() != anteriorSeleccion.nombre.trim()
-                return if (cambio) OrigenHimno.PLANIFICADOR_MANUAL
+                return if (cambio) nueva.origen.ifBlank { OrigenHimno.PLANIFICADOR_MANUAL }
                 else anteriorSeleccion.origen.ifBlank { OrigenHimno.PLANIFICADOR_MANUAL }
             }
 
@@ -399,6 +399,106 @@ class AgendaRepository {
                 val reference = agendasRef.add(agendaToMap(agenda)).await()
                 Result.success(reference.id)
             }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun guardarPlanificacionesHimnos(
+        numeroUnidad: String,
+        planificaciones: List<Pair<Date, PlanificacionHimnos>>,
+        userEmail: String
+    ): Result<Int> {
+        if (planificaciones.isEmpty()) return Result.success(0)
+        if (planificaciones.any { numerosDuplicados(it.second).isNotEmpty() }) {
+            return Result.failure(IllegalArgumentException("HIMNOS_DUPLICADOS"))
+        }
+
+        return try {
+            val snapshot = agendasRef.whereEqualTo("numeroUnidad", numeroUnidad).get().await()
+            val documentosPorFecha = snapshot.documents.mapNotNull { documento ->
+                documento.getTimestamp("fecha")?.toDate()?.let { claveFecha(it) to documento }
+            }.toMap()
+            val batch = db.batch()
+            val ahora = Timestamp.now()
+
+            planificaciones.distinctBy { claveFecha(it.first) }.forEach { (fecha, planificacion) ->
+                val documento = documentosPorFecha[claveFecha(fecha)]
+                val anterior = documento?.toObject(Agenda::class.java)?.copy(id = documento.id)
+                val planAnterior = planificacionDesdeAgenda(anterior)
+                val mensajes = anterior?.mensajesEvangelio.orEmpty().toMutableList()
+                val indiceIntermedio = mensajes.indexOfFirst { it.tipo == TipoMensaje.HIMNO_INTERMEDIO }
+                val intermedio = planificacion.intermedio
+                if (intermedio.numero > 0 || intermedio.nombre.isNotBlank()) {
+                    val mensaje = MensajeEvangelio(
+                        tipo = TipoMensaje.HIMNO_INTERMEDIO,
+                        himnoNumero = intermedio.numero,
+                        himnoNombre = intermedio.nombre
+                    )
+                    if (indiceIntermedio >= 0) mensajes[indiceIntermedio] = mensaje else mensajes += mensaje
+                } else if (indiceIntermedio >= 0) {
+                    mensajes.removeAt(indiceIntermedio)
+                }
+
+                fun resolverOrigen(nueva: SeleccionHimno, previa: SeleccionHimno): String {
+                    if (nueva.numero <= 0 && nueva.nombre.isBlank()) return ""
+                    val cambio = nueva.numero != previa.numero || nueva.nombre.trim() != previa.nombre.trim()
+                    return if (cambio) nueva.origen.ifBlank { OrigenHimno.AUTOMATICA }
+                    else previa.origen.ifBlank { nueva.origen.ifBlank { OrigenHimno.AUTOMATICA } }
+                }
+
+                val origenApertura = resolverOrigen(planificacion.apertura, planAnterior.apertura)
+                val origenSacramental = resolverOrigen(planificacion.sacramental, planAnterior.sacramental)
+                val origenIntermedio = resolverOrigen(planificacion.intermedio, planAnterior.intermedio)
+                val origenFinal = resolverOrigen(planificacion.final, planAnterior.final)
+
+                if (documento != null) {
+                    batch.update(
+                        documento.reference,
+                        mapOf(
+                            "primerHimnoNumero" to planificacion.apertura.numero,
+                            "primerHimnoNombre" to planificacion.apertura.nombre,
+                            "primerHimnoOrigen" to origenApertura,
+                            "himnoSacramentalNumero" to planificacion.sacramental.numero,
+                            "himnoSacramentalNombre" to planificacion.sacramental.nombre,
+                            "himnoSacramentalOrigen" to origenSacramental,
+                            "mensajesEvangelio" to mensajes.map { mensajeToMap(it) },
+                            "himnoIntermedioOrigen" to origenIntermedio,
+                            "himnoFinalNumero" to planificacion.final.numero,
+                            "himnoFinalNombre" to planificacion.final.nombre,
+                            "himnoFinalOrigen" to origenFinal,
+                            "ultimaEdicionPor" to userEmail,
+                            "ultimaEdicionEn" to ahora
+                        )
+                    )
+                } else {
+                    val nuevaAgenda = Agenda(
+                        numeroUnidad = numeroUnidad,
+                        fecha = Timestamp(fecha),
+                        estado = EstadoAgenda.BORRADOR,
+                        primerHimnoNumero = planificacion.apertura.numero,
+                        primerHimnoNombre = planificacion.apertura.nombre,
+                        primerHimnoOrigen = origenApertura,
+                        himnoSacramentalNumero = planificacion.sacramental.numero,
+                        himnoSacramentalNombre = planificacion.sacramental.nombre,
+                        himnoSacramentalOrigen = origenSacramental,
+                        mensajesEvangelio = mensajes,
+                        himnoIntermedioOrigen = origenIntermedio,
+                        himnoFinalNumero = planificacion.final.numero,
+                        himnoFinalNombre = planificacion.final.nombre,
+                        himnoFinalOrigen = origenFinal,
+                        reunionTestimonios = esPrimerDomingoDelMes(fecha),
+                        creadoPor = userEmail,
+                        creadoEn = ahora,
+                        ultimaEdicionPor = userEmail,
+                        ultimaEdicionEn = ahora
+                    )
+                    batch.set(agendasRef.document(), agendaToMap(nuevaAgenda))
+                }
+            }
+
+            batch.commit().await()
+            Result.success(planificaciones.distinctBy { claveFecha(it.first) }.size)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -527,13 +627,24 @@ class AgendaRepository {
                 "diasAmarilloOracion" to config.diasAmarilloOracion,
                 "diasVerdeTema" to config.diasVerdeTema,
                 "diasAmarilloTema" to config.diasAmarilloTema,
-                "etiquetasTema" to config.etiquetasTema
+                "etiquetasTema" to config.etiquetasTema,
+                "intervaloMinimoHimnosDias" to config.intervaloMinimoHimnosDias,
+                "forzarHimnoNuevo" to config.forzarHimnoNuevo,
+                "priorizarTemasHimnos" to config.priorizarTemasHimnos,
+                "generarHimnoIntermedio" to config.generarHimnoIntermedio,
+                "soloFechasSinHimnos" to config.soloFechasSinHimnos,
+                "reemplazarHimnosAutomaticos" to config.reemplazarHimnosAutomaticos,
+                "himnosExcluidos" to config.himnosExcluidos
             )
-            if (config.id.isBlank()) {
-                db.collection("configuracion").add(data).await()
-            } else {
-                db.collection("configuracion").document(config.id).set(data).await()
+            val configuracionRef = db.collection("configuracion")
+            val documentoId = config.id.ifBlank {
+                configuracionRef.whereEqualTo("numeroUnidad", config.numeroUnidad)
+                    .limit(1)
+                    .get().await()
+                    .documents.firstOrNull()?.id
+                    ?: configuracionRef.document().id
             }
+            configuracionRef.document(documentoId).set(data).await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

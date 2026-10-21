@@ -17,7 +17,10 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
@@ -67,12 +70,12 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-private data class FechaPlanificador(
+data class FechaPlanificador(
     val fecha: Date,
     val agenda: Agenda?
 )
 
-private enum class FiltroBiblioteca { TODOS, NUEVOS, NO_USADOS, PLANIFICADOS }
+private enum class FiltroBiblioteca { TODOS, NUEVOS, NO_USADOS, PLANIFICADOS, EXCLUIDOS }
 
 private fun indiceCabeceraMesActual(fechas: List<FechaPlanificador>): Int {
     if (fechas.isEmpty()) return 0
@@ -115,6 +118,12 @@ fun PlanificadorHimnosScreen(
     var anio by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
     var tab by remember { mutableStateOf(0) }
     var fechaEnEdicion by remember { mutableStateOf<FechaPlanificador?>(null) }
+    var configuracion by remember(numeroUnidad) {
+        mutableStateOf(ConfiguracionPlanificacion(numeroUnidad = numeroUnidad))
+    }
+    var mostrarGenerador by remember { mutableStateOf(false) }
+    var previsualizacion by remember { mutableStateOf<ResultadoGeneracionHimnos?>(null) }
+    var guardandoGeneracion by remember { mutableStateOf(false) }
 
     suspend fun recargar(mostrarIndicador: Boolean = true) {
         if (mostrarIndicador) cargando = true
@@ -122,7 +131,13 @@ fun PlanificadorHimnosScreen(
         if (mostrarIndicador) cargando = false
     }
 
-    LaunchedEffect(numeroUnidad) { recargar() }
+    LaunchedEffect(numeroUnidad) {
+        cargando = true
+        agendas = repository.getAgendas(numeroUnidad).getOrElse { emptyList() }
+        configuracion = repository.getConfiguracion(numeroUnidad)
+            ?: ConfiguracionPlanificacion(numeroUnidad = numeroUnidad)
+        cargando = false
+    }
 
     val agendasPorFecha = remember(agendas) { agendas.associateBy { claveFecha(it.fecha.toDate()) } }
     val fechas = remember(anio, agendasPorFecha) {
@@ -136,6 +151,67 @@ fun PlanificadorHimnosScreen(
             estadoListaFechas.scrollToItem(indiceCabeceraMesActual(fechas))
             listaFechasInicializada = true
         }
+    }
+
+    if (mostrarGenerador) {
+        ConfigurarGeneracionHimnosDialog(
+            fechas = fechas,
+            configuracion = configuracion,
+            onDismiss = { mostrarGenerador = false },
+            onPreview = { fechasElegidas, nuevaConfiguracion ->
+                configuracion = nuevaConfiguracion
+                mostrarGenerador = false
+                previsualizacion = generarPlanificacionHimnos(
+                    catalogo = catalogo,
+                    agendas = agendas,
+                    fechas = fechasElegidas,
+                    opciones = OpcionesGeneracionHimnos(
+                        intervaloMinimoDias = nuevaConfiguracion.intervaloMinimoHimnosDias,
+                        soloFechasSinPlanificacion = nuevaConfiguracion.soloFechasSinHimnos,
+                        reemplazarAutomaticas = nuevaConfiguracion.reemplazarHimnosAutomaticos,
+                        priorizarTemas = nuevaConfiguracion.priorizarTemasHimnos,
+                        forzarHimnoNuevo = nuevaConfiguracion.forzarHimnoNuevo,
+                        incluirIntermedio = nuevaConfiguracion.generarHimnoIntermedio,
+                        himnosExcluidos = nuevaConfiguracion.himnosExcluidos.toSet(),
+                        semilla = numeroUnidad.hashCode().toLong() * 31L +
+                                (fechasElegidas.firstOrNull()?.time ?: 0L)
+                    )
+                )
+                scope.launch {
+                    if (repository.guardarConfiguracion(nuevaConfiguracion).isFailure) {
+                        snackbar.showSnackbar(context.getString(R.string.hymn_config_save_error))
+                    }
+                }
+            }
+        )
+    }
+
+    previsualizacion?.let { resultado ->
+        PrevisualizacionGeneracionHimnosDialog(
+            resultado = resultado,
+            guardando = guardandoGeneracion,
+            onDismiss = { previsualizacion = null },
+            onConfirm = {
+                scope.launch {
+                    guardandoGeneracion = true
+                    val result = repository.guardarPlanificacionesHimnos(
+                        numeroUnidad = numeroUnidad,
+                        planificaciones = resultado.propuestas.map { it.fecha to it.propuesta },
+                        userEmail = userEmail
+                    )
+                    guardandoGeneracion = false
+                    if (result.isSuccess) {
+                        previsualizacion = null
+                        recargar(mostrarIndicador = false)
+                        snackbar.showSnackbar(
+                            context.getString(R.string.hymn_preview_saved, result.getOrDefault(0))
+                        )
+                    } else {
+                        snackbar.showSnackbar(context.getString(R.string.hymn_preview_save_error))
+                    }
+                }
+            }
+        )
     }
 
     fechaEnEdicion?.let { fechaPlanificador ->
@@ -175,6 +251,14 @@ fun PlanificadorHimnosScreen(
                     }
                 },
                 actions = {
+                    if (tab == 0) {
+                        IconButton(onClick = { mostrarGenerador = true }) {
+                            Icon(
+                                Icons.Default.AutoAwesome,
+                                stringResource(R.string.hymn_generate_action)
+                            )
+                        }
+                    }
                     IconButton(onClick = { anio-- }) {
                         Icon(Icons.Default.ChevronLeft, stringResource(R.string.hymn_planner_previous_year))
                     }
@@ -215,7 +299,24 @@ fun PlanificadorHimnosScreen(
                 BibliotecaHimnos(
                     catalogo = catalogo,
                     agendas = agendas,
-                    anio = anio
+                    anio = anio,
+                    configuracion = configuracion,
+                    onCambiarExclusion = { numero ->
+                        val anterior = configuracion
+                        val excluidos = configuracion.himnosExcluidos.toMutableSet().apply {
+                            if (!add(numero)) remove(numero)
+                        }.sorted()
+                        val nueva = configuracion.copy(himnosExcluidos = excluidos)
+                        configuracion = nueva
+                        scope.launch {
+                            if (repository.guardarConfiguracion(nueva).isSuccess) {
+                                snackbar.showSnackbar(context.getString(R.string.hymn_exclusions_saved))
+                            } else {
+                                configuracion = anterior
+                                snackbar.showSnackbar(context.getString(R.string.hymn_config_save_error))
+                            }
+                        }
+                    }
                 )
             }
         }
@@ -274,10 +375,7 @@ private fun FechaHimnosCard(
         stringResource(R.string.hymn_position_intermediate) to plan.intermedio,
         stringResource(R.string.hymn_position_closing) to plan.final
     ).filter { it.second.numero > 0 || it.second.nombre.isNotBlank() }
-    val temas = agenda?.mensajesEvangelio.orEmpty()
-        .filter { it.tipo == TipoMensaje.DISCURSO }
-        .flatMap { etiquetasTemaDesdeTexto(it.etiquetaTema, it.tema) }
-        .distinctBy { normalizarNombre(it) }
+    val temas = temasDeAgenda(agenda)
 
     Card(
         onClick = onClick,
@@ -331,20 +429,24 @@ private fun FechaHimnosCard(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun BibliotecaHimnos(
     catalogo: Map<Int, String>,
     agendas: List<Agenda>,
-    anio: Int
+    anio: Int,
+    configuracion: ConfiguracionPlanificacion,
+    onCambiarExclusion: (Int) -> Unit
 ) {
     val context = LocalContext.current
     val locale = context.resources.configuration.locales[0]
     var busqueda by remember { mutableStateOf("") }
     var filtro by remember { mutableStateOf(FiltroBiblioteca.TODOS) }
+    var categoria by remember { mutableStateOf<CategoriaHimno?>(null) }
+    var menuCategorias by remember { mutableStateOf(false) }
     val formatoFecha = remember(locale) { SimpleDateFormat("dd/MM/yyyy", locale) }
     val historial = remember(catalogo, agendas, anio) { calcularHistorialHimnos(catalogo, agendas, anio) }
-    val visibles = remember(historial, busqueda, filtro) {
+    val visibles = remember(historial, busqueda, filtro, categoria, configuracion.himnosExcluidos) {
         historial.filter { resumen ->
             val coincide = busqueda.isBlank() || resumen.numero.toString().contains(busqueda.trim()) ||
                     resumen.nombre.contains(busqueda.trim(), ignoreCase = true)
@@ -353,8 +455,11 @@ private fun BibliotecaHimnos(
                 FiltroBiblioteca.NUEVOS -> resumen.numero.toString().length == 4
                 FiltroBiblioteca.NO_USADOS -> resumen.usosEnAnio == 0
                 FiltroBiblioteca.PLANIFICADOS -> resumen.proximaPlanificacion != null
+                FiltroBiblioteca.EXCLUIDOS -> resumen.numero in configuracion.himnosExcluidos
             }
-            coincide && pasaFiltro
+            val pasaCategoria = categoria == null ||
+                    categoria in metadataHimno(resumen.numero, resumen.nombre).categorias
+            coincide && pasaFiltro && pasaCategoria
         }
     }
 
@@ -379,7 +484,8 @@ private fun BibliotecaHimnos(
                 FiltroBiblioteca.TODOS to R.string.hymn_filter_all,
                 FiltroBiblioteca.NUEVOS to R.string.hymn_filter_new_collection,
                 FiltroBiblioteca.NO_USADOS to R.string.hymn_filter_unused,
-                FiltroBiblioteca.PLANIFICADOS to R.string.hymn_filter_planned
+                FiltroBiblioteca.PLANIFICADOS to R.string.hymn_filter_planned,
+                FiltroBiblioteca.EXCLUIDOS to R.string.hymn_filter_excluded
             ).forEach { (valor, label) ->
                 FilterChip(
                     selected = filtro == valor,
@@ -388,12 +494,51 @@ private fun BibliotecaHimnos(
                 )
             }
         }
+        ExposedDropdownMenuBox(
+            expanded = menuCategorias,
+            onExpandedChange = { menuCategorias = it }
+        ) {
+            OutlinedTextField(
+                value = categoria?.let { stringResource(it.stringResId) }
+                    ?: stringResource(R.string.hymn_category_all),
+                onValueChange = {},
+                label = { Text(stringResource(R.string.hymn_category_filter)) },
+                readOnly = true,
+                singleLine = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(menuCategorias) },
+                modifier = Modifier.fillMaxWidth().menuAnchor()
+            )
+            ExposedDropdownMenu(
+                expanded = menuCategorias,
+                onDismissRequest = { menuCategorias = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.hymn_category_all)) },
+                    onClick = {
+                        categoria = null
+                        menuCategorias = false
+                    }
+                )
+                CategoriaHimno.entries.forEach { opcion ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(opcion.stringResId)) },
+                        onClick = {
+                            categoria = opcion
+                            menuCategorias = false
+                        }
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)
         ) {
             items(visibles, key = { it.numero }) { resumen ->
+                val metadata = metadataHimno(resumen.numero, resumen.nombre)
+                val excluido = resumen.numero in configuracion.himnosExcluidos
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -437,6 +582,39 @@ private fun BibliotecaHimnos(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        if (metadata.categorias.isNotEmpty()) {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                metadata.categorias.take(3).forEach { tema ->
+                                    AssistChip(
+                                        onClick = { categoria = tema },
+                                        label = { Text(stringResource(tema.stringResId)) }
+                                    )
+                                }
+                            }
+                        }
+                        if (excluido) {
+                            Text(
+                                stringResource(R.string.hymn_excluded_status),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        TextButton(
+                            onClick = { onCambiarExclusion(resumen.numero) },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Icon(
+                                if (excluido) Icons.Default.CheckCircle else Icons.Default.Block,
+                                null,
+                                modifier = Modifier.padding(end = 6.dp)
+                            )
+                            Text(
+                                stringResource(
+                                    if (excluido) R.string.hymn_include_action
+                                    else R.string.hymn_exclude_action
+                                )
                             )
                         }
                     }

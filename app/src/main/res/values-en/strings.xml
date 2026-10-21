@@ -4,7 +4,7 @@
     <!-- App -->
     <string name="app_name">Sacrament Meeting Agenda LDS</string>
     <string name="app_subtitle">The Church of Jesus Christ of\nLatter-day Saints</string>
-    <string name="version">v1.3.0</string>
+    <string name="version">v1.4.0</string>
 
     <!-- Common buttons -->
     <string name="btn_aceptar">Accept</string>
@@ -110,6 +110,62 @@
     </plurals>
     <string name="hymn_last_used">Last used: %s</string>
     <string name="hymn_next_planned">Next planned: %s</string>
+    <string name="hymn_generate_action">Generate automatic plan</string>
+    <string name="hymn_generate_title">Generate plan</string>
+    <string name="hymn_generate_intro">Choose the date range and rules. You will be able to review every meeting before saving.</string>
+    <string name="hymn_generate_start">From</string>
+    <string name="hymn_generate_end">Through</string>
+    <string name="hymn_generate_no_future_dates">There are no future Sundays available in this year.</string>
+    <string name="hymn_generate_interval">Minimum interval between uses (days)</string>
+    <string name="hymn_generate_interval_help">If there are no alternatives, the generator may relax this interval and will show it in the preview.</string>
+    <string name="hymn_generate_only_empty">Only meetings without planned hymns</string>
+    <string name="hymn_generate_replace_automatic">Update previous automatic selections</string>
+    <string name="hymn_generate_force_new">Include at least one hymn from the new hymnbook</string>
+    <string name="hymn_generate_prioritize_topics">Prioritize talk topics</string>
+    <string name="hymn_generate_intermediate">Also generate an intermediate hymn</string>
+    <string name="hymn_generate_manual_note">Manual selections are always preserved.</string>
+    <string name="hymn_generate_preview_action">Generate preview</string>
+    <string name="hymn_preview_title">Preview</string>
+    <string name="hymn_preview_summary">%1$d meetings evaluated · %2$d with changes · %3$d unchanged</string>
+    <string name="hymn_preview_empty">No changes were found for these options.</string>
+    <string name="hymn_preview_topics">Topics: %s</string>
+    <plurals name="hymn_preview_manual_preserved">
+        <item quantity="one">%d manual selection is preserved</item>
+        <item quantity="other">%d manual selections are preserved</item>
+    </plurals>
+    <string name="hymn_preview_interval_warning">There were no alternatives for %s within the selected interval.</string>
+    <string name="hymn_preview_no_candidate_warning">No suitable hymn was found for %s.</string>
+    <string name="hymn_preview_no_new_warning">A hymn from the new hymnbook could not be included.</string>
+    <string name="hymn_preview_confirm">Apply plan</string>
+    <string name="hymn_preview_saved">The plan was applied to %d meetings.</string>
+    <string name="hymn_preview_save_error">The automatic plan could not be applied.</string>
+    <string name="hymn_config_save_error">The generator settings could not be saved.</string>
+    <string name="hymn_category_filter">Topic</string>
+    <string name="hymn_category_all">All topics</string>
+    <string name="hymn_filter_excluded">Excluded</string>
+    <string name="hymn_exclude_action">Exclude from automatic generation</string>
+    <string name="hymn_include_action">Include again in automatic generation</string>
+    <string name="hymn_excluded_status">Excluded from automatic generation</string>
+    <string name="hymn_exclusions_saved">Preference updated.</string>
+    <string name="hymn_category_praise">Praise</string>
+    <string name="hymn_category_jesus_christ">Jesus Christ</string>
+    <string name="hymn_category_sacrament">Sacrament</string>
+    <string name="hymn_category_faith">Faith and testimony</string>
+    <string name="hymn_category_prayer">Prayer</string>
+    <string name="hymn_category_holy_ghost">Holy Ghost</string>
+    <string name="hymn_category_gratitude">Gratitude</string>
+    <string name="hymn_category_service">Service</string>
+    <string name="hymn_category_family">Family</string>
+    <string name="hymn_category_temple">Temple and covenants</string>
+    <string name="hymn_category_scriptures">Scriptures</string>
+    <string name="hymn_category_restoration">Restoration and prophets</string>
+    <string name="hymn_category_missionary">Missionary work</string>
+    <string name="hymn_category_christmas">Christmas</string>
+    <string name="hymn_category_easter">Easter and Resurrection</string>
+    <string name="hymn_category_peace">Peace and comfort</string>
+    <string name="hymn_category_love">Love and charity</string>
+    <string name="hymn_category_commandments">Commandments and obedience</string>
+    <string name="hymn_category_zion">Zion</string>
 
     <!-- Settings menu -->
     <string name="ajustes">Settings</string>
