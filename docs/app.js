@@ -1,4 +1,16 @@
 import { HYMNS_EN, HYMNS_ES } from "./hymns.js";
+import {
+  HYMN_POSITIONS,
+  dateKey as hymnDateKey,
+  duplicateHymnNumbers,
+  generateHymnPlans,
+  hymnHistory,
+  hymnMetadata,
+  planFromAgenda,
+  sundaysOfYear,
+  topicsFromAgenda
+} from "./hymn-planner.mjs";
+import { analyzeDuplicates } from "./duplicate-checker.mjs";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDHm4h7REdvYQ0PgKv168wZ82MJaLqGrko",
@@ -35,6 +47,7 @@ let signInWithRedirect;
 let signOut;
 let updateDoc;
 let where;
+let writeBatch;
 
 const MEETING_TEXT = {
   es: { primary: "Presentación de la Primaria", announcement: "Hoy tendremos el privilegio de disfrutar de la Presentación de la Primaria. Ahora el tiempo de la reunión estará a cargo de los niños del barrio y sus líderes", suggestion: "¿Quisiste decir {name}?", accept: "Usar nombre sugerido", dismiss: "Conservar nombre escrito" },
@@ -68,6 +81,11 @@ const SVG_ICONS = {
   mic: `<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><path d="M12 19v3"></path>`,
   users: `<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>`,
   messageSquare: `<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>`
+  ,music: `<path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle>`,
+  scan: `<path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><path d="M7 12h10"></path>`,
+  sparkles: `<path d="m12 3-1.4 3.6L7 8l3.6 1.4L12 13l1.4-3.6L17 8l-3.6-1.4z"></path><path d="m5 15-.8 2.2L2 18l2.2.8L5 21l.8-2.2L8 18l-2.2-.8z"></path><path d="m19 14-.7 1.8-1.8.7 1.8.7L19 19l.7-1.8 1.8-.7-1.8-.7z"></path>`,
+  check: `<path d="m5 12 4 4L19 6"></path>`,
+  chevronLeft: `<path d="m15 18-6-6 6-6"></path>`
 };
 const BUSINESS_TYPES = ["RELEVO", "SOSTENIMIENTO", "SOSTENIMIENTO_OFICIALES", "ESTACA", "ORDENACION_AARONICA", "OTROS"];
 const MESSAGE_TYPES = ["DISCURSO", "TESTIMONIO", "HIMNO_INTERMEDIO"];
@@ -118,6 +136,38 @@ const BASE_TOPIC_TAGS = [
   "Familia",
   "Obediencia"
 ];
+const HYMN_POSITION_LABELS = {
+  opening: "Apertura",
+  sacrament: "Santa Cena",
+  intermediate: "Intermedio",
+  closing: "Final"
+};
+const HYMN_CATEGORY_LABELS = {
+  praise: "Alabanza",
+  jesus_christ: "Jesucristo",
+  sacrament: "Santa Cena",
+  faith: "Fe y testimonio",
+  prayer: "Oración",
+  holy_ghost: "Espíritu Santo",
+  gratitude: "Gratitud",
+  service: "Servicio",
+  family: "Familia",
+  temple: "Templo y convenios",
+  scriptures: "Escrituras",
+  restoration: "Restauración",
+  missionary: "Obra misional",
+  christmas: "Navidad",
+  easter: "Pascua",
+  peace: "Paz",
+  love: "Amor y caridad",
+  commandments: "Mandamientos",
+  zion: "Sión"
+};
+const HYMN_ORIGIN_LABELS = {
+  AGENDA_MANUAL: "Elegido en la agenda",
+  PLANIFICADOR_MANUAL: "Elegido en el planificador",
+  AUTOMATICA: "Selección automática"
+};
 const defaultConfig = {
   diasVerdeDiscurso: 90,
   diasAmarilloDiscurso: 30,
@@ -125,7 +175,14 @@ const defaultConfig = {
   diasAmarilloOracion: 14,
   diasVerdeTema: 180,
   diasAmarilloTema: 90,
-  etiquetasTema: []
+  etiquetasTema: [],
+  intervaloMinimoHimnosDias: 180,
+  forzarHimnoNuevo: false,
+  priorizarTemasHimnos: true,
+  generarHimnoIntermedio: false,
+  soloFechasSinHimnos: true,
+  reemplazarHimnosAutomaticos: true,
+  himnosExcluidos: []
 };
 
 const state = {
@@ -134,6 +191,12 @@ const state = {
   route: routeFromHash(),
   activeAgendaId: null,
   planningTab: "talks",
+  planningSearch: "",
+  hymnPlannerTab: "dates",
+  hymnPlannerYear: new Date().getFullYear(),
+  hymnLibraryFilter: "all",
+  hymnLibraryCategory: "all",
+  deferredInstallPrompt: null,
   agendas: [],
   hermanos: [],
   config: { ...defaultConfig },
@@ -162,6 +225,18 @@ const topbarTitle = document.querySelector("#topbar-title");
 bindChrome();
 applyTheme();
 boot();
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  state.deferredInstallPrompt = event;
+  if (state.route === "settings") renderSettings();
+});
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch((error) => {
+    console.warn("No se pudo registrar el modo instalable.", error);
+  }));
+}
 
 setTimeout(() => {
   if (state.isBooting) {
@@ -227,6 +302,7 @@ async function loadFirebase() {
   setDoc = firestoreModule.setDoc;
   updateDoc = firestoreModule.updateDoc;
   where = firestoreModule.where;
+  writeBatch = firestoreModule.writeBatch;
 }
 
 function bindChrome() {
@@ -276,7 +352,7 @@ function navigate(route) {
 
 function routeFromHash() {
   const route = (location.hash || "#agendas").replace("#", "");
-  return ["agendas", "planning", "settings"].includes(route) ? route : "agendas";
+  return ["agendas", "planning", "hymns", "duplicates", "settings"].includes(route) ? route : "agendas";
 }
 
 function cleanupSubscriptions() {
@@ -392,6 +468,8 @@ function render() {
   const routes = {
     agendas: renderAgendas,
     planning: renderPlanning,
+    hymns: renderHymnPlanner,
+    duplicates: renderDuplicateCheck,
     settings: renderSettings,
     edit: renderAgendaEditor,
     reading: renderReadingMode,
@@ -425,6 +503,8 @@ function renderChrome() {
 
 function routeTitle() {
   if (state.route === "planning") return "Planificación";
+  if (state.route === "hymns") return "Planificador de himnos";
+  if (state.route === "duplicates") return "Chequeo de duplicados";
   if (state.route === "settings") return "Ajustes";
   if (state.route === "edit") return state.activeAgendaId ? "Editar agenda" : "Nueva agenda";
   if (state.route === "reading") return "Modo lectura";
@@ -1203,7 +1283,10 @@ async function saveAgendaFromForm(event) {
   event.preventDefault();
   await withToastError(async () => {
     const oldAgenda = state.activeAgendaId ? state.agendas.find((item) => item.id === state.activeAgendaId) : null;
-    const agenda = readAgendaForm(oldAgenda || createBlankAgenda(nextSunday()));
+    const agenda = applyAgendaHymnOrigins(
+      readAgendaForm(oldAgenda || createBlankAgenda(nextSunday())),
+      oldAgenda
+    );
     const duplicate = state.agendas.some((item) =>
       item.id !== agenda.id && sameDay(item.fecha, agenda.fecha)
     );
@@ -1361,12 +1444,16 @@ function agendaToFirestore(agenda, oldAgenda = null) {
     anuncios: agenda.anuncios || "",
     primerHimnoNumero: Number(agenda.primerHimnoNumero || 0),
     primerHimnoNombre: agenda.primerHimnoNombre || "",
+    primerHimnoOrigen: agenda.primerHimnoOrigen || "",
     directorMusica: agenda.directorMusica || "",
     pianista: agenda.pianista || "",
     himnoSacramentalNumero: Number(agenda.himnoSacramentalNumero || 0),
     himnoSacramentalNombre: agenda.himnoSacramentalNombre || "",
+    himnoSacramentalOrigen: agenda.himnoSacramentalOrigen || "",
     himnoFinalNumero: Number(agenda.himnoFinalNumero || 0),
     himnoFinalNombre: agenda.himnoFinalNombre || "",
+    himnoIntermedioOrigen: agenda.himnoIntermedioOrigen || "",
+    himnoFinalOrigen: agenda.himnoFinalOrigen || "",
     primeraOracion: agenda.primeraOracion || "",
     oracionFinal: agenda.oracionFinal || "",
     asuntosEstacaBarrio: agenda.asuntosEstacaBarrio || [],
@@ -1378,6 +1465,27 @@ function agendaToFirestore(agenda, oldAgenda = null) {
     creadoEn: createdAt,
     ultimaEdicionPor: userEmail(),
     ultimaEdicionEn: serverTimestamp()
+  };
+}
+
+function applyAgendaHymnOrigins(agenda, oldAgenda = null) {
+  const oldPlan = planFromAgenda(oldAgenda);
+  const nextPlan = planFromAgenda(agenda);
+  const origin = (position) => {
+    const next = nextPlan[position];
+    const previous = oldPlan[position];
+    if (!next.number && !next.name) return "";
+    if (next.number === previous.number && next.name.trim() === previous.name.trim()) {
+      return previous.origin || "AGENDA_MANUAL";
+    }
+    return "AGENDA_MANUAL";
+  };
+  return {
+    ...agenda,
+    primerHimnoOrigen: origin("opening"),
+    himnoSacramentalOrigen: origin("sacrament"),
+    himnoIntermedioOrigen: origin("intermediate"),
+    himnoFinalOrigen: origin("closing")
   };
 }
 
@@ -1881,27 +1989,29 @@ function renderPlanning() {
         <button class="filter-chip ${tab === "talks" ? "active" : ""}" data-planning-tab="talks" type="button">Discursos</button>
         <button class="filter-chip ${tab === "prayers" ? "active" : ""}" data-planning-tab="prayers" type="button">Oraciones</button>
         <button class="filter-chip ${tab === "topics" ? "active" : ""}" data-planning-tab="topics" type="button">Temas</button>
-        <input id="planning-search" class="input" type="search" placeholder="${isTopics ? "Buscar tema o etiquetas..." : "Buscar hermano/a..."}" style="width: min(340px, 100%);">
+        <input id="planning-search" class="input" type="search" placeholder="${isTopics ? "Buscar tema o etiquetas..." : "Buscar hermano/a..."}" value="${escapeAttr(state.planningSearch)}" style="width: min(340px, 100%);">
       </div>
       <div class="toolbar-right">
         <button id="planning-config" class="secondary-button" type="button">Configuración</button>
         ${isTopics ? `<button id="topic-tags" class="secondary-button" type="button">Etiquetas</button>` : `<button id="add-brother" class="primary-button" type="button">Agregar hermano</button>`}
       </div>
     </div>
-    ${isTopics ? renderTopicsPlanning("") : `
+    ${isTopics ? renderTopicsPlanning(state.planningSearch) : `
       <section class="panel">
         ${sectionTitle(tab === "talks" ? "Discursos" : "Oraciones", "P", "")}
-        <div id="brother-list" class="agenda-list">${renderBrotherList(list, tab, "")}</div>
+        <div id="brother-list" class="agenda-list">${renderBrotherList(list, tab, state.planningSearch)}</div>
       </section>
     `}
   `;
   screen.querySelectorAll("[data-planning-tab]").forEach((button) => {
     button.addEventListener("click", () => {
       state.planningTab = button.dataset.planningTab;
+      state.planningSearch = "";
       renderPlanning();
     });
   });
   screen.querySelector("#planning-search").addEventListener("input", (event) => {
+    state.planningSearch = event.target.value;
     if (isTopics) {
       screen.querySelector("#topics-content").innerHTML = renderTopicsPlanningContent(event.target.value);
       bindTopicActions();
@@ -2182,6 +2292,11 @@ function openBrotherDialog(ranking = null) {
             creadoEn: hermano.creadoEn || serverTimestamp()
           };
           if (!data.nombre) throw new Error("Ingresa un nombre.");
+          const originalKey = ranking ? normalizeName(hermano.nombre) : "";
+          const duplicateName = usedNames().find((name) =>
+            normalizeName(name) === normalizeName(data.nombre) && normalizeName(name) !== originalKey
+          );
+          if (duplicateName && !confirm(`Ya existe una ficha o participación para ${duplicateName}. ¿Guardar otra igualmente?`)) return;
           if (hermano.id) await setDoc(hermanoRef(hermano.id), data);
           else await addDoc(collection(db, "hermanos"), data);
           closeModal();
@@ -2456,7 +2571,11 @@ async function savePlanningConfig(partial) {
     numeroUnidad: state.unitNumber
   };
   if (state.configId) await setDoc(configRef(state.configId), data);
-  else await addDoc(collection(db, "configuracion"), data);
+  else {
+    const ref = await addDoc(collection(db, "configuracion"), data);
+    state.configId = ref.id;
+  }
+  state.config = data;
 }
 
 function planningRankings() {
@@ -2552,9 +2671,624 @@ function rankColor(date, tab) {
   return "rank-red";
 }
 
-function renderSettings() {
+function hymnCatalog() {
+  return (navigator.language || "es").toLowerCase().startsWith("en") ? HYMNS_EN : HYMNS_ES;
+}
+
+function hymnLanguage() {
+  return (navigator.language || "es").toLowerCase().startsWith("en") ? "en" : "es";
+}
+
+function renderHymnPlanner() {
+  const tab = state.hymnPlannerTab;
   screen.innerHTML = `
-    <div class="screen-grid two-col">
+    <div class="module-hero hymn-hero">
+      <div>
+        <p class="eyebrow">Música de la reunión</p>
+        <h2>Planificador de himnos</h2>
+        <p>Prepará cada domingo, consultá el historial y mantené una distribución equilibrada.</p>
+      </div>
+      <div class="year-stepper" aria-label="Año del planificador">
+        <button class="icon-button" data-hymn-year="-1" type="button" aria-label="Año anterior">${icon("chevronLeft")}</button>
+        <strong>${state.hymnPlannerYear}</strong>
+        <button class="icon-button" data-hymn-year="1" type="button" aria-label="Año siguiente">${icon("chevronRight")}</button>
+      </div>
+    </div>
+    <div class="module-tabs" role="tablist" aria-label="Vistas del planificador">
+      <button class="module-tab ${tab === "dates" ? "active" : ""}" data-hymn-tab="dates" type="button" role="tab" aria-selected="${tab === "dates"}">Por fechas</button>
+      <button class="module-tab ${tab === "library" ? "active" : ""}" data-hymn-tab="library" type="button" role="tab" aria-selected="${tab === "library"}">Biblioteca</button>
+    </div>
+    <div id="hymn-planner-content">${tab === "dates" ? renderHymnDates() : renderHymnLibrary()}</div>
+  `;
+  screen.querySelectorAll("[data-hymn-year]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.hymnPlannerYear += Number(button.dataset.hymnYear);
+      renderHymnPlanner();
+    });
+  });
+  screen.querySelectorAll("[data-hymn-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.hymnPlannerTab = button.dataset.hymnTab;
+      renderHymnPlanner();
+    });
+  });
+  if (tab === "dates") bindHymnDateActions();
+  else bindHymnLibraryActions();
+}
+
+function renderHymnDates() {
+  const year = state.hymnPlannerYear;
+  const agendasByDate = new Map(state.agendas.map((agenda) => [hymnDateKey(agenda.fecha), agenda]));
+  const months = new Map();
+  sundaysOfYear(year).forEach((date) => {
+    const month = date.getMonth();
+    if (!months.has(month)) months.set(month, []);
+    months.get(month).push({ date, agenda: agendasByDate.get(hymnDateKey(date)) || null });
+  });
+  const today = startOfDay(new Date());
+  const plannedCount = [...months.values()].flat().filter((item) => {
+    const plan = planFromAgenda(item.agenda);
+    return HYMN_POSITIONS.some((position) => plan[position].number || plan[position].name);
+  }).length;
+  return `
+    <div class="module-toolbar">
+      <div>
+        <strong>${plannedCount} domingos planificados</strong>
+        <p class="item-meta">Las selecciones se guardan directamente en la agenda de cada fecha.</p>
+      </div>
+      <button id="generate-hymns" class="primary-button" type="button">${buttonIcon("sparkles")}Generar automáticamente</button>
+    </div>
+    <div class="month-stack">
+      ${[...months.entries()].map(([month, items]) => {
+        const open = year === today.getFullYear() ? month === today.getMonth() : month === 0;
+        return `
+          <details class="month-group" ${open ? "open" : ""}>
+            <summary><span>${escapeHtml(new Intl.DateTimeFormat("es-UY", { month: "long" }).format(items[0].date))}</span><strong>${items.length}</strong></summary>
+            <div class="hymn-date-grid">${items.map((item) => hymnDateCard(item.date, item.agenda)).join("")}</div>
+          </details>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function hymnDateCard(date, agenda) {
+  const plan = planFromAgenda(agenda);
+  const selections = HYMN_POSITIONS.filter((position) => plan[position].number || plan[position].name);
+  const topics = topicsFromAgenda(agenda);
+  const status = selections.length ? `${selections.length} de 4` : "Sin planificar";
+  return `
+    <button class="hymn-date-card" data-hymn-date="${escapeAttr(hymnDateKey(date))}" type="button">
+      <span class="hymn-date-card-head">
+        <span><strong>${escapeHtml(new Intl.DateTimeFormat("es-UY", { weekday: "long", day: "numeric" }).format(date))}</strong><small>${agenda ? hymnMeetingType(agenda) : "Sin agenda creada"}</small></span>
+        <span class="status-pill ${selections.length ? "status-CONFIRMADA" : "status-BORRADOR"}">${escapeHtml(status)}</span>
+      </span>
+      ${selections.length ? `
+        <span class="hymn-slot-list">${selections.map((position) => `
+          <span><small>${escapeHtml(HYMN_POSITION_LABELS[position])}</small><strong>${escapeHtml(hymnSelectionLabel(plan[position]))}</strong></span>
+        `).join("")}</span>
+      ` : `<span class="hymn-empty-line">${icon("music")} Tocá para asignar himnos</span>`}
+      ${topics.length ? `<span class="topic-chips">${topics.slice(0, 3).map((topic) => `<span>${escapeHtml(topic)}</span>`).join("")}</span>` : ""}
+    </button>
+  `;
+}
+
+function hymnMeetingType(agenda) {
+  if (agenda.presentacionPrimaria) return meetingText("primary");
+  if (agenda.reunionTestimonios) return "Ayuno y testimonios";
+  return "Reunión sacramental";
+}
+
+function bindHymnDateActions() {
+  screen.querySelector("#generate-hymns")?.addEventListener("click", openHymnGeneratorDialog);
+  screen.querySelectorAll("[data-hymn-date]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const date = dateFromInput(button.dataset.hymnDate);
+      const agenda = state.agendas.find((item) => hymnDateKey(item.fecha) === button.dataset.hymnDate) || null;
+      openHymnPlanDialog(date, agenda);
+    });
+  });
+}
+
+function openHymnPlanDialog(date, agenda) {
+  const catalog = hymnCatalog();
+  const original = planFromAgenda(agenda);
+  const options = Object.entries(catalog).map(([number, name]) => `<option value="${escapeAttr(`${number} · ${name}`)}"></option>`).join("");
+  openModal({
+    title: `Himnos · ${formatDateLong(date)}`,
+    body: `
+      <form id="hymn-plan-form" class="form-grid">
+        <p class="muted">Buscá por número o nombre. Los cambios de esta ventana afectan únicamente este domingo.</p>
+        ${HYMN_POSITIONS.map((position) => hymnPickerField(position, original[position])).join("")}
+        <datalist id="hymn-catalog-options">${options}</datalist>
+        <div id="hymn-plan-validation" class="inline-notice hidden" role="alert"></div>
+      </form>
+    `,
+    footer: `
+      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
+      <button class="primary-button" form="hymn-plan-form" type="submit">Guardar planificación</button>
+    `,
+    bind: (dialog) => {
+      dialog.querySelector("#hymn-plan-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await withToastError(async () => {
+          const plan = Object.fromEntries(HYMN_POSITIONS.map((position) => {
+            const parsed = parseHymnPicker(dialog.querySelector(`[data-hymn-picker="${position}"]`).value, catalog);
+            const previous = original[position];
+            const unchanged = parsed.number === previous.number && parsed.name === previous.name;
+            return [position, { ...parsed, origin: parsed.number || parsed.name ? (unchanged ? previous.origin || "PLANIFICADOR_MANUAL" : "PLANIFICADOR_MANUAL") : "" }];
+          }));
+          validateHymnPlan(plan);
+          await persistHymnPlan(date, plan, agenda);
+          closeModal();
+          renderHymnPlanner();
+          toastMessage("Planificación guardada");
+        });
+      });
+    }
+  });
+}
+
+function hymnPickerField(position, selected) {
+  return `
+    <div class="hymn-picker-field">
+      <div>
+        <label for="hymn-${escapeAttr(position)}">${escapeHtml(HYMN_POSITION_LABELS[position])}</label>
+        ${selected.origin ? `<small>${escapeHtml(HYMN_ORIGIN_LABELS[selected.origin] || "Selección guardada")}</small>` : `<small>Sin selección</small>`}
+      </div>
+      <input id="hymn-${escapeAttr(position)}" class="input" data-hymn-picker="${escapeAttr(position)}" list="hymn-catalog-options" value="${escapeAttr(hymnPickerValue(selected))}" placeholder="Número o nombre">
+    </div>
+  `;
+}
+
+function hymnPickerValue(selection) {
+  if (!selection?.number && !selection?.name) return "";
+  return selection.number ? `${selection.number} · ${selection.name || hymnCatalog()[selection.number] || ""}` : selection.name;
+}
+
+function parseHymnPicker(value, catalog) {
+  const clean = String(value || "").trim();
+  if (!clean) return { number: 0, name: "" };
+  const number = Number(clean.match(/^\s*(\d+)/)?.[1] || 0);
+  if (!number || !catalog[number]) throw new Error(`No se encontró el himno “${clean}” en la biblioteca.`);
+  return { number, name: catalog[number] };
+}
+
+function validateHymnPlan(plan) {
+  const duplicates = duplicateHymnNumbers(plan);
+  if (duplicates.length) throw new Error(`Un himno no puede repetirse dentro de la misma reunión (${duplicates.join(", ")}).`);
+  const sacrament = plan.sacrament;
+  if (sacrament.number && !hymnMetadata(sacrament.number, sacrament.name, hymnLanguage()).sacramental) {
+    throw new Error("El himno de Santa Cena debe estar clasificado como apto para esa ordenanza.");
+  }
+}
+
+function hymnSelectionLabel(selection) {
+  if (!selection?.number && !selection?.name) return "Sin asignar";
+  return selection.number ? `${selection.number} · ${selection.name || hymnCatalog()[selection.number] || ""}` : selection.name;
+}
+
+function renderHymnLibrary() {
+  const categories = Object.entries(HYMN_CATEGORY_LABELS).sort((a, b) => a[1].localeCompare(b[1]));
+  return `
+    <div class="module-toolbar library-toolbar">
+      <div class="search-field">
+        <span class="search-icon" aria-hidden="true">${icon("search")}</span>
+        <input id="hymn-library-search" class="input" type="search" placeholder="Buscar por número o nombre...">
+      </div>
+      <select id="hymn-category" class="select" aria-label="Filtrar por tema">
+        <option value="all">Todos los temas</option>
+        ${categories.map(([value, label]) => option(value, label, state.hymnLibraryCategory)).join("")}
+      </select>
+    </div>
+    <div class="filter-strip" aria-label="Filtros de biblioteca">
+      ${[
+        ["all", "Todos"],
+        ["new", "Himnario nuevo"],
+        ["unused", "No usados este año"],
+        ["planned", "Planificados"],
+        ["excluded", "Excluidos"]
+      ].map(([value, label]) => `<button class="filter-chip ${state.hymnLibraryFilter === value ? "active" : ""}" data-hymn-filter="${value}" type="button">${label}</button>`).join("")}
+    </div>
+    <div id="hymn-library-list" class="hymn-library-grid">${renderHymnLibraryList("")}</div>
+  `;
+}
+
+function hymnLibraryItems() {
+  const catalog = hymnCatalog();
+  const excluded = new Set((state.config.himnosExcluidos || []).map(Number));
+  return hymnHistory(catalog, state.agendas, state.hymnPlannerYear).map((item) => ({
+    ...item,
+    metadata: hymnMetadata(item.number, item.name, hymnLanguage()),
+    excluded: excluded.has(item.number)
+  }));
+}
+
+function renderHymnLibraryList(searchValue) {
+  const queryValue = normalizeText(searchValue);
+  const items = hymnLibraryItems().filter((item) => {
+    if (queryValue && !normalizeText(`${item.number} ${item.name}`).includes(queryValue)) return false;
+    if (state.hymnLibraryCategory !== "all" && !item.metadata.categories.includes(state.hymnLibraryCategory)) return false;
+    if (state.hymnLibraryFilter === "new" && !item.metadata.newCollection) return false;
+    if (state.hymnLibraryFilter === "unused" && item.usesInYear !== 0) return false;
+    if (state.hymnLibraryFilter === "planned" && !item.nextPlanned) return false;
+    if (state.hymnLibraryFilter === "excluded" && !item.excluded) return false;
+    return true;
+  });
+  if (!items.length) return emptyPanel("No hay himnos que coincidan con estos filtros.");
+  return items.map(hymnLibraryCard).join("");
+}
+
+function hymnLibraryCard(item) {
+  const categories = item.metadata.categories.slice(0, 3).map((category) => `<span>${escapeHtml(HYMN_CATEGORY_LABELS[category] || category)}</span>`).join("");
+  return `
+    <article class="hymn-library-card ${item.excluded ? "is-excluded" : ""}">
+      <div class="hymn-number">${item.number}</div>
+      <div class="hymn-library-main">
+        <div class="hymn-library-title"><h3>${escapeHtml(item.name)}</h3>${item.metadata.newCollection ? `<span class="new-hymn-badge">Nuevo</span>` : ""}</div>
+        <div class="topic-chips">${categories || "<span>Sin categoría</span>"}</div>
+        <p class="item-meta">${hymnHistoryText(item)}</p>
+        ${item.nextPlanned ? `<p class="item-meta next-use">Próxima planificación: ${escapeHtml(formatDateShort(item.nextPlanned))}</p>` : ""}
+        ${item.excluded ? `<p class="item-meta warning-text">Excluido de la generación automática</p>` : ""}
+      </div>
+      <div class="hymn-library-actions">
+        <button class="secondary-button" data-assign-hymn="${item.number}" type="button">Asignar</button>
+        <button class="text-button" data-toggle-hymn="${item.number}" type="button">${item.excluded ? "Volver a incluir" : "Excluir"}</button>
+      </div>
+    </article>
+  `;
+}
+
+function hymnHistoryText(item) {
+  const uses = `${item.usesInYear} ${item.usesInYear === 1 ? "uso" : "usos"} en ${state.hymnPlannerYear} · ${item.totalUses} total`;
+  return item.lastUsed ? `${uses} · Último: ${formatDateShort(item.lastUsed)}` : `${uses} · Nunca utilizado`;
+}
+
+function bindHymnLibraryActions() {
+  const search = screen.querySelector("#hymn-library-search");
+  const refresh = () => {
+    screen.querySelector("#hymn-library-list").innerHTML = renderHymnLibraryList(search.value);
+    bindHymnLibraryCardActions();
+  };
+  search.addEventListener("input", refresh);
+  screen.querySelector("#hymn-category").addEventListener("change", (event) => {
+    state.hymnLibraryCategory = event.target.value;
+    refresh();
+  });
+  screen.querySelectorAll("[data-hymn-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.hymnLibraryFilter = button.dataset.hymnFilter;
+      screen.querySelectorAll("[data-hymn-filter]").forEach((item) => item.classList.toggle("active", item === button));
+      refresh();
+    });
+  });
+  bindHymnLibraryCardActions();
+}
+
+function bindHymnLibraryCardActions() {
+  const items = new Map(hymnLibraryItems().map((item) => [item.number, item]));
+  screen.querySelectorAll("[data-assign-hymn]").forEach((button) => {
+    button.addEventListener("click", () => openAssignHymnDialog(items.get(Number(button.dataset.assignHymn))));
+  });
+  screen.querySelectorAll("[data-toggle-hymn]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await withToastError(async () => {
+        const number = Number(button.dataset.toggleHymn);
+        const excluded = new Set((state.config.himnosExcluidos || []).map(Number));
+        if (excluded.has(number)) excluded.delete(number); else excluded.add(number);
+        await savePlanningConfig({ himnosExcluidos: [...excluded].sort((a, b) => a - b) });
+        renderHymnPlanner();
+        toastMessage("Preferencia actualizada");
+      });
+    });
+  });
+}
+
+function openAssignHymnDialog(item) {
+  if (!item) return;
+  const today = startOfDay(new Date());
+  const dates = sundaysOfYear(state.hymnPlannerYear).filter((date) => date >= today);
+  if (!dates.length) {
+    toastMessage("No hay domingos futuros disponibles en este año.");
+    return;
+  }
+  openModal({
+    title: `Asignar ${item.number} · ${item.name}`,
+    body: `
+      <form id="assign-hymn-form" class="form-grid">
+        <p class="muted">Elegí el domingo y la posición dentro de la reunión.</p>
+        ${field("assign-hymn-date", "Domingo", `<select id="assign-hymn-date" class="select">${dates.map((date) => option(hymnDateKey(date), formatDateLong(date), hymnDateKey(dates[0]))).join("")}</select>`)}
+        ${field("assign-hymn-position", "Posición", `<select id="assign-hymn-position" class="select">${HYMN_POSITIONS.map((position) => option(position, HYMN_POSITION_LABELS[position], "opening")).join("")}</select>`)}
+        <div id="assign-hymn-note" class="inline-notice hidden"></div>
+      </form>
+    `,
+    footer: `
+      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
+      <button class="primary-button" form="assign-hymn-form" type="submit">Asignar himno</button>
+    `,
+    bind: (dialog) => {
+      dialog.querySelector("#assign-hymn-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await withToastError(async () => {
+          const dateKey = dialog.querySelector("#assign-hymn-date").value;
+          const position = dialog.querySelector("#assign-hymn-position").value;
+          if (position === "sacrament" && !item.metadata.sacramental) throw new Error("Este himno no está clasificado como apto para la Santa Cena.");
+          const agenda = state.agendas.find((candidate) => hymnDateKey(candidate.fecha) === dateKey) || null;
+          const plan = planFromAgenda(agenda);
+          const duplicatePosition = HYMN_POSITIONS.find((candidate) => candidate !== position && plan[candidate].number === item.number);
+          if (duplicatePosition) throw new Error(`Este himno ya está asignado como ${HYMN_POSITION_LABELS[duplicatePosition]} en esa reunión.`);
+          if ((plan[position].number || plan[position].name) && !confirm(`${HYMN_POSITION_LABELS[position]} ya tiene ${hymnSelectionLabel(plan[position])}. ¿Reemplazarlo?`)) return;
+          plan[position] = { number: item.number, name: item.name, origin: "PLANIFICADOR_MANUAL" };
+          validateHymnPlan(plan);
+          await persistHymnPlan(dateFromInput(dateKey), plan, agenda);
+          closeModal();
+          renderHymnPlanner();
+          toastMessage("Himno asignado correctamente");
+        });
+      });
+    }
+  });
+}
+
+function openHymnGeneratorDialog() {
+  const today = startOfDay(new Date());
+  const available = sundaysOfYear(state.hymnPlannerYear).filter((date) => date >= today);
+  if (!available.length) {
+    toastMessage("No hay domingos futuros disponibles en este año.");
+    return;
+  }
+  openModal({
+    title: "Generar planificación",
+    body: `
+      <form id="hymn-generator-form" class="form-grid">
+        <p class="muted">Elegí el período y las reglas. Vas a revisar todos los cambios antes de guardarlos.</p>
+        <div class="inline-fields">
+          ${field("hymn-start", "Desde", `<input id="hymn-start" class="input" type="date" min="${dateInputValue(available[0])}" max="${dateInputValue(available.at(-1))}" value="${dateInputValue(available[0])}" required>`)}
+          ${field("hymn-end", "Hasta", `<input id="hymn-end" class="input" type="date" min="${dateInputValue(available[0])}" max="${dateInputValue(available.at(-1))}" value="${dateInputValue(available.at(-1))}" required>`)}
+        </div>
+        ${field("hymn-interval", "Intervalo mínimo entre usos (días)", `<input id="hymn-interval" class="input" type="number" min="0" max="730" value="${Number(state.config.intervaloMinimoHimnosDias || 180)}">`, "Si no hay alternativas, se relajará el intervalo y aparecerá una advertencia.")}
+        <div class="option-stack">
+          ${generatorCheckbox("only-empty-hymns", "Solo reuniones sin himnos planificados", state.config.soloFechasSinHimnos !== false)}
+          ${generatorCheckbox("replace-auto-hymns", "Actualizar selecciones automáticas anteriores", state.config.reemplazarHimnosAutomaticos !== false)}
+          ${generatorCheckbox("force-new-hymn", "Incluir al menos un himno del himnario nuevo", Boolean(state.config.forzarHimnoNuevo))}
+          ${generatorCheckbox("prioritize-topic-hymns", "Priorizar los temas de los discursos", state.config.priorizarTemasHimnos !== false)}
+          ${generatorCheckbox("include-intermediate-hymn", "Generar también un himno intermedio", Boolean(state.config.generarHimnoIntermedio))}
+        </div>
+        <p class="inline-notice">Las selecciones manuales siempre se conservan.</p>
+      </form>
+    `,
+    footer: `
+      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
+      <button class="primary-button" form="hymn-generator-form" type="submit">Generar vista previa</button>
+    `,
+    bind: (dialog) => {
+      dialog.querySelector("#hymn-generator-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await withToastError(async () => {
+          const start = dateFromInput(dialog.querySelector("#hymn-start").value);
+          const end = dateFromInput(dialog.querySelector("#hymn-end").value);
+          if (end < start) throw new Error("La fecha final debe ser posterior a la inicial.");
+          const dates = available.filter((date) => date >= start && date <= end);
+          const config = {
+            intervaloMinimoHimnosDias: Number(dialog.querySelector("#hymn-interval").value || 0),
+            soloFechasSinHimnos: dialog.querySelector("#only-empty-hymns").checked,
+            reemplazarHimnosAutomaticos: dialog.querySelector("#replace-auto-hymns").checked,
+            forzarHimnoNuevo: dialog.querySelector("#force-new-hymn").checked,
+            priorizarTemasHimnos: dialog.querySelector("#prioritize-topic-hymns").checked,
+            generarHimnoIntermedio: dialog.querySelector("#include-intermediate-hymn").checked
+          };
+          await savePlanningConfig(config);
+          const result = generateHymnPlans({
+            catalog: hymnCatalog(),
+            agendas: state.agendas,
+            dates,
+            language: hymnLanguage(),
+            options: {
+              minimumIntervalDays: config.intervaloMinimoHimnosDias,
+              onlyEmptyDates: config.soloFechasSinHimnos,
+              replaceAutomatic: config.reemplazarHimnosAutomaticos,
+              forceNewCollection: config.forzarHimnoNuevo,
+              prioritizeTopics: config.priorizarTemasHimnos,
+              includeIntermediate: config.generarHimnoIntermedio,
+              excludedHymns: state.config.himnosExcluidos || [],
+              seed: `${state.unitNumber}-${hymnDateKey(start)}`
+            }
+          });
+          closeModal();
+          openHymnPreviewDialog(result);
+        });
+      });
+    }
+  });
+}
+
+function generatorCheckbox(id, label, checked) {
+  return `<label class="checkbox-line"><input id="${escapeAttr(id)}" type="checkbox" ${checked ? "checked" : ""}><span>${escapeHtml(label)}</span></label>`;
+}
+
+function openHymnPreviewDialog(result) {
+  openModal({
+    title: "Vista previa",
+    body: `
+      <div class="preview-summary"><strong>${result.evaluatedDates} reuniones evaluadas</strong><span>${result.proposals.length} con cambios · ${result.unchangedDates} sin cambios</span></div>
+      <div class="hymn-preview-list">
+        ${result.proposals.length ? result.proposals.map((proposal) => `
+          <article class="hymn-preview-card">
+            <div><h3>${escapeHtml(formatDateLong(proposal.date))}</h3>${proposal.topics.length ? `<p class="item-meta">Temas: ${escapeHtml(proposal.topics.join(", "))}</p>` : ""}</div>
+            <div class="hymn-preview-slots">${HYMN_POSITIONS.filter((position) => proposal.proposal[position].number || proposal.proposal[position].name).map((position) => `<span><small>${HYMN_POSITION_LABELS[position]}</small><strong>${escapeHtml(hymnSelectionLabel(proposal.proposal[position]))}</strong></span>`).join("")}</div>
+            ${proposal.preservedManualSelections ? `<p class="item-meta">${proposal.preservedManualSelections} selecciones manuales preservadas</p>` : ""}
+            ${proposal.warnings.length ? `<div class="warning-list">${proposal.warnings.map((warning) => `<span>${escapeHtml(hymnWarningText(warning))}</span>`).join("")}</div>` : ""}
+          </article>
+        `).join("") : emptyPanel("No se encontraron cambios para aplicar con estas opciones.")}
+      </div>
+    `,
+    footer: `
+      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
+      <button class="primary-button" id="apply-hymn-preview" type="button" ${result.proposals.length ? "" : "disabled"}>Aplicar planificación</button>
+    `,
+    bind: (dialog) => {
+      dialog.classList.add("wide");
+      dialog.querySelector("#apply-hymn-preview")?.addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        button.disabled = true;
+        button.textContent = "Guardando...";
+        await withToastError(async () => {
+          await persistHymnPlans(result.proposals);
+          closeModal();
+          renderHymnPlanner();
+          toastMessage(`Se aplicó la planificación a ${result.proposals.length} reuniones.`);
+        });
+        if (modal.open) {
+          button.disabled = false;
+          button.textContent = "Aplicar planificación";
+        }
+      });
+    }
+  });
+}
+
+function hymnWarningText(warning) {
+  const position = warning.position ? HYMN_POSITION_LABELS[warning.position] : "";
+  if (warning.code === "INTERVAL_RELAXED") return `No había alternativas para ${position} dentro del intervalo elegido.`;
+  if (warning.code === "NO_CANDIDATE") return `No se encontró un himno adecuado para ${position}.`;
+  if (warning.code === "NO_NEW_COLLECTION") return "No se pudo incluir un himno del himnario nuevo.";
+  return "No se pudo cumplir una de las reglas.";
+}
+
+function hymnPlanPatch(agenda, plan) {
+  const messages = [...(agenda?.mensajesEvangelio || [])];
+  const index = messages.findIndex((message) => message.tipo === "HIMNO_INTERMEDIO");
+  if (plan.intermediate.number || plan.intermediate.name) {
+    const message = { tipo: "HIMNO_INTERMEDIO", nombre: "", himnoNumero: plan.intermediate.number, himnoNombre: plan.intermediate.name, tema: "", etiquetaTema: "" };
+    if (index >= 0) messages[index] = message; else messages.push(message);
+  } else if (index >= 0) messages.splice(index, 1);
+  return {
+    primerHimnoNumero: plan.opening.number,
+    primerHimnoNombre: plan.opening.name,
+    primerHimnoOrigen: plan.opening.origin,
+    himnoSacramentalNumero: plan.sacrament.number,
+    himnoSacramentalNombre: plan.sacrament.name,
+    himnoSacramentalOrigen: plan.sacrament.origin,
+    mensajesEvangelio: messages,
+    himnoIntermedioOrigen: plan.intermediate.origin,
+    himnoFinalNumero: plan.closing.number,
+    himnoFinalNombre: plan.closing.name,
+    himnoFinalOrigen: plan.closing.origin,
+    ultimaEdicionPor: userEmail(),
+    ultimaEdicionEn: serverTimestamp()
+  };
+}
+
+function agendaWithHymnPlan(agenda, date, plan, id = agenda?.id || "") {
+  const base = agenda ? { ...agenda } : createBlankAgenda(date);
+  return { ...base, id, ...hymnPlanPatch(base, plan), ultimaEdicionEn: new Date() };
+}
+
+async function persistHymnPlan(date, plan, agenda = null) {
+  validateHymnPlan(plan);
+  if (agenda?.id) {
+    await updateDoc(agendaRef(agenda.id), hymnPlanPatch(agenda, plan));
+    upsertLocalAgenda(agendaWithHymnPlan(agenda, date, plan));
+    return agenda.id;
+  }
+  const created = agendaWithHymnPlan(null, date, plan);
+  const ref = await addDoc(collection(db, "agendas"), agendaToFirestore(created, null));
+  upsertLocalAgenda({ ...created, id: ref.id });
+  return ref.id;
+}
+
+async function persistHymnPlans(proposals) {
+  if (!proposals.length) return;
+  const batch = writeBatch(db);
+  const saved = [];
+  proposals.forEach(({ date, proposal }) => {
+    validateHymnPlan(proposal);
+    const agenda = state.agendas.find((item) => hymnDateKey(item.fecha) === hymnDateKey(date)) || null;
+    if (agenda?.id) {
+      batch.update(agendaRef(agenda.id), hymnPlanPatch(agenda, proposal));
+      saved.push(agendaWithHymnPlan(agenda, date, proposal));
+    } else {
+      const ref = doc(collection(db, "agendas"));
+      const created = agendaWithHymnPlan(null, date, proposal, ref.id);
+      batch.set(ref, agendaToFirestore(created, null));
+      saved.push(created);
+    }
+  });
+  await batch.commit();
+  saved.forEach(upsertLocalAgenda);
+}
+
+function renderDuplicateCheck() {
+  const report = analyzeDuplicates(state.agendas, state.hermanos);
+  screen.innerHTML = `
+    <div class="module-hero review-hero">
+      <div>
+        <p class="eyebrow">Control de calidad</p>
+        <h2>Chequeo de duplicados</h2>
+        <p>Una revisión rápida de fechas, personas, asignaciones e himnos antes de usar las agendas.</p>
+      </div>
+      <div class="review-score ${report.total ? "has-issues" : "is-clear"}">
+        ${report.total ? `<strong>${report.total}</strong><span>situaciones para revisar</span>` : `${icon("check")}<strong>Todo en orden</strong>`}
+      </div>
+    </div>
+    <div class="metric-grid review-metrics">
+      ${metricPill("Fechas repetidas", report.duplicateDates.length)}
+      ${metricPill("Fichas de personas", report.duplicatePeople.length)}
+      ${metricPill("Personas en una reunión", report.repeatedPeople.length)}
+      ${metricPill("Himnos en una reunión", report.repeatedHymns.length)}
+    </div>
+    ${report.total ? `<div class="screen-grid duplicate-sections">
+      ${duplicateReportSection("Agendas con la misma fecha", report.duplicateDates.map((group) => ({
+        title: formatDateLong(group.items[0].fecha),
+        detail: `${group.items.length} agendas guardadas para este día`,
+        agendaId: group.items[0].id
+      })))}
+      ${duplicateReportSection("Fichas de personas repetidas", report.duplicatePeople.map((group) => ({
+        title: group.items.map((item) => item.nombre).join(" · "),
+        detail: `${group.items.length} fichas representan el mismo nombre`,
+        planning: true
+      })))}
+      ${duplicateReportSection("Una persona en varios lugares", report.repeatedPeople.map((item) => ({
+        title: item.name,
+        detail: `${formatDateShort(item.agenda.fecha)} · ${item.roles.join(" · ")}`,
+        agendaId: item.agenda.id
+      })))}
+      ${duplicateReportSection("Himnos repetidos en una reunión", report.repeatedHymns.map((item) => ({
+        title: `${item.number} · ${item.name || hymnCatalog()[item.number] || "Himno"}`,
+        detail: `${formatDateShort(item.agenda.fecha)} · ${item.positions.join(" · ")}`,
+        agendaId: item.agenda.id
+      })))}
+    </div>` : `
+      <section class="success-panel">
+        ${icon("check")}
+        <h3>No encontramos duplicados</h3>
+        <p>Las fechas, fichas de personas, asignaciones e himnos están consistentes.</p>
+      </section>
+    `}
+  `;
+  screen.querySelectorAll("[data-review-agenda]").forEach((button) => button.addEventListener("click", () => openEditor(button.dataset.reviewAgenda)));
+  screen.querySelectorAll("[data-review-planning]").forEach((button) => button.addEventListener("click", () => navigate("planning")));
+}
+
+function duplicateReportSection(title, items) {
+  if (!items.length) return "";
+  return `
+    <section class="panel duplicate-panel">
+      ${sectionTitle(title, "", `<span class="count-badge">${items.length}</span>`)}
+      <div class="duplicate-list">${items.map((item) => `
+        <article>
+          <div><strong>${escapeHtml(item.title)}</strong><p class="item-meta">${escapeHtml(item.detail)}</p></div>
+          ${item.agendaId ? `<button class="secondary-button" data-review-agenda="${escapeAttr(item.agendaId)}" type="button">Abrir agenda</button>` : `<button class="secondary-button" data-review-planning type="button">Ir a planificación</button>`}
+        </article>
+      `).join("")}</div>
+    </section>
+  `;
+}
+
+function renderSettings() {
+  const standalone = window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  screen.innerHTML = `
+    <div class="screen-grid settings-grid">
       <section class="panel">
         ${sectionTitle("Unidad", "U", "")}
         <p class="muted">Unidad activa: <strong>${escapeHtml(state.unitNumber)}</strong></p>
@@ -2570,6 +3304,11 @@ function renderSettings() {
           <button class="filter-chip ${state.theme === "light" ? "active" : ""}" data-theme="light" type="button">Claro</button>
           <button class="filter-chip ${state.theme === "dark" ? "active" : ""}" data-theme="dark" type="button">Oscuro</button>
         </div>
+      </section>
+      <section class="panel install-panel">
+        ${sectionTitle("Web app", "", standalone ? `<span class="status-pill status-CONFIRMADA">Instalada</span>` : "")}
+        <p class="muted">Abrila desde la pantalla de inicio, en una ventana propia y con acceso rápido a la última versión cargada.</p>
+        ${standalone ? `<p class="inline-notice">Ya estás usando Agenda Sacramental como aplicación.</p>` : state.deferredInstallPrompt ? `<button id="install-web-app" class="primary-button" type="button">Instalar en este dispositivo</button>` : `<p class="field-hint">En iPhone: Compartir → Agregar a pantalla de inicio. En otros navegadores, buscá “Instalar aplicación” en el menú.</p>`}
       </section>
     </div>
   `;
@@ -2590,6 +3329,14 @@ function renderSettings() {
       applyTheme();
       renderSettings();
     });
+  });
+  screen.querySelector("#install-web-app")?.addEventListener("click", async () => {
+    const prompt = state.deferredInstallPrompt;
+    if (!prompt) return;
+    await prompt.prompt();
+    await prompt.userChoice;
+    state.deferredInstallPrompt = null;
+    renderSettings();
   });
 }
 
@@ -2742,12 +3489,16 @@ function normalizeAgenda(id, data) {
     anuncios: data.anuncios || "",
     primerHimnoNumero: Number(data.primerHimnoNumero || 0),
     primerHimnoNombre: data.primerHimnoNombre || "",
+    primerHimnoOrigen: data.primerHimnoOrigen || "",
     directorMusica: data.directorMusica || "",
     pianista: data.pianista || "",
     himnoSacramentalNumero: Number(data.himnoSacramentalNumero || 0),
     himnoSacramentalNombre: data.himnoSacramentalNombre || "",
+    himnoSacramentalOrigen: data.himnoSacramentalOrigen || "",
     himnoFinalNumero: Number(data.himnoFinalNumero || 0),
     himnoFinalNombre: data.himnoFinalNombre || "",
+    himnoIntermedioOrigen: data.himnoIntermedioOrigen || "",
+    himnoFinalOrigen: data.himnoFinalOrigen || "",
     primeraOracion: data.primeraOracion || "",
     oracionFinal: data.oracionFinal || "",
     asuntosEstacaBarrio: data.asuntosEstacaBarrio || [],
@@ -2775,12 +3526,16 @@ function createBlankAgenda(date) {
     anuncios: "",
     primerHimnoNumero: 0,
     primerHimnoNombre: "",
+    primerHimnoOrigen: "",
     directorMusica: "",
     pianista: "",
     himnoSacramentalNumero: 0,
     himnoSacramentalNombre: "",
+    himnoSacramentalOrigen: "",
     himnoFinalNumero: 0,
     himnoFinalNombre: "",
+    himnoIntermedioOrigen: "",
+    himnoFinalOrigen: "",
     primeraOracion: "",
     oracionFinal: "",
     asuntosEstacaBarrio: [],
@@ -3079,6 +3834,7 @@ function applyTheme() {
   const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
   const resolved = state.theme === "system" ? (prefersDark ? "dark" : "light") : state.theme;
   document.documentElement.dataset.theme = resolved;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolved === "dark" ? "#071411" : "#f6f8f3");
 }
 
 function latestDate(dates) {
@@ -3178,7 +3934,7 @@ function sameMoment(a, b) {
 }
 
 function normalizeName(name) {
-  return normalizeText(name).trim();
+  return normalizeText(name).replace(/\s+/g, " ").trim();
 }
 
 function normalizeText(value) {

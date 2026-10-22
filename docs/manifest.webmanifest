@@ -1,0 +1,26 @@
+{
+  "name": "Agenda Sacramental",
+  "short_name": "Agenda",
+  "description": "Agendas, planificación de participaciones e himnos para reuniones sacramentales.",
+  "lang": "es",
+  "start_url": "./#agendas",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#071411",
+  "theme_color": "#244d3a",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "./assets/app-icon.webp",
+      "sizes": "192x192",
+      "type": "image/webp"
+    },
+    {
+      "src": "./assets/app-icon-512.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,6 +1,15 @@
-# Agenda Sacramental Web
+# Agenda Sacramental Web App
 
-Web app estatica para publicar con GitHub Pages desde la carpeta `docs`.
+Aplicación web instalable y responsive, publicada con GitHub Pages desde la carpeta `docs`.
+
+Comparte las mismas colecciones de Firebase que la aplicación Android y ofrece:
+
+- creación, edición, lectura y exportación de agendas;
+- planificación de discursos, oraciones y temas;
+- chequeo de fechas, personas, asignaciones e himnos duplicados;
+- planificación manual y automática de himnos;
+- biblioteca de himnos con historial, filtros y exclusiones por unidad;
+- instalación como PWA en dispositivos compatibles.
 
 ## Publicacion
 
@@ -18,3 +27,13 @@ La web usa las mismas colecciones que Android:
 - `agendas`
 - `hermanos`
 - `configuracion`
+
+La planificación de himnos utiliza los campos de la agenda como única fuente de verdad. Por eso, una selección realizada en la web aparece también en Android y viceversa.
+
+## Pruebas
+
+Desde la raíz del repositorio:
+
+```powershell
+node --test tests/agenda-web.test.cjs tests/hymn-planner-web.test.mjs
+```
