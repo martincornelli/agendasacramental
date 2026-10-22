@@ -651,20 +651,22 @@ function activateUnit(unitNumber) {
 function renderAgendas() {
   const searchValue = "";
   screen.innerHTML = `
-    <div class="toolbar">
+    <div class="toolbar agenda-toolbar">
       <div class="toolbar-left">
         <div class="search-field">
           <span class="search-icon" aria-hidden="true">${icon("search")}</span>
           <input id="agenda-search" class="input" type="search" placeholder="Buscar por fecha, nombre, himno..." value="${escapeAttr(searchValue)}">
         </div>
-        ${stateFilter("all", "Todas", true)}
-        ${stateFilter("BORRADOR", "Borrador")}
-        ${stateFilter("CONFIRMADA", "Confirmada")}
-        ${stateFilter("REALIZADA", "Realizada")}
+        <div class="agenda-filter-strip" aria-label="Filtrar agendas por estado">
+          ${stateFilter("all", "Todas", true)}
+          ${stateFilter("BORRADOR", "Borrador")}
+          ${stateFilter("CONFIRMADA", "Confirmada")}
+          ${stateFilter("REALIZADA", "Realizada")}
+        </div>
       </div>
       <div class="toolbar-right">
-        <button id="create-sundays" class="secondary-button" type="button">${buttonIcon("calendarPlus")}Crear domingos</button>
-        <button id="new-agenda" class="primary-button" type="button">${buttonIcon("plus")}Nueva agenda</button>
+        <button id="create-sundays" class="secondary-button" type="button">${buttonIcon("calendarPlus")}<span class="button-label">Crear domingos</span></button>
+        <button id="new-agenda" class="primary-button agenda-new-button" type="button" aria-label="Nueva agenda">${buttonIcon("plus")}<span class="button-label">Nueva agenda</span></button>
       </div>
     </div>
 
@@ -697,7 +699,7 @@ function renderAgendaDashboard(searchValue, filterState) {
     agendaMatchesState(nextAgenda, filterState) &&
     agendaMatchesSearch(nextAgenda, searchValue);
   return `
-    <section class="summary-section">
+    <section class="summary-section agenda-desktop-summary">
       ${sectionTitle("Resumen", "", "")}
       <div class="metric-grid">
         ${metricPill("Total", stats.total)}
@@ -708,13 +710,13 @@ function renderAgendaDashboard(searchValue, filterState) {
 
     ${showNextAgenda ? `
       <section class="panel next-agenda-panel">
-        ${sectionTitle("Próximo domingo", "", `<button class="text-button" data-open="${escapeAttr(nextAgenda.id)}" type="button">Abrir ${buttonIcon("chevronRight")}</button>`)}
-        ${agendaCard(nextAgenda)}
+        ${sectionTitle("Próximo domingo", "", "")}
+        ${agendaCard(nextAgenda, true)}
       </section>
     ` : ""}
 
-    <section class="panel">
-      ${sectionTitle("Agendas", "", "")}
+    <section class="panel agenda-collection-panel">
+      ${sectionTitle(showNextAgenda ? "Otras agendas" : "Agendas", "", "")}
       <div id="agenda-list" class="agenda-list grouped">${renderAgendaList(searchValue, filterState, showNextAgenda ? nextAgenda.id : "")}</div>
     </section>
   `;
@@ -746,7 +748,7 @@ function renderAgendaList(searchValue, filterState, excludedAgendaId = "") {
             <span>${escapeHtml(group.label)}</span>
             <strong>${groupItems.length}</strong>
           </summary>
-          <div class="agenda-list">${groupItems.map(agendaCard).join("")}</div>
+          <div class="agenda-list">${groupItems.map((agenda) => agendaCard(agenda)).join("")}</div>
         </details>
       `;
     })
@@ -783,28 +785,39 @@ function compareAgendasForGroup(a, b, groupState) {
   return groupState === "REALIZADA" ? b.fecha - a.fecha : a.fecha - b.fecha;
 }
 
-function agendaCard(agenda) {
+function agendaCard(agenda, highlighted = false) {
+  const messages = agenda.mensajesEvangelio.length || agenda.testimonios.length || 0;
+  const meetingType = agenda.presentacionPrimaria
+    ? meetingText("primary")
+    : agenda.reunionTestimonios
+      ? "Reunión de ayuno y testimonios"
+      : "Reunión sacramental";
   return `
-    <article class="agenda-card">
-      <div class="agenda-card-header">
-        <div>
-          <h3>${escapeHtml(formatDateLong(agenda.fecha))}</h3>
-          <p class="item-meta">${agenda.presentacionPrimaria ? meetingText("primary") : agenda.reunionTestimonios ? "Reunión de ayuno y testimonios" : "Reunión sacramental"}</p>
+    <article class="agenda-card agenda-card-${escapeAttr(agenda.estado)} ${highlighted ? "agenda-card-highlighted" : ""}">
+      <button class="agenda-card-main" data-open="${escapeAttr(agenda.id)}" type="button" aria-label="Editar agenda del ${escapeAttr(formatDateLong(agenda.fecha))}">
+        <div class="agenda-card-copy">
+          <div class="agenda-card-titleline">
+            <h3>
+              <span class="agenda-date-long">${escapeHtml(formatDateLong(agenda.fecha))}</span>
+              <span class="agenda-date-compact">${escapeHtml(formatAgendaDateCompact(agenda.fecha))}</span>
+            </h3>
+            <span class="status-pill status-${escapeAttr(agenda.estado)}">${escapeHtml(labelState(agenda.estado))}</span>
+          </div>
+          <p class="item-meta agenda-meeting-type">${escapeHtml(meetingType)}</p>
+          ${agenda.preside ? `<p class="agenda-person-line"><span>Preside</span><strong>${escapeHtml(agenda.preside)}</strong></p>` : `<p class="agenda-person-line is-empty">Presidencia aún sin asignar</p>`}
         </div>
-        <span class="status-pill status-${escapeAttr(agenda.estado)}">${escapeHtml(labelState(agenda.estado))}</span>
-      </div>
-      <div class="agenda-summary">
-        <div>${summaryLabel("users", "Preside")}<strong>${escapeHtml(agenda.preside || "Sin datos")}</strong></div>
-        <div>${summaryLabel("mic", "Dirige")}<strong>${escapeHtml(agenda.dirige || "Sin datos")}</strong></div>
-        <div>${summaryLabel("messageSquare", "Mensajes")}<strong>${agenda.mensajesEvangelio.length || agenda.testimonios.length || 0}</strong></div>
-      </div>
+        <span class="agenda-card-chevron" aria-hidden="true">${icon("chevronRight")}</span>
+      </button>
       <div class="agenda-card-footer">
-        <span class="item-meta attendance-meta">👥 Asistencia: ${Number(agenda.asistencia || 0)}</span>
-        <div class="item-actions">
-          <button class="secondary-button" data-read="${escapeAttr(agenda.id)}" type="button">${buttonIcon("bookOpen")}Lectura</button>
-          <button class="secondary-button" data-print-agenda="${escapeAttr(agenda.id)}" type="button">${buttonIcon("fileText")}PDF</button>
-          <button class="primary-button" data-open="${escapeAttr(agenda.id)}" type="button">${buttonIcon("pencil")}Editar</button>
-          <button class="icon-button" data-delete-agenda="${escapeAttr(agenda.id)}" type="button" title="Eliminar" aria-label="Eliminar agenda">${icon("x")}</button>
+        <div class="agenda-card-facts item-meta">
+          ${Number(agenda.asistencia || 0) > 0 ? `<span>👥 ${Number(agenda.asistencia)}</span>` : ""}
+          ${messages > 0 ? `<span>${messages} ${messages === 1 ? "mensaje" : "mensajes"}</span>` : ""}
+          ${agenda.dirige ? `<span>Dirige: ${escapeHtml(agenda.dirige)}</span>` : ""}
+        </div>
+        <div class="item-actions agenda-card-actions">
+          <button class="agenda-action-button" data-read="${escapeAttr(agenda.id)}" type="button" title="Modo lectura" aria-label="Abrir modo lectura">${buttonIcon("bookOpen")}<span>Lectura</span></button>
+          <button class="agenda-action-button" data-print-agenda="${escapeAttr(agenda.id)}" type="button" title="Exportar PDF" aria-label="Exportar agenda a PDF">${buttonIcon("fileText")}<span>PDF</span></button>
+          <button class="agenda-action-button danger-action" data-delete-agenda="${escapeAttr(agenda.id)}" type="button" title="Eliminar" aria-label="Eliminar agenda">${icon("x")}<span>Eliminar</span></button>
         </div>
       </div>
     </article>
@@ -817,10 +830,6 @@ function icon(name, className = "svg-icon") {
 
 function buttonIcon(name) {
   return `<span class="button-icon" aria-hidden="true">${icon(name)}</span>`;
-}
-
-function summaryLabel(iconName, label) {
-  return `<span>${icon(iconName, "summary-icon")} ${escapeHtml(label)}</span>`;
 }
 
 function bindAgendaListActions() {
@@ -3763,7 +3772,7 @@ function applyTheme() {
   const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
   const resolved = state.theme === "system" ? (prefersDark ? "dark" : "light") : state.theme;
   document.documentElement.dataset.theme = resolved;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolved === "dark" ? "#071411" : "#f6f8f3");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolved === "dark" ? "#17372e" : "#f3f7f1");
 }
 
 function latestDate(dates) {
@@ -3822,6 +3831,12 @@ function formatDateLong(date) {
 
 function formatDateShort(date) {
   return new Intl.DateTimeFormat("es-UY", { day: "2-digit", month: "2-digit", year: "numeric" }).format(toDate(date));
+}
+
+function formatAgendaDateCompact(date) {
+  return new Intl.DateTimeFormat("es-UY", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+    .format(toDate(date))
+    .replaceAll(".", "");
 }
 
 function startOfDay(date) {

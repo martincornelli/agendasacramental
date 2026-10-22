@@ -59,6 +59,24 @@ test('history suggestions collapse whitespace-only variants', () => {
   const c = load(['usedNames'], { collectHistoryNames: () => ['Ana ', 'Ana', 'Ana\t'], state: { hermanos: [{ nombre: 'Ana  ' }] } });
   assert.deepEqual(Array.from(c.usedNames()), ['Ana']);
 });
+test('agenda cards keep the mobile hierarchy compact and fully actionable', () => {
+  const c = load(['agendaCard'], {
+    escapeAttr: value => String(value), escapeHtml: value => String(value), formatDateLong: () => 'domingo, 15 de noviembre de 2026',
+    formatAgendaDateCompact: () => 'dom, 15 nov 2026', labelState: () => 'Borrador', meetingText: () => 'Presentación de la Primaria',
+    icon: name => `<i>${name}</i>`, buttonIcon: name => `<i>${name}</i>`
+  });
+  const html = c.agendaCard({
+    id: 'agenda-1', estado: 'BORRADOR', fecha: new Date(2026, 10, 15), preside: 'José Pérez', dirige: '', asistencia: 0,
+    mensajesEvangelio: [], testimonios: [], presentacionPrimaria: false, reunionTestimonios: false
+  }, true);
+  assert.ok(html.includes('agenda-card-main'));
+  assert.ok(html.includes('agenda-date-compact'));
+  assert.ok(html.includes('agenda-card-highlighted'));
+  assert.ok(html.includes('data-read="agenda-1"'));
+  assert.ok(html.includes('data-print-agenda="agenda-1"'));
+  assert.ok(html.includes('data-delete-agenda="agenda-1"'));
+  assert.ok(!html.includes('agenda-summary'));
+});
 test('special meeting options are exclusive and restore regular messages', () => {
   const elements = Object.fromEntries(['#presentacionPrimaria', '#reunionTestimonios', '[data-testimonies-field]', '[data-primary-announcement]', '#message-list', '#add-message', '[data-messages-heading]'].map(key => [key, new Element()]));
   const c = load(['syncTestimoniesFieldVisibility'], { screen: { querySelector: key => elements[key] } });
