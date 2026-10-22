@@ -110,3 +110,53 @@ test('Primary presentation persists, old agendas default to regular, both langua
     }
   }
 });
+test('internal navigation keeps Agendas below every module and agenda view', () => {
+  const c = load(['navigationAction']);
+  for (const route of ['planning', 'hymns', 'settings', 'edit', 'reading', 'pdf']) {
+    assert.equal(c.navigationAction('agendas', route), 'push');
+    assert.equal(c.navigationAction(route, 'agendas'), 'back');
+  }
+  assert.equal(c.navigationAction('edit', 'reading'), 'replace');
+  assert.equal(c.navigationAction('reading', 'pdf'), 'replace');
+  assert.equal(c.navigationAction('planning', 'hymns'), 'replace');
+  assert.equal(c.navigationAction('agendas', 'agendas'), 'stay');
+});
+test('module switches replace the child entry and Back returns to Agendas', () => {
+  const calls = [];
+  const state = { route: 'agendas', activeAgendaId: null };
+  const history = {
+    pushState: (entry, _title, url) => calls.push(['push', entry.route, url]),
+    replaceState: (entry, _title, url) => calls.push(['replace', entry.route, url]),
+    back: () => calls.push(['back'])
+  };
+  const c = load(['navigate', 'navigationAction', 'commitNavigation', 'navigationEntry', 'navigationUrl'], {
+    state, history, APP_HISTORY_KEY: 'agenda-sacramental-route', encodeURIComponent,
+    closeMobileMenu: () => {},
+    applyNavigation: entry => { state.route = entry.route; state.activeAgendaId = entry.agendaId; }
+  });
+  c.navigate('planning');
+  c.navigate('hymns');
+  c.navigate('agendas');
+  assert.deepEqual(calls, [
+    ['push', 'planning', '#planning'],
+    ['replace', 'hymns', '#hymns'],
+    ['back']
+  ]);
+});
+test('agenda routes are encoded in the URL and restored safely', () => {
+  const globals = { location: { hash: '#agendas' }, encodeURIComponent, decodeURIComponent };
+  const c = load(['navigationFromHash', 'navigationUrl'], globals);
+  assert.equal(c.navigationUrl('edit', 'agenda 15/11'), '#edit/agenda%2015%2F11');
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(c.navigationFromHash('#reading/agenda%2015%2F11'))),
+    { route: 'reading', agendaId: 'agenda 15/11' }
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(c.navigationFromHash('#pdf'))),
+    { route: 'agendas', agendaId: null }
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(c.navigationFromHash('#outside'))),
+    { route: 'agendas', agendaId: null }
+  );
+});

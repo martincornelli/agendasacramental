@@ -166,6 +166,7 @@ const HYMN_ORIGIN_LABELS = {
   PLANIFICADOR_MANUAL: "Elegido en el planificador",
   AUTOMATICA: "Selección automática"
 };
+const APP_HISTORY_KEY = "agenda-sacramental-route";
 const defaultConfig = {
   diasVerdeDiscurso: 90,
   diasAmarilloDiscurso: 30,
@@ -183,11 +184,12 @@ const defaultConfig = {
   himnosExcluidos: []
 };
 
+const initialNavigation = navigationFromHash();
 const state = {
   user: null,
   unitNumber: localStorage.getItem(UNIT_STORAGE_KEY) || "",
-  route: routeFromHash(),
-  activeAgendaId: null,
+  route: initialNavigation.route,
+  activeAgendaId: initialNavigation.agendaId,
   planningTab: "talks",
   planningSearch: "",
   hymnPlannerTab: "dates",
@@ -220,6 +222,7 @@ const sidebarFooterUnit = document.querySelector("#sidebar-footer-unit");
 const topbarEyebrow = document.querySelector("#topbar-eyebrow");
 const topbarTitle = document.querySelector("#topbar-title");
 
+initializeNavigationHistory(initialNavigation);
 bindChrome();
 applyTheme();
 boot();
@@ -327,12 +330,7 @@ function bindChrome() {
     cleanupSubscriptions();
     render();
   });
-  window.addEventListener("hashchange", () => {
-    closeMobileMenu();
-    state.route = routeFromHash();
-    state.activeAgendaId = null;
-    render();
-  });
+  window.addEventListener("popstate", (event) => applyNavigation(navigationFromHistory(event.state)));
 }
 
 function closeMobileMenu() {
@@ -342,15 +340,82 @@ function closeMobileMenu() {
 
 function navigate(route) {
   closeMobileMenu();
-  state.route = route;
-  state.activeAgendaId = null;
-  if (location.hash !== `#${route}`) location.hash = route;
+  const action = navigationAction(state.route, route);
+  if (action === "stay") return;
+  if (action === "back") {
+    history.back();
+    return;
+  }
+  commitNavigation(route, null, action === "replace");
+}
+
+function navigationAction(currentRoute, nextRoute) {
+  if (currentRoute === nextRoute) return "stay";
+  if (nextRoute === "agendas") return "back";
+  return currentRoute === "agendas" ? "push" : "replace";
+}
+
+function openChildRoute(route, agendaId) {
+  const replace = navigationAction(state.route, route) === "replace";
+  commitNavigation(route, agendaId, replace);
+}
+
+function commitNavigation(route, agendaId = null, replace = false) {
+  const entry = navigationEntry(route, agendaId);
+  history[replace ? "replaceState" : "pushState"](entry, "", navigationUrl(route, agendaId));
+  applyNavigation(entry);
+}
+
+function replaceNavigation(route, agendaId = null) {
+  commitNavigation(route, agendaId, true);
+}
+
+function applyNavigation(entry) {
+  closeMobileMenu();
+  state.route = entry.route;
+  state.activeAgendaId = entry.agendaId;
+  if (entry.route !== "reading") state.draftReadingAgenda = null;
+  if (entry.route !== "pdf") state.draftPdfAgenda = null;
   render();
 }
 
-function routeFromHash() {
-  const route = (location.hash || "#agendas").replace("#", "");
-  return ["agendas", "planning", "hymns", "settings"].includes(route) ? route : "agendas";
+function initializeNavigationHistory(initial) {
+  const agendasEntry = navigationEntry("agendas", null);
+  history.replaceState(agendasEntry, "", navigationUrl("agendas"));
+  if (initial.route !== "agendas") {
+    history.pushState(navigationEntry(initial.route, initial.agendaId), "", navigationUrl(initial.route, initial.agendaId));
+  }
+}
+
+function navigationEntry(route, agendaId = null) {
+  return { app: APP_HISTORY_KEY, route, agendaId: agendaId || null };
+}
+
+function navigationFromHistory(historyState, hash = location.hash) {
+  const validRoutes = ["agendas", "planning", "hymns", "settings", "edit", "reading", "pdf"];
+  if (historyState?.app === APP_HISTORY_KEY && validRoutes.includes(historyState.route)) {
+    return { route: historyState.route, agendaId: historyState.agendaId || null };
+  }
+  return navigationFromHash(hash);
+}
+
+function navigationFromHash(hash = location.hash) {
+  const [rawRoute, rawAgendaId = ""] = String(hash || "#agendas").replace(/^#/, "").split("/");
+  const validRoutes = ["agendas", "planning", "hymns", "settings", "edit", "reading", "pdf"];
+  const route = validRoutes.includes(rawRoute) ? rawRoute : "agendas";
+  let agendaId = null;
+  try {
+    agendaId = rawAgendaId ? decodeURIComponent(rawAgendaId) : null;
+  } catch {
+    agendaId = null;
+  }
+  if (["reading", "pdf"].includes(route) && !agendaId) return { route: "agendas", agendaId: null };
+  return { route, agendaId };
+}
+
+function navigationUrl(route, agendaId = null) {
+  const detail = agendaId ? `/${encodeURIComponent(agendaId)}` : "";
+  return `#${route}${detail}`;
 }
 
 function cleanupSubscriptions() {
@@ -863,15 +928,11 @@ function bindAgendaListActions() {
 }
 
 function openEditor(agendaId) {
-  state.route = "edit";
-  state.activeAgendaId = agendaId;
-  render();
+  openChildRoute("edit", agendaId);
 }
 
 function openReading(agendaId) {
-  state.route = "reading";
-  state.activeAgendaId = agendaId;
-  render();
+  openChildRoute("reading", agendaId);
 }
 
 function renderAgendaEditor() {
@@ -960,9 +1021,8 @@ function renderAgendaEditor() {
   screen.querySelector('[data-action="back"]').addEventListener("click", () => navigate("agendas"));
   screen.querySelector('[data-action="reading-preview"]').addEventListener("click", () => {
     state.activeAgendaId = state.activeAgendaId || "__draft__";
-    state.route = "reading";
     state.draftReadingAgenda = readAgendaForm(agenda);
-    render();
+    openChildRoute("reading", state.activeAgendaId);
   });
   screen.querySelector('[data-action="export-pdf"]').addEventListener("click", () => {
     exportAgendaPdf(readAgendaForm(agenda));
@@ -1311,8 +1371,7 @@ async function saveAgendaFromForm(event) {
     await syncRemovedAgendaParticipants(oldAgenda, savedAgenda, agendasAfterSave(savedAgenda));
     upsertLocalAgenda(savedAgenda);
     state.activeAgendaId = savedAgenda.id;
-    state.route = "edit";
-    render();
+    replaceNavigation("edit", savedAgenda.id);
     toastMessage(message);
   });
 }
@@ -1711,9 +1770,7 @@ function exportAgendaPdf(agenda) {
   state.pdfReturnRoute = state.route === "edit" ? "edit" : "agendas";
   state.pdfReturnAgendaId = state.route === "edit" ? state.activeAgendaId : null;
   state.draftPdfAgenda = agenda;
-  state.activeAgendaId = agenda.id || "__draft__";
-  state.route = "pdf";
-  render();
+  openChildRoute("pdf", agenda.id || "__draft__");
   window.setTimeout(() => window.print(), 220);
 }
 
@@ -1785,10 +1842,11 @@ function renderPdfMode() {
 }
 
 function closePdfMode() {
-  state.route = state.pdfReturnRoute || "agendas";
-  state.activeAgendaId = state.pdfReturnAgendaId;
-  state.draftPdfAgenda = null;
-  render();
+  if (state.pdfReturnRoute === "edit") {
+    replaceNavigation("edit", state.pdfReturnAgendaId);
+  } else {
+    navigate("agendas");
+  }
 }
 
 function pdfHtml(agenda) {
