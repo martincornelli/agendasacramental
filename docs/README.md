@@ -6,7 +6,7 @@ Comparte las mismas colecciones de Firebase que la aplicación Android y ofrece:
 
 - creación, edición, lectura y exportación de agendas;
 - planificación de discursos, oraciones y temas;
-- chequeo de fechas, personas, asignaciones e himnos duplicados;
+- aviso preventivo al escribir un nombre equivalente a otro existente, con la opción de usar el nombre sugerido o conservar el escrito;
 - planificación manual y automática de himnos;
 - biblioteca de himnos con historial, filtros y exclusiones por unidad;
 - instalación como PWA en dispositivos compatibles.

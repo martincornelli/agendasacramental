@@ -9,7 +9,6 @@ import {
   planFromAgenda,
   sundaysOfYear
 } from "../docs/hymn-planner.mjs";
-import { analyzeDuplicates } from "../docs/duplicate-checker.mjs";
 
 const catalog = {
   1: "Ya rompe el alba",
@@ -94,26 +93,4 @@ test("automatic generation preserves manual choices, exclusions and meeting uniq
   assert.equal(Object.values(plan).some((item) => item.number === 2), false);
   assert.equal(duplicateHymnNumbers(plan).length, 0);
   assert.equal(hymnMetadata(plan.sacrament.number, plan.sacrament.name, "es").sacramental, true);
-});
-
-test("duplicate review covers dates, person records, meeting roles and hymns", () => {
-  const date = new Date(2026, 10, 15);
-  const report = analyzeDuplicates([
-    agenda(date, {
-      preside: "José Pérez",
-      dirige: "Jose Perez",
-      primerHimnoNumero: 1,
-      primerHimnoNombre: catalog[1],
-      himnoFinalNumero: 1,
-      himnoFinalNombre: catalog[1]
-    }),
-    agenda(date)
-  ], [
-    { id: "a", nombre: "José Pérez" },
-    { id: "b", nombre: " jose  perez " }
-  ]);
-  assert.equal(report.duplicateDates.length, 1);
-  assert.equal(report.duplicatePeople.length, 1);
-  assert.equal(report.repeatedPeople.length, 1);
-  assert.equal(report.repeatedHymns.length, 1);
 });

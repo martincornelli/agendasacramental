@@ -25,7 +25,7 @@ class Element {
 }
 function nameField(value, names) {
   const input = new Element(); input.value = value;
-  const context = load(['bindNameSuggestions', 'normalizeText'], {
+  const context = load(['bindNameSuggestions', 'normalizeName', 'normalizeText'], {
     navigator: { language: 'es' }, usedNames: () => names,
     document: { createElement: () => new Element() }
   });
@@ -49,6 +49,11 @@ test('accept and reject dismiss suggestions, editing enables a fresh decision', 
     input.value = 'JOSE PEREZ'; input.events.input();
     assert.equal(input.hint.children.length, 3);
   }
+});
+test('name suggestions ignore accents, case and repeated whitespace', () => {
+  const input = nameField('  JOSE   PEREZ  ', ['José Pérez']);
+  assert.equal(input.hint.children.length, 3);
+  assert.equal(input.hint.children[0].textContent, '¿Quisiste decir José Pérez?');
 });
 test('history suggestions collapse whitespace-only variants', () => {
   const c = load(['usedNames'], { collectHistoryNames: () => ['Ana ', 'Ana', 'Ana\t'], state: { hermanos: [{ nombre: 'Ana  ' }] } });

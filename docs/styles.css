@@ -2795,93 +2795,6 @@ summary:focus-visible {
   font-size: .82rem;
 }
 
-.review-score {
-  min-width: 170px;
-  display: grid;
-  justify-items: center;
-  gap: 3px;
-  padding: 18px;
-  border-radius: 18px;
-  text-align: center;
-}
-
-.review-score strong {
-  font-family: var(--display-font);
-  font-size: 1.65rem;
-}
-
-.review-score span {
-  font-size: .78rem;
-  font-weight: 800;
-}
-
-.review-score.has-issues {
-  background: var(--gold-container);
-  color: var(--on-gold-container);
-}
-
-.review-score.is-clear {
-  background: var(--green-container);
-  color: var(--green);
-}
-
-.review-score .svg-icon,
-.success-panel .svg-icon {
-  width: 32px;
-  height: 32px;
-}
-
-.review-metrics {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-bottom: 18px;
-}
-
-.duplicate-sections {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.duplicate-panel {
-  align-self: start;
-}
-
-.duplicate-list {
-  display: grid;
-  gap: 8px;
-}
-
-.duplicate-list article {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 12px;
-  background: var(--card-subtle-bg);
-}
-
-.duplicate-list p {
-  margin: 4px 0 0;
-}
-
-.success-panel {
-  min-height: 300px;
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 10px;
-  padding: 32px;
-  border: 1px solid color-mix(in srgb, var(--green) 24%, var(--outline-soft));
-  border-radius: 22px;
-  background: color-mix(in srgb, var(--green-container) 55%, var(--surface));
-  color: var(--green);
-  text-align: center;
-}
-
-.success-panel h3,
-.success-panel p {
-  margin: 0;
-}
-
 .settings-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -2919,7 +2832,7 @@ summary:focus-visible {
   }
 
   .nav-list {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
   }
 
@@ -2933,9 +2846,6 @@ summary:focus-visible {
     display: none;
   }
 
-  .duplicate-sections {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 760px) {
@@ -3083,21 +2993,8 @@ summary:focus-visible {
     gap: 8px;
   }
 
-  .review-metrics,
   .settings-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .review-metrics .metric-pill {
-    min-height: 92px;
-  }
-
-  .duplicate-list article {
-    grid-template-columns: 1fr;
-  }
-
-  .duplicate-list .secondary-button {
-    width: 100%;
   }
 
   .install-panel {
@@ -3168,13 +3065,8 @@ summary:focus-visible {
 
   .hymn-slot-list,
   .hymn-preview-slots,
-  .review-metrics,
   .settings-grid {
     grid-template-columns: 1fr;
-  }
-
-  .review-score {
-    width: 100%;
   }
 
   .preview-summary {

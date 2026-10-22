@@ -10,7 +10,6 @@ import {
   sundaysOfYear,
   topicsFromAgenda
 } from "./hymn-planner.mjs";
-import { analyzeDuplicates } from "./duplicate-checker.mjs";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDHm4h7REdvYQ0PgKv168wZ82MJaLqGrko",
@@ -82,7 +81,6 @@ const SVG_ICONS = {
   users: `<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>`,
   messageSquare: `<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>`
   ,music: `<path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle>`,
-  scan: `<path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><path d="M7 12h10"></path>`,
   sparkles: `<path d="m12 3-1.4 3.6L7 8l3.6 1.4L12 13l1.4-3.6L17 8l-3.6-1.4z"></path><path d="m5 15-.8 2.2L2 18l2.2.8L5 21l.8-2.2L8 18l-2.2-.8z"></path><path d="m19 14-.7 1.8-1.8.7 1.8.7L19 19l.7-1.8 1.8-.7-1.8-.7z"></path>`,
   check: `<path d="m5 12 4 4L19 6"></path>`,
   chevronLeft: `<path d="m15 18-6-6 6-6"></path>`
@@ -352,7 +350,7 @@ function navigate(route) {
 
 function routeFromHash() {
   const route = (location.hash || "#agendas").replace("#", "");
-  return ["agendas", "planning", "hymns", "duplicates", "settings"].includes(route) ? route : "agendas";
+  return ["agendas", "planning", "hymns", "settings"].includes(route) ? route : "agendas";
 }
 
 function cleanupSubscriptions() {
@@ -469,7 +467,6 @@ function render() {
     agendas: renderAgendas,
     planning: renderPlanning,
     hymns: renderHymnPlanner,
-    duplicates: renderDuplicateCheck,
     settings: renderSettings,
     edit: renderAgendaEditor,
     reading: renderReadingMode,
@@ -504,7 +501,6 @@ function renderChrome() {
 function routeTitle() {
   if (state.route === "planning") return "Planificación";
   if (state.route === "hymns") return "Planificador de himnos";
-  if (state.route === "duplicates") return "Chequeo de duplicados";
   if (state.route === "settings") return "Ajustes";
   if (state.route === "edit") return state.activeAgendaId ? "Editar agenda" : "Nueva agenda";
   if (state.route === "reading") return "Modo lectura";
@@ -1000,7 +996,7 @@ function bindNameSuggestions(root) {
       const value = input.value.trimEnd();
       const names = usedNames();
       if (!value || value === resolved || names.includes(value)) return;
-      const similar = names.find(name => normalizeText(name) === normalizeText(value));
+      const similar = names.find(name => normalizeName(name) === normalizeName(value));
       if (!similar) return;
       const label = document.createElement("span");
       label.textContent = meetingText("suggestion").replace("{name}", similar);
@@ -3216,73 +3212,6 @@ async function persistHymnPlans(proposals) {
   });
   await batch.commit();
   saved.forEach(upsertLocalAgenda);
-}
-
-function renderDuplicateCheck() {
-  const report = analyzeDuplicates(state.agendas, state.hermanos);
-  screen.innerHTML = `
-    <div class="module-hero review-hero">
-      <div>
-        <p class="eyebrow">Control de calidad</p>
-        <h2>Chequeo de duplicados</h2>
-        <p>Una revisión rápida de fechas, personas, asignaciones e himnos antes de usar las agendas.</p>
-      </div>
-      <div class="review-score ${report.total ? "has-issues" : "is-clear"}">
-        ${report.total ? `<strong>${report.total}</strong><span>situaciones para revisar</span>` : `${icon("check")}<strong>Todo en orden</strong>`}
-      </div>
-    </div>
-    <div class="metric-grid review-metrics">
-      ${metricPill("Fechas repetidas", report.duplicateDates.length)}
-      ${metricPill("Fichas de personas", report.duplicatePeople.length)}
-      ${metricPill("Personas en una reunión", report.repeatedPeople.length)}
-      ${metricPill("Himnos en una reunión", report.repeatedHymns.length)}
-    </div>
-    ${report.total ? `<div class="screen-grid duplicate-sections">
-      ${duplicateReportSection("Agendas con la misma fecha", report.duplicateDates.map((group) => ({
-        title: formatDateLong(group.items[0].fecha),
-        detail: `${group.items.length} agendas guardadas para este día`,
-        agendaId: group.items[0].id
-      })))}
-      ${duplicateReportSection("Fichas de personas repetidas", report.duplicatePeople.map((group) => ({
-        title: group.items.map((item) => item.nombre).join(" · "),
-        detail: `${group.items.length} fichas representan el mismo nombre`,
-        planning: true
-      })))}
-      ${duplicateReportSection("Una persona en varios lugares", report.repeatedPeople.map((item) => ({
-        title: item.name,
-        detail: `${formatDateShort(item.agenda.fecha)} · ${item.roles.join(" · ")}`,
-        agendaId: item.agenda.id
-      })))}
-      ${duplicateReportSection("Himnos repetidos en una reunión", report.repeatedHymns.map((item) => ({
-        title: `${item.number} · ${item.name || hymnCatalog()[item.number] || "Himno"}`,
-        detail: `${formatDateShort(item.agenda.fecha)} · ${item.positions.join(" · ")}`,
-        agendaId: item.agenda.id
-      })))}
-    </div>` : `
-      <section class="success-panel">
-        ${icon("check")}
-        <h3>No encontramos duplicados</h3>
-        <p>Las fechas, fichas de personas, asignaciones e himnos están consistentes.</p>
-      </section>
-    `}
-  `;
-  screen.querySelectorAll("[data-review-agenda]").forEach((button) => button.addEventListener("click", () => openEditor(button.dataset.reviewAgenda)));
-  screen.querySelectorAll("[data-review-planning]").forEach((button) => button.addEventListener("click", () => navigate("planning")));
-}
-
-function duplicateReportSection(title, items) {
-  if (!items.length) return "";
-  return `
-    <section class="panel duplicate-panel">
-      ${sectionTitle(title, "", `<span class="count-badge">${items.length}</span>`)}
-      <div class="duplicate-list">${items.map((item) => `
-        <article>
-          <div><strong>${escapeHtml(item.title)}</strong><p class="item-meta">${escapeHtml(item.detail)}</p></div>
-          ${item.agendaId ? `<button class="secondary-button" data-review-agenda="${escapeAttr(item.agendaId)}" type="button">Abrir agenda</button>` : `<button class="secondary-button" data-review-planning type="button">Ir a planificación</button>`}
-        </article>
-      `).join("")}</div>
-    </section>
-  `;
 }
 
 function renderSettings() {
