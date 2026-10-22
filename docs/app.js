@@ -75,6 +75,12 @@ const SVG_ICONS = {
   fileText: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M8 13h8"></path><path d="M8 17h6"></path>`,
   pencil: `<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path>`,
   x: `<path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>`,
+  settings: `<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.16.36.37.7.6 1 .29.3.68.47 1.1.49H21v4h-.09A1.7 1.7 0 0 0 19.4 15z"></path>`,
+  tag: `<path d="M20.6 13.6 11 4H4v7l9.6 9.6a2 2 0 0 0 2.8 0l4.2-4.2a2 2 0 0 0 0-2.8z"></path><circle cx="7.5" cy="7.5" r="1"></circle>`,
+  personAdd: `<path d="M15 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8" cy="7" r="4"></circle><path d="M19 8v6"></path><path d="M16 11h6"></path>`,
+  eye: `<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle>`,
+  eyeOff: `<path d="m3 3 18 18"></path><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path><path d="M9.9 4.2A10.8 10.8 0 0 1 12 4c6.5 0 10 8 10 8a18.5 18.5 0 0 1-2.1 3.2"></path><path d="M6.6 6.6C3.7 8.6 2 12 2 12s3.5 8 10 8a9.8 9.8 0 0 0 4.1-.9"></path>`,
+  trash: `<path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 15H6L5 6"></path><path d="M10 11v5"></path><path d="M14 11v5"></path>`,
   arrowUp: `<path d="m18 15-6-6-6 6"></path>`,
   arrowDown: `<path d="m6 9 6 6 6-6"></path>`,
   mic: `<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><path d="M12 19v3"></path>`,
@@ -2047,22 +2053,29 @@ function renderPlanning() {
       return daysFor(b, tab) - daysFor(a, tab);
     });
   screen.innerHTML = `
-    <div class="toolbar">
-      <div class="toolbar-left">
-        <button class="filter-chip ${tab === "talks" ? "active" : ""}" data-planning-tab="talks" type="button">Discursos</button>
-        <button class="filter-chip ${tab === "prayers" ? "active" : ""}" data-planning-tab="prayers" type="button">Oraciones</button>
-        <button class="filter-chip ${tab === "topics" ? "active" : ""}" data-planning-tab="topics" type="button">Temas</button>
-        <input id="planning-search" class="input" type="search" placeholder="${isTopics ? "Buscar tema o etiquetas..." : "Buscar hermano/a..."}" value="${escapeAttr(state.planningSearch)}" style="width: min(340px, 100%);">
+    <div class="planning-toolbar">
+      <div class="planning-tabs" role="tablist" aria-label="Vistas de planificación">
+        <button class="planning-tab ${tab === "talks" ? "active" : ""}" data-planning-tab="talks" type="button" role="tab" aria-selected="${tab === "talks"}">Discursos</button>
+        <button class="planning-tab ${tab === "prayers" ? "active" : ""}" data-planning-tab="prayers" type="button" role="tab" aria-selected="${tab === "prayers"}">Oraciones</button>
+        <button class="planning-tab ${tab === "topics" ? "active" : ""}" data-planning-tab="topics" type="button" role="tab" aria-selected="${tab === "topics"}">Temas</button>
       </div>
-      <div class="toolbar-right">
-        <button id="planning-config" class="secondary-button" type="button">Configuración</button>
-        ${isTopics ? `<button id="topic-tags" class="secondary-button" type="button">Etiquetas</button>` : `<button id="add-brother" class="primary-button" type="button">Agregar hermano</button>`}
+      <div class="planning-tools">
+        <div class="search-field planning-search-field">
+          <span class="search-icon" aria-hidden="true">${icon("search")}</span>
+          <input id="planning-search" class="input" type="search" placeholder="${isTopics ? "Buscar tema o etiquetas..." : "Buscar hermano/a..."}" value="${escapeAttr(state.planningSearch)}">
+        </div>
+        <div class="planning-toolbar-actions">
+          <button id="planning-config" class="icon-button" type="button" aria-label="Configuración" title="Configuración">${icon("settings")}</button>
+          ${isTopics
+            ? `<button id="topic-tags" class="icon-button" type="button" aria-label="Etiquetas de temas" title="Etiquetas de temas">${icon("tag")}</button>`
+            : `<button id="add-brother" class="primary-button planning-add-button" type="button">${buttonIcon("personAdd")}<span class="button-label">Agregar hermano</span></button>`}
+        </div>
       </div>
     </div>
     ${isTopics ? renderTopicsPlanning(state.planningSearch) : `
-      <section class="panel">
+      <section class="panel planning-panel">
         ${sectionTitle(tab === "talks" ? "Discursos" : "Oraciones", "P", "")}
-        <div id="brother-list" class="agenda-list">${renderBrotherList(list, tab, state.planningSearch)}</div>
+        <div id="brother-list" class="agenda-list planning-list">${renderBrotherList(list, tab, state.planningSearch)}</div>
       </section>
     `}
   `;
@@ -2094,7 +2107,7 @@ function renderPlanning() {
 }
 
 function renderTopicsPlanning(searchValue) {
-  return `<div id="topics-content" class="screen-grid">${renderTopicsPlanningContent(searchValue)}</div>`;
+  return `<div id="topics-content" class="screen-grid planning-topics">${renderTopicsPlanningContent(searchValue)}</div>`;
 }
 
 function renderTopicsPlanningContent(searchValue) {
@@ -2113,13 +2126,13 @@ function renderTopicsPlanningContent(searchValue) {
   );
 
   return `
-    <section class="panel">
+    <section class="panel planning-topic-panel">
       ${sectionTitle("Temas sugeridos", "T", "")}
       <div class="topic-grid">
         ${filteredSuggestions.length ? filteredSuggestions.slice(0, 12).map(topicSuggestionCard).join("") : emptyState("No hay sugerencias que coincidan.")}
       </div>
     </section>
-    <section class="panel">
+    <section class="panel planning-topic-panel">
       ${sectionTitle("Historial de temas", "H", "")}
       <div class="agenda-list">
         ${filteredSummaries.length ? filteredSummaries.map(topicSummaryCard).join("") : emptyState("Todavia no hay temas guardados en discursos.")}
@@ -2134,13 +2147,13 @@ function topicSuggestionCard(item) {
     ? `${topicDistanceText(item.resumen.ultimaFecha)} - ${item.resumen.veces180Dias} en 180 dias`
     : "Sin registros en el historial.";
   return `
-    <article class="topic-card ${escapeAttr(color)}">
-      <div>
+    <button class="topic-card topic-card-button ${escapeAttr(color)}" data-topic-assign="${escapeAttr(item.etiqueta)}" type="button" aria-label="Asignar tema ${escapeAttr(item.etiqueta)}">
+      <div class="topic-card-copy">
         <p class="item-title"><span class="rank-dot ${escapeAttr(color)}"></span>${escapeHtml(item.etiqueta)}</p>
         <p class="item-meta">${escapeHtml(meta)}</p>
       </div>
-      <button class="secondary-button" data-topic-assign="${escapeAttr(item.etiqueta)}" type="button">Asignar</button>
-    </article>
+      <span class="planning-open-action"><span>Asignar</span>${icon("chevronRight")}</span>
+    </button>
   `;
 }
 
@@ -2287,20 +2300,43 @@ function brotherRow(item, tab) {
   const count = tab === "talks" ? item.vecesDiscurso90Dias : item.vecesOracion90Dias;
   const inactive = isInactiveForTab(item, tab);
   const color = inactive ? "rank-muted" : rankColor(last, tab);
+  const tone = planningRankTone(color, inactive);
+  const topic = tab === "talks" ? (item.ultimaEtiquetaDiscurso || item.ultimoTemaDiscurso || "") : "";
+  const participation = `${inactive ? "Inactivo · " : ""}${last ? `Última participación: ${formatDateShort(last)} (${daysSince(last)} días)` : "Sin registros"}${count ? ` · ${count} vez/veces en 90 días` : ""}`;
   return `
-    <article class="brother-item">
-      <div>
-        <p class="item-title"><span class="rank-dot ${escapeAttr(color)}"></span>${escapeHtml(item.hermano.nombre)}</p>
-        <p class="item-meta">${inactive ? "Inactivo · " : ""}${last ? `Última participación: ${formatDateShort(last)} (${daysSince(last)} días)` : "Sin registros"}${count ? ` · ${count} vez/veces en 90 días` : ""}</p>
-      </div>
+    <article class="brother-item ${inactive ? "brother-inactive" : ""}">
+      <button class="brother-item-main" data-assign="${escapeAttr(item.key)}" type="button" aria-label="Asignar a ${escapeAttr(item.hermano.nombre)}">
+        <span class="rank-dot ${escapeAttr(color)}" aria-hidden="true"></span>
+        <span class="brother-item-copy">
+          <span class="item-title">${escapeHtml(item.hermano.nombre)}</span>
+          <span class="item-meta">${escapeHtml(participation)}</span>
+          ${topic ? `<span class="brother-topic">Último tema: ${escapeHtml(topic)}</span>` : ""}
+        </span>
+        <span class="rank-status tone-${escapeAttr(tone)}">${escapeHtml(planningRankLabel(color, inactive, last))}</span>
+        <span class="planning-open-action"><span>Asignar</span>${icon("chevronRight")}</span>
+      </button>
       <div class="item-actions">
-        <button class="secondary-button" data-assign="${escapeAttr(item.key)}" type="button">Asignar</button>
-        <button class="secondary-button" data-edit-brother="${escapeAttr(item.key)}" type="button">Editar</button>
-        <button class="secondary-button" data-toggle-inactive="${escapeAttr(item.key)}" type="button">${inactive ? "Reactivar" : "Inactivar"}</button>
-        <button class="icon-button" data-delete-brother="${escapeAttr(item.key)}" type="button" title="Eliminar">X</button>
+        <button class="secondary-button planning-action-button" data-edit-brother="${escapeAttr(item.key)}" type="button" aria-label="Editar ${escapeAttr(item.hermano.nombre)}" title="Editar">${buttonIcon("pencil")}<span>Editar</span></button>
+        <button class="secondary-button planning-action-button" data-toggle-inactive="${escapeAttr(item.key)}" type="button" aria-label="${inactive ? "Reactivar" : "Inactivar"} a ${escapeAttr(item.hermano.nombre)}" title="${inactive ? "Reactivar" : "Inactivar"}">${buttonIcon(inactive ? "eye" : "eyeOff")}<span>${inactive ? "Reactivar" : "Inactivar"}</span></button>
+        <button class="secondary-button planning-action-button danger-action" data-delete-brother="${escapeAttr(item.key)}" type="button" aria-label="Eliminar ${escapeAttr(item.hermano.nombre)}" title="Eliminar">${buttonIcon("trash")}<span>Eliminar</span></button>
       </div>
     </article>
   `;
+}
+
+function planningRankTone(color, inactive) {
+  if (inactive || color === "rank-muted") return "muted";
+  if (color === "rank-red") return "red";
+  if (color === "rank-yellow") return "yellow";
+  return "green";
+}
+
+function planningRankLabel(color, inactive, last) {
+  if (inactive) return "Inactivo";
+  if (!last) return "Sin registros";
+  if (color === "rank-red") return "Reciente";
+  if (color === "rank-yellow") return "Posible";
+  return "Sugerido";
 }
 
 function bindBrotherActions() {
@@ -2789,6 +2825,12 @@ function renderHymnDates() {
     months.get(month).push({ date, agenda: agendasByDate.get(hymnDateKey(date)) || null });
   });
   const today = startOfDay(new Date());
+  const orderedMonths = orderHymnMonths([...months.entries()], year, today);
+  const nextSunday = orderedMonths
+    .flatMap(([, items]) => items)
+    .map((item) => item.date)
+    .filter((date) => date >= today)
+    .sort((a, b) => a - b)[0] || null;
   const plannedCount = [...months.values()].flat().filter((item) => {
     const plan = planFromAgenda(item.agenda);
     return HYMN_POSITIONS.some((position) => plan[position].number || plan[position].name);
@@ -2802,12 +2844,16 @@ function renderHymnDates() {
       <button id="generate-hymns" class="primary-button" type="button">${buttonIcon("sparkles")}Generar automáticamente</button>
     </div>
     <div class="month-stack">
-      ${[...months.entries()].map(([month, items]) => {
-        const open = year === today.getFullYear() ? month === today.getMonth() : month === 0;
+      ${orderedMonths.map(([month, items], index) => {
+        const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+        const open = isCurrentMonth || (year !== today.getFullYear() && index === 0);
         return `
-          <details class="month-group" ${open ? "open" : ""}>
-            <summary><span>${escapeHtml(new Intl.DateTimeFormat("es-UY", { month: "long" }).format(items[0].date))}</span><strong>${items.length}</strong></summary>
-            <div class="hymn-date-grid">${items.map((item) => hymnDateCard(item.date, item.agenda)).join("")}</div>
+          <details class="month-group ${isCurrentMonth ? "current-month" : ""}" ${open ? "open" : ""}>
+            <summary>
+              <span class="month-title">${escapeHtml(new Intl.DateTimeFormat("es-UY", { month: "long" }).format(items[0].date))}${isCurrentMonth ? `<small>Mes actual</small>` : ""}</span>
+              <strong>${items.length}</strong>
+            </summary>
+            <div class="hymn-date-grid">${items.map((item) => hymnDateCard(item.date, item.agenda, Boolean(nextSunday && sameDay(item.date, nextSunday)))).join("")}</div>
           </details>
         `;
       }).join("")}
@@ -2815,15 +2861,34 @@ function renderHymnDates() {
   `;
 }
 
-function hymnDateCard(date, agenda) {
+function orderHymnMonths(entries, year, today) {
+  if (year !== today.getFullYear()) return entries;
+  const currentMonth = today.getMonth();
+  return [
+    ...entries.filter(([month]) => month >= currentMonth),
+    ...entries.filter(([month]) => month < currentMonth)
+  ].map(([month, items]) => [
+    month,
+    month === currentMonth
+      ? [...items].sort((a, b) => {
+          const upcomingA = a.date >= today;
+          const upcomingB = b.date >= today;
+          if (upcomingA !== upcomingB) return upcomingA ? -1 : 1;
+          return upcomingA ? a.date - b.date : b.date - a.date;
+        })
+      : items
+  ]);
+}
+
+function hymnDateCard(date, agenda, isNextSunday = false) {
   const plan = planFromAgenda(agenda);
   const selections = HYMN_POSITIONS.filter((position) => plan[position].number || plan[position].name);
   const topics = topicsFromAgenda(agenda);
   const status = selections.length ? `${selections.length} de 4` : "Sin planificar";
   return `
-    <button class="hymn-date-card" data-hymn-date="${escapeAttr(hymnDateKey(date))}" type="button">
+    <button class="hymn-date-card ${isNextSunday ? "hymn-date-card-next" : ""}" data-hymn-date="${escapeAttr(hymnDateKey(date))}" type="button">
       <span class="hymn-date-card-head">
-        <span><strong>${escapeHtml(new Intl.DateTimeFormat("es-UY", { weekday: "long", day: "numeric" }).format(date))}</strong><small>${agenda ? hymnMeetingType(agenda) : "Sin agenda creada"}</small></span>
+        <span><strong>${escapeHtml(new Intl.DateTimeFormat("es-UY", { weekday: "long", day: "numeric" }).format(date))}${isNextSunday ? `<em>Próximo domingo</em>` : ""}</strong><small>${agenda ? hymnMeetingType(agenda) : "Sin agenda creada"}</small></span>
         <span class="status-pill ${selections.length ? "status-CONFIRMADA" : "status-BORRADOR"}">${escapeHtml(status)}</span>
       </span>
       ${selections.length ? `
@@ -2934,10 +2999,10 @@ function hymnSelectionLabel(selection) {
 function renderHymnLibrary() {
   const categories = Object.entries(HYMN_CATEGORY_LABELS).sort((a, b) => a[1].localeCompare(b[1]));
   return `
-    <div class="module-toolbar library-toolbar">
+    <div class="module-toolbar library-toolbar" aria-label="Buscar y filtrar biblioteca">
       <div class="search-field">
         <span class="search-icon" aria-hidden="true">${icon("search")}</span>
-        <input id="hymn-library-search" class="input" type="search" placeholder="Buscar por número o nombre...">
+        <input id="hymn-library-search" class="input" type="search" placeholder="Buscar himno...">
       </div>
       <select id="hymn-category" class="select" aria-label="Filtrar por tema">
         <option value="all">Todos los temas</option>

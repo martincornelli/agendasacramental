@@ -160,3 +160,46 @@ test('agenda routes are encoded in the URL and restored safely', () => {
     { route: 'agendas', agendaId: null }
   );
 });
+test('planning cards use the whole card for assigning and compact secondary actions', () => {
+  const c = load(['brotherRow', 'planningRankTone', 'planningRankLabel'], {
+    isInactiveForTab: () => false,
+    rankColor: () => 'rank-yellow',
+    formatDateShort: () => '15 nov 2026',
+    daysSince: () => 45,
+    escapeAttr: value => String(value),
+    escapeHtml: value => String(value),
+    buttonIcon: name => `<i>${name}</i>`,
+    icon: name => `<i>${name}</i>`
+  });
+  const html = c.brotherRow({
+    key: 'jose-perez',
+    hermano: { nombre: 'José Pérez' },
+    ultimaVezDiscurso: new Date(2026, 8, 1),
+    ultimaVezOracion: null,
+    vecesDiscurso90Dias: 1,
+    vecesOracion90Dias: 0,
+    ultimaEtiquetaDiscurso: 'Fe',
+    ultimoTemaDiscurso: ''
+  }, 'talks');
+  assert.ok(html.includes('class="brother-item-main" data-assign="jose-perez"'));
+  assert.ok(html.includes('class="rank-status tone-yellow">Posible</span>'));
+  assert.ok(html.includes('planning-action-button'));
+  assert.ok(html.includes('Último tema: Fe'));
+});
+test('current hymn month is first and its next Sunday is the first date', () => {
+  const c = load(['orderHymnMonths']);
+  const item = day => ({ date: new Date(2026, 9, day) });
+  const entries = [
+    [0, [{ date: new Date(2026, 0, 4) }]],
+    [9, [item(4), item(11), item(18), item(25)]],
+    [10, [{ date: new Date(2026, 10, 1) }]]
+  ];
+  const ordered = c.orderHymnMonths(entries, 2026, new Date(2026, 9, 22));
+  assert.deepEqual(Array.from(ordered, ([month]) => month), [9, 10, 0]);
+  assert.deepEqual(Array.from(ordered[0][1], value => value.date.getDate()), [25, 18, 11, 4]);
+});
+test('mobile hymn library keeps search and topic filter in a compact grid', () => {
+  const css = fs.readFileSync('docs/styles.css', 'utf8');
+  assert.match(css, /\.library-toolbar \{\s*display: grid;\s*grid-template-columns:/);
+  assert.match(css, /\.library-toolbar \.search-field \{\s*flex: 0 0 auto;/);
+});
