@@ -3956,6 +3956,24 @@ summary:focus-visible {
 
 }
 
+.history-preview-list {
+  display: grid;
+  gap: 12px;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin-block: 16px;
+}
+
+.history-preview-row {
+  border: 1px solid var(--border, #bcc8be);
+  border-radius: 12px;
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+
+.history-preview-row p { margin: 8px 0; }
+.history-preview-row input[type="checkbox"] { width: 18px; height: 18px; margin-right: 8px; }
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

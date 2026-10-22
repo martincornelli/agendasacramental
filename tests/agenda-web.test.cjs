@@ -23,6 +23,31 @@ class Element {
   setAttribute(key, value) { this.attrs[key] = value; }
   getAttribute(key) { return this.attrs[key]; }
 }
+
+test('imported history feeds planning dates, frequency and topics without creating agendas or people', () => {
+  const state = {
+    unitNumber: '123', agendas: [], hermanos: [],
+    importedHistory: [
+      { id: 'one', name: 'Ana', date: '2026-01-04', type: 'Discurso', topic: 'Fe' },
+      { id: 'two', name: 'Ana', date: '2026-01-11', type: 'Primera oración', topic: '' }
+    ]
+  };
+  const c = load(['planningRankings', 'collectHistoryNames', 'normalizeName', 'normalizeText', 'topicRecords'], {
+    state, navigator: { language: 'es' },
+    latestDate: dates => dates.length ? dates.reduce((a, b) => a > b ? a : b) : null,
+    countWithinDays: dates => dates.length
+  });
+  const [ranking] = c.planningRankings();
+  assert.equal(ranking.hermano.nombre, 'Ana');
+  assert.equal(ranking.vecesDiscurso90Dias, 1);
+  assert.equal(ranking.vecesOracion90Dias, 1);
+  assert.equal(ranking.ultimoTemaDiscurso, 'Fe');
+  assert.equal(ranking.ultimaVezDiscurso.getDate(), 4);
+  assert.equal(ranking.ultimaVezOracion.getDate(), 11);
+  assert.equal(c.topicRecords()[0].tema, 'Fe');
+  assert.deepEqual(state.agendas, []);
+  assert.deepEqual(state.hermanos, []);
+});
 function nameField(value, names) {
   const input = new Element(); input.value = value;
   const context = load(['bindNameSuggestions', 'normalizeName', 'normalizeText'], {

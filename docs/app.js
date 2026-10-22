@@ -1,3 +1,4 @@
+import { HISTORY_FIELDS, parseCSV, guessColumns, mapRows, previewRows, exportCSV } from "./participation-history.mjs";
 import { HYMNS_EN, HYMNS_ES } from "./hymns.js";
 import {
   HYMN_POSITIONS,
@@ -47,6 +48,7 @@ let signOut;
 let updateDoc;
 let where;
 let writeBatch;
+let runTransaction;
 
 const MEETING_TEXT = {
   es: { primary: "Presentación de la Primaria", announcement: "Hoy tendremos el privilegio de disfrutar de la Presentación de la Primaria. Ahora el tiempo de la reunión estará a cargo de los niños del barrio y sus líderes", suggestion: "¿Quisiste decir {name}?", accept: "Usar nombre sugerido", dismiss: "Conservar nombre escrito" },
@@ -205,6 +207,10 @@ const state = {
   deferredInstallPrompt: null,
   agendas: [],
   hermanos: [],
+  importedHistory: [],
+  historyRevision: 0,
+  historyReady: false,
+  historyError: "",
   config: { ...defaultConfig },
   configId: "",
   isBooting: true,
@@ -310,6 +316,7 @@ async function loadFirebase() {
   updateDoc = firestoreModule.updateDoc;
   where = firestoreModule.where;
   writeBatch = firestoreModule.writeBatch;
+  runTransaction = firestoreModule.runTransaction;
 }
 
 function bindChrome() {
@@ -429,6 +436,10 @@ function cleanupSubscriptions() {
   state.unsubscribers = [];
   state.agendas = [];
   state.hermanos = [];
+  state.importedHistory = [];
+  state.historyRevision = 0;
+  state.historyReady = false;
+  state.historyError = "";
   state.config = { ...defaultConfig };
   state.configId = "";
 }
@@ -446,6 +457,18 @@ function subscribeUnitData(unitNumber) {
     state.isReady = true;
     render();
   }, handleFatal));
+
+  state.unsubscribers.push(onSnapshot(doc(db, "historialParticipaciones", unitNumber), (snapshot) => {
+    state.importedHistory = snapshot.data()?.records || [];
+    state.historyRevision = snapshot.data()?.revision || 0;
+    state.historyReady = true;
+    state.historyError = "";
+    render();
+  }, () => {
+    state.historyReady = false;
+    state.historyError = "No se pudo acceder al historial importado. Revisá la conexión y los permisos de la unidad.";
+    render();
+  }));
 
   const hermanosQuery = query(collection(db, "hermanos"), where("numeroUnidad", "==", unitNumber), orderBy("nombre"));
   state.unsubscribers.push(onSnapshot(hermanosQuery, (snapshot) => {
@@ -2041,6 +2064,171 @@ function pdfDensityClass(agenda) {
   return "pdf-fit-normal";
 }
 
+function exportableHistory() {
+  const rows = (state.importedHistory || []).map(r => ({ ...r, source: "import" }));
+  const prefix = `${state.unitNumber}:`;
+  state.agendas.forEach(agenda => {
+    const date = dateInputValue(agenda.fecha);
+    // Future assignments are not historical participations.
+    if (date > dateInputValue(new Date())) return;
+    const add = (suffix, name, type, topic = "") => {
+      if (name?.trim()) rows.push({ id: `${prefix}agenda:${agenda.id}:${suffix}`, date, name: name.trim(), type, topic, source: "agenda" });
+    };
+    add("opening", agenda.primeraOracion, "Primera oración");
+    add("closing", agenda.oracionFinal, "Última oración");
+    agenda.mensajesEvangelio.forEach((message, i) => {
+      if (message.tipo === "DISCURSO") add(`talk:${i}`, message.nombre, "Discurso", message.tema || "");
+    });
+  });
+  state.hermanos.forEach(hermano => {
+    [["ultimaVezDiscursoManual", "Discurso"], ["ultimaVezOracionManual", "Oración"]].forEach(([key, type]) => {
+      const date = dateInputValue(toDate(hermano[key]));
+      if (date && hermano.nombre) rows.push({ id: `${prefix}manual:${hermano.id}:${key}`, date, name: hermano.nombre, type, topic: "", source: "manual" });
+    });
+  });
+  return rows.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name));
+}
+
+function downloadHistoryCSV(records, filename) {
+  const url = URL.createObjectURL(new Blob([exportCSV(records)], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url; link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function openHistoryTransfer() {
+  openModal({
+    title: "Historial: importar y exportar",
+    body: `<div class="form-grid">
+      <p>Agregá participaciones anteriores sin crear agendas. Eliminar filas del archivo nunca borra datos de la app.</p>
+      <div class="button-row"><button id="history-export" class="secondary-button" type="button" ${state.historyReady ? "" : "disabled"}>Exportar historial CSV</button>
+      <button id="history-template" class="secondary-button" type="button">Descargar plantilla CSV</button></div>
+      <p>Podés abrir el CSV en Excel y guardarlo como CSV UTF-8. Conservá los ID existentes y dejá el ID vacío en las filas nuevas. La plantilla contiene solo encabezados.</p>
+      <p>Participaciones: Discurso, Primera oración, Última oración u Oración. Fechas recomendadas: AAAA-MM-DD. Tema es opcional.</p>
+      <p>Las correcciones de registros provenientes de agendas o fichas se hacen en su pantalla original.</p>
+      ${state.historyReady ? "" : `<p role="status">${escapeHtml(state.historyError || "Esperando acceso al historial… Cerrá y volvé a abrir cuando termine la carga.")}</p>`}
+      ${field("history-file", "Seleccionar CSV", `<input id="history-file" class="input" type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" ${state.historyReady ? "" : "disabled"}>`)}
+      <p id="history-file-error" role="alert"></p>
+    </div>`,
+    footer: `<button class="secondary-button" data-action="cancel" type="button">Cerrar</button>`,
+    bind: dialog => {
+      dialog.querySelector("#history-template").onclick = () => downloadHistoryCSV([], "plantilla-historial.csv");
+      dialog.querySelector("#history-export").onclick = () => downloadHistoryCSV(exportableHistory(), `historial-${state.unitNumber}.csv`);
+      dialog.querySelector("#history-file").onchange = async event => {
+        const file = event.target.files[0];
+        if (!file) return;
+        try {
+          if (file.size > 2 * 1024 * 1024) throw new Error("El archivo debe pesar menos de 2 MB.");
+          const text = await file.text();
+          if (text.includes("\uFFFD")) throw new Error("Guardá el archivo como CSV UTF-8 para conservar los nombres y tildes.");
+          const table = parseCSV(text);
+          if (table.length < 2) throw new Error("El archivo solo contiene encabezados. Agregá participaciones antes de importar.");
+          if (dialog.open) openHistoryMapping(table);
+        } catch (error) { dialog.querySelector("#history-file-error").textContent = error.message; }
+      };
+    }
+  });
+}
+
+function openHistoryMapping(table) {
+  const guessed = guessColumns(table[0]);
+  openModal({
+    title: "Elegir las columnas",
+    body: `<form id="history-mapping" class="form-grid">
+      <p>Se encontraron ${table.length - 1} filas. Revisá las columnas detectadas.</p>
+      ${field("history-layout", "Organización del archivo", `<select class="select" id="history-layout"><option value="long">Una fila por participación</option><option value="wide" ${guessed.name < 0 && [guessed.talk, guessed.opening, guessed.closing].some(i => i >= 0) ? "selected" : ""}>Una fila por reunión, con participantes en columnas separadas</option></select>`)}
+      ${Object.entries(HISTORY_FIELDS).map(([key, label]) => field(`history-col-${key}`, label, `<select class="select" id="history-col-${key}"><option value="-1">Sin columna</option>${table[0].map((header, i) => option(String(i), `${i + 1}. ${header}`, String(guessed[key]))).join("")}</select>`)).join("")}
+      ${field("history-date-order", "Fechas con barras o guiones (el formato AAAA-MM-DD no cambia)", `<select class="select" id="history-date-order"><option value="DMY">Día / mes / año</option><option value="MDY">Mes / día / año</option></select>`)}
+      <p>En filas por reunión se usan Discursante, Primera oración y Última oración. En filas por participación se usan Nombre, Participación e ID.</p>
+      <p id="history-mapping-error" role="alert"></p>
+    </form>`,
+    footer: `<button class="secondary-button" data-action="cancel" type="button">Cancelar</button><button class="primary-button" form="history-mapping" type="submit">Vista previa</button>`,
+    bind: dialog => {
+      dialog.querySelector("#history-mapping").onsubmit = event => {
+        event.preventDefault();
+        try {
+          const mapping = Object.fromEntries(Object.keys(HISTORY_FIELDS).map(key => [key, Number(dialog.querySelector(`#history-col-${key}`).value)]));
+          const rows = mapRows(table, mapping, dialog.querySelector("#history-date-order").value, dialog.querySelector("#history-layout").value === "wide");
+          openHistoryPreview(rows, table);
+        } catch (error) { dialog.querySelector("#history-mapping-error").textContent = error.message; }
+      };
+    }
+  });
+}
+
+function openHistoryPreview(rows, table) {
+  const unit = state.unitNumber;
+  const revision = state.historyRevision;
+  const existing = exportableHistory();
+  const preview = previewRows(rows, existing);
+  const labels = { new: "Nueva", update: "Corrección: confirmar", duplicate: "Coincidencia: se omite", unchanged: "Ya existente", invalid: "Revisar" };
+  const count = status => preview.filter(r => r.status === status).length;
+  openModal({
+    title: "Revisar antes de importar",
+    body: `<p>${count("new")} nuevas · ${count("update")} correcciones · ${count("unchanged")} sin cambios · ${count("duplicate")} coincidencias · ${count("invalid")} para revisar.</p>
+      <p>Solo se guardan las filas seleccionadas. Las correcciones se muestran con sus valores anteriores. No se elimina ningún registro.</p>
+      <div class="history-preview-list">${preview.map((r, i) => `<article class="history-preview-row">
+        <label><input type="checkbox" data-history-row="${i}" ${r.status === "new" && !r.candidates?.length ? "checked" : ""} ${!["new", "update"].includes(r.status) || r.candidates?.length ? "disabled" : ""}>
+        <strong>Fila ${r.row}: ${escapeHtml(labels[r.status])}</strong></label>
+        <p>${escapeHtml(r.date || "Sin fecha válida")} · ${escapeHtml(r.name)} · ${escapeHtml(r.type)}${r.topic ? ` · ${escapeHtml(r.topic)}` : ""}</p>
+        ${r.original ? `<p>Existente: ${escapeHtml(r.original.date)} · ${escapeHtml(r.original.name)} · ${escapeHtml(r.original.type)} · ${escapeHtml(r.original.topic || "Sin tema")}</p>` : ""}
+        ${r.error ? `<p role="alert">${escapeHtml(r.error)}</p>` : ""}
+        ${r.candidates?.length ? `<label>Nombre parecido: <select class="select" data-history-name="${i}"><option value="">Elegí cómo interpretarlo</option><option value="keep">Conservar ${escapeHtml(r.name)}</option>${r.candidates.map((name, n) => option(String(n), `Usar ${name}`, "")).join("")}</select></label>` : ""}
+      </article>`).join("")}</div><p id="history-save-error" role="alert"></p>`,
+    footer: `<button id="history-back" class="secondary-button" type="button">Volver a columnas</button><button class="secondary-button" data-action="cancel" type="button">Cancelar</button><button id="history-save" class="primary-button" type="button">Importar seleccionadas</button>`,
+    bind: dialog => {
+      dialog.querySelector("#history-back").onclick = () => openHistoryMapping(table);
+      dialog.querySelectorAll("[data-history-name]").forEach(select => {
+        select.onchange = () => {
+          const i = Number(select.dataset.historyName);
+          if (!select.value) {
+            const check = dialog.querySelector(`[data-history-row="${i}"]`);
+            check.disabled = true; check.checked = false;
+            return;
+          }
+          if (select.value === "keep") {
+            const check = dialog.querySelector(`[data-history-row="${i}"]`);
+            check.disabled = false; check.checked = true;
+          } else {
+            const name = preview[i].candidates[Number(select.value)];
+            // Resolve the spelling once for every row with this name, then check duplicates again.
+            openHistoryPreview(rows.map(r => r.name === rows[i].name ? { ...r, name } : r), table);
+          }
+        };
+      });
+      dialog.querySelector("#history-save").onclick = async () => {
+        const selected = [...dialog.querySelectorAll("[data-history-row]:checked")].map(check => preview[Number(check.dataset.historyRow)]);
+        const errorNode = dialog.querySelector("#history-save-error");
+        if (!selected.length) { errorNode.textContent = "Seleccioná al menos una fila nueva o una corrección."; return; }
+        const buttons = [...dialog.querySelectorAll("button")];
+        buttons.forEach(button => button.disabled = true);
+        const preventClose = event => event.preventDefault();
+        dialog.addEventListener("cancel", preventClose);
+        try {
+          if (!state.historyReady || state.unitNumber !== unit) throw new Error("Cambió la unidad o la conexión. Volvé a abrir la importación.");
+          if (JSON.stringify(exportableHistory()) !== JSON.stringify(existing)) throw new Error("El historial cambió desde la vista previa. Volvé a columnas y revisalo otra vez.");
+          const changes = selected.map(r => ({ id: r.id || `${unit}:import:${crypto.randomUUID()}`, date: r.date, name: r.name, type: r.type, topic: r.topic || "" }));
+          const ref = doc(db, "historialParticipaciones", unit);
+          await runTransaction(db, async transaction => {
+            const snapshot = await transaction.get(ref);
+            const current = snapshot.data() || {};
+            if ((current.revision || 0) !== revision) throw new Error("Otra persona modificó el historial. Volvé a columnas y revisá la vista previa.");
+            const byId = new Map((current.records || []).map(r => [r.id, r]));
+            changes.forEach(r => byId.set(r.id, r));
+            const records = [...byId.values()];
+            if (new TextEncoder().encode(JSON.stringify(records)).length > 700000) throw new Error("El historial alcanzó el tamaño máximo de esta primera versión. No se guardó ningún cambio.");
+            transaction.set(ref, { numeroUnidad: unit, revision: revision + 1, records, actualizadoEn: serverTimestamp(), actualizadoPor: userEmail() });
+          });
+          closeModal();
+          toastMessage(`Se guardaron ${changes.length} participaciones.`);
+        } catch (error) { errorNode.textContent = error.message; }
+        finally { dialog.removeEventListener("cancel", preventClose); buttons.forEach(button => button.disabled = false); }
+      };
+    }
+  });
+}
+
 function renderPlanning() {
   const rankings = planningRankings();
   const tab = state.planningTab;
@@ -2065,6 +2253,7 @@ function renderPlanning() {
           <input id="planning-search" class="input" type="search" placeholder="${isTopics ? "Buscar tema o etiquetas..." : "Buscar hermano/a..."}" value="${escapeAttr(state.planningSearch)}">
         </div>
         <div class="planning-toolbar-actions">
+          <button id="history-transfer" class="secondary-button" type="button">Importar / exportar</button>
           <button id="planning-config" class="icon-button" type="button" aria-label="Configuración" title="Configuración">${icon("settings")}</button>
           ${isTopics
             ? `<button id="topic-tags" class="icon-button" type="button" aria-label="Etiquetas de temas" title="Etiquetas de temas">${icon("tag")}</button>`
@@ -2096,6 +2285,7 @@ function renderPlanning() {
       bindBrotherActions();
     }
   });
+  screen.querySelector("#history-transfer").addEventListener("click", openHistoryTransfer);
   screen.querySelector("#planning-config").addEventListener("click", openPlanningConfigDialog);
   if (isTopics) {
     screen.querySelector("#topic-tags").addEventListener("click", openTopicTagsDialog);
@@ -2194,7 +2384,8 @@ function topicLabelsFromText(text, fallback = "") {
 }
 
 function topicRecords() {
-  return state.agendas.flatMap((agenda) =>
+  const imported = (state.importedHistory || []).filter(r => r.type === "Discurso" && r.topic).map(r => ({ etiqueta: r.topic, tema: r.topic, discursante: r.name, fecha: new Date(`${r.date}T12:00:00`) }));
+  return imported.concat(state.agendas.flatMap((agenda) =>
     agenda.mensajesEvangelio.flatMap((message) => {
       if (message.tipo !== "DISCURSO") return [];
       const topic = (message.tema || "").trim();
@@ -2207,7 +2398,7 @@ function topicRecords() {
         fecha: agenda.fecha
       }));
     })
-  );
+  ));
 }
 
 function topicSummaries() {
@@ -2716,6 +2907,17 @@ function planningRankings() {
       if (normalizeName(agenda.primeraOracion) === key) prayerDates.push(agenda.fecha);
       if (normalizeName(agenda.oracionFinal) === key) prayerDates.push(agenda.fecha);
     });
+    (state.importedHistory || []).filter(r => normalizeName(r.name) === key).forEach(r => {
+      const date = new Date(`${r.date}T12:00:00`);
+      if (r.type === "Discurso") {
+        talkDates.push(date);
+        if (r.topic && (!ultimaFechaTemaDiscurso || date > ultimaFechaTemaDiscurso)) {
+          ultimaFechaTemaDiscurso = date;
+          ultimoTemaDiscurso = r.topic;
+          ultimaEtiquetaDiscurso = r.topic;
+        }
+      } else prayerDates.push(date);
+    });
     if (hermano.ultimaVezDiscursoManual) talkDates.push(toDate(hermano.ultimaVezDiscursoManual));
     if (hermano.ultimaVezOracionManual) prayerDates.push(toDate(hermano.ultimaVezOracionManual));
     return {
@@ -2732,7 +2934,7 @@ function planningRankings() {
 }
 
 function collectHistoryNames() {
-  const names = new Set();
+  const names = new Set((state.importedHistory || []).map(r => r.name));
   state.agendas.forEach((agenda) => {
     [agenda.preside, agenda.dirige, agenda.primeraOracion, agenda.oracionFinal, agenda.directorMusica, agenda.pianista].forEach((name) => {
       if (name) names.add(name.trim());
