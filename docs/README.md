@@ -72,15 +72,19 @@ Los registros participan en las sugerencias de discursos, oraciones y temas de l
 web. No se escriben agendas ficticias ni se modifican las fichas de Android. Android
 todavía no lee esta nueva fuente: se incorporará en su propia fase.
 
-### Antes de publicar
+### Alcance publicado y acceso
 
-El 2026-10-22 se revisaron las reglas reales en la consola, sin modificarlas.
-Actualmente no habilitan la colección de historial; las colecciones anteriores
-solo comprueban autenticación, sin separar unidades. Ver el análisis y la propuesta
-de acceso específico por unidad en `../firebase/HISTORY-ACCESS.md`. La propuesta
-pasó seis pruebas en el emulador y **no está desplegada**. Antes de publicar se deben
-aprobar los usuarios/unidades y configurar sus accesos administrativos. No se
-ampliaron permisos de producción ni se modificaron las colecciones de Android.
+La versión web incluye el importador, pero el acceso a su colección en Firebase
+está habilitado únicamente para la unidad de pruebas **123456**, con membresía
+administrativa explícita. El piloto real verificó importación, exportación,
+correcciones, conservación de filas ausentes y reimportación sin duplicados.
+Publicar la web no habilita automáticamente otras unidades: antes de ampliar el
+acceso se deben aprobar las unidades y configurar sus membresías administrativas.
+Ver los resultados y la propuesta general en `../firebase/HISTORY-ACCESS.md`.
+Las reglas anteriores de agendas, unidades, hermanos y configuración no se
+modificaron; solo comprueban autenticación, sin separar unidades. La propuesta
+general pasó seis pruebas en el emulador; lo desplegado agrega la restricción
+explícita a 123456. Android todavía no utiliza el historial importado.
 
 Se validaron en el emulador el acceso autorizado, la denegación entre unidades,
 la persistencia y el rechazo de revisiones desactualizadas. Si falla la lectura,
