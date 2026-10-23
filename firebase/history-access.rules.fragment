@@ -1,14 +1,12 @@
-// REVIEW ONLY. Insert inside match /databases/{database}/documents.
+// Current compatibility policy. Insert inside match /databases/{database}/documents.
 // Not a full replacement for the deployed rules. Do not deploy this fragment as-is.
-// Membership documents must be provisioned by a trusted administrator, never by clients.
+// Same authentication boundary as the existing app. Unit authorization is a separate migration.
 function puedeLeerHistorial(unidad) {
-  return request.auth != null
-    && exists(/databases/$(database)/documents/historialAccesos/$(unidad)/miembros/$(request.auth.uid));
+  return request.auth != null;
 }
 
 function puedeEditarHistorial(unidad) {
-  return puedeLeerHistorial(unidad)
-    && get(/databases/$(database)/documents/historialAccesos/$(unidad)/miembros/$(request.auth.uid)).data.rol == 'editor';
+  return puedeLeerHistorial(unidad);
 }
 
 function historialValido(unidad) {

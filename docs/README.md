@@ -74,18 +74,16 @@ todavía no lee esta nueva fuente: se incorporará en su propia fase.
 
 ### Alcance publicado y acceso
 
-La versión web incluye el importador, pero el acceso a su colección en Firebase
-está habilitado únicamente para la unidad de pruebas **123456**, con membresía
-administrativa explícita. El piloto real verificó importación, exportación,
-correcciones, conservación de filas ausentes y reimportación sin duplicados.
-Publicar la web no habilita automáticamente otras unidades: antes de ampliar el
-acceso se deben aprobar las unidades y configurar sus membresías administrativas.
-Ver los resultados y la propuesta general en `../firebase/HISTORY-ACCESS.md`.
-Las reglas anteriores de agendas, unidades, hermanos y configuración no se
-modificaron; solo comprueban autenticación, sin separar unidades. La propuesta
-general pasó seis pruebas en el emulador; lo desplegado agrega la restricción
-explícita a 123456. Android todavía no utiliza el historial importado.
+El importador usa el mismo acceso autenticado que el resto de la app, sin una
+membresía adicional ni restricción a la unidad piloto. Se conservan la validación
+del documento, las revisiones consecutivas y la prohibición de listar o borrar
+el historial completo. Las reglas de agendas, unidades, hermanos y configuración
+no se modificaron. La autorización por unidad validada en servidor queda como
+un trabajo de seguridad separado: el modelo actual aún no garantiza aislamiento
+entre unidades ante acceso directo a Firebase.
+Ver el detalle en `../firebase/HISTORY-ACCESS.md`. Android no necesita actualizarse
+para esta corrección y todavía no utiliza el historial importado.
 
-Se validaron en el emulador el acceso autorizado, la denegación entre unidades,
+Se validaron en el emulador el acceso autenticado sin membresía de piloto,
 la persistencia y el rechazo de revisiones desactualizadas. Si falla la lectura,
 la interfaz bloquea importación y exportación para no ofrecer un archivo incompleto.

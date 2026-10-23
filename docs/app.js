@@ -465,10 +465,12 @@ function subscribeUnitData(unitNumber) {
     state.historyReady = true;
     state.historyError = "";
     render();
+    syncHistoryTransferAccess();
   }, () => {
     state.historyReady = false;
     state.historyError = "No se pudo acceder al historial importado. Revisá la conexión y los permisos de la unidad.";
     render();
+    syncHistoryTransferAccess();
   }));
 
   const hermanosQuery = query(collection(db, "hermanos"), where("numeroUnidad", "==", unitNumber), orderBy("nombre"));
@@ -2150,6 +2152,15 @@ function openHistoryWorkbook(sheets) {
   });
 }
 
+function syncHistoryTransferAccess() {
+  const input = modal.querySelector('#history-file');
+  const exportButton = modal.querySelector('#history-export');
+  const status = modal.querySelector('#history-access-status');
+  if (input) input.disabled = !state.historyReady || input.dataset.busy === 'true';
+  if (exportButton) exportButton.disabled = !state.historyReady || exportButton.dataset.busy === 'true';
+  if (status) status.textContent = state.historyReady ? '' : state.historyError || 'Esperando acceso al historial…';
+}
+
 function openHistoryTransfer() {
   openModal({
     title: "Historial: importar y exportar",
@@ -2161,7 +2172,7 @@ function openHistoryTransfer() {
       <p>Conservá los ID existentes y dejá el ID vacío en las filas nuevas. La plantilla contiene solo encabezados. Podés importar Excel (.xlsx o .xls) o CSV UTF-8.</p>
       <p>Participaciones: Discurso, Primera oración, Última oración u Oración. Fechas recomendadas: AAAA-MM-DD. Tema es opcional.</p>
       <p>Las correcciones de registros provenientes de agendas o fichas se hacen en su pantalla original.</p>
-      ${state.historyReady ? "" : `<p role="status">${escapeHtml(state.historyError || "Esperando acceso al historial… Cerrá y volvé a abrir cuando termine la carga.")}</p>`}
+      <p id="history-access-status" role="status">${state.historyReady ? "" : escapeHtml(state.historyError || "Esperando acceso al historial…")}</p>
       ${field("history-file", "Seleccionar Excel o CSV", `<input id="history-file" class="input" type="file" accept=".xlsx,.xls,.csv,.tsv" ${state.historyReady ? "" : "disabled"}>`)}
       <p id="history-file-error" role="alert"></p>
     </div>`,
@@ -2169,17 +2180,20 @@ function openHistoryTransfer() {
     bind: dialog => {
       const download = async (records, filename, button) => {
         const errorNode = dialog.querySelector('#history-file-error');
+        button.dataset.busy = 'true';
         button.disabled = true;
         try { await downloadHistoryFile(records, filename, dialog.querySelector('#history-format').value); }
         catch (error) { errorNode.textContent = error.message; }
-        finally { button.disabled = false; }
+        finally { button.dataset.busy = 'false'; button.disabled = false; syncHistoryTransferAccess(); }
       };
       dialog.querySelector("#history-template").onclick = event => download([], 'plantilla-historial', event.currentTarget);
       dialog.querySelector("#history-export").onclick = event => download(exportableHistory(), `historial-${state.unitNumber}`, event.currentTarget);
       dialog.querySelector("#history-file").onchange = async event => {
+        if (!state.historyReady) return;
         const file = event.target.files[0];
         if (!file) return;
         const input = event.target;
+        input.dataset.busy = 'true';
         const errorNode = dialog.querySelector('#history-file-error');
         input.disabled = true;
         errorNode.textContent = 'Leyendo archivo…';
@@ -2197,7 +2211,7 @@ function openHistoryTransfer() {
           if (table.length < 2) throw new Error("El archivo solo contiene encabezados. Agregá participaciones antes de importar.");
           if (dialog.open && dialog.contains(input)) openHistoryMapping(table);
         } catch (error) { errorNode.textContent = error.message; }
-        finally { input.disabled = false; input.value = ''; }
+        finally { input.dataset.busy = 'false'; input.value = ''; syncHistoryTransferAccess(); }
       };
     }
   });

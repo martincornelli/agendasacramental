@@ -1,5 +1,28 @@
 # Access review — 2026-10-22
 
+## Current decision — 2026-10-23
+
+The user explicitly requested finishing Excel with the existing app access model
+and handling the broader unit-authorization flaw separately. The compatibility
+fragment now requires authentication for history get/create/update, without the
+pilot unit or membership restrictions. It retains schema/revision validation and
+denies list/delete. This does not establish server-side unit isolation; that known
+limitation is the same as the existing collections. Anonymous access is denied.
+
+The unpublished security work is isolated on `codex/unit-access-security` and must
+not be deployed as part of this fix. No Android update is needed for Excel access.
+The six updated emulator tests verify this compatibility policy, not the earlier
+member-only policy documented below. The browser regression test additionally
+checks that an open file dialog unlocks when history finishes loading, and locks
+again if access fails. Historical notes below describe the initial pilot.
+
+Published compatibility release:
+`projects/agendasacramental-333f2/rulesets/a97a9c76-2b93-461f-8074-b2d05b4ae8d2`.
+The prior release was backed up locally before publishing; the original rules
+for unidades/agendas/hermanos/configuracion were preserved byte-for-byte.
+Publication checked that the active release had not changed since the backup,
+and verified the new release reference afterwards. No live unit data was written.
+
 The deployed rules were inspected read-only in Firebase Console for project
 `agendasacramental-333f2`, default database. The active revision was labeled
 March 25, 2026 at 09:55. This initial review did not change anything; the limited

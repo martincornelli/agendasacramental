@@ -25,19 +25,20 @@ beforeEach(async () => {
   });
 });
 
-test('unauthenticated users and nonmembers cannot read or write history', async () => {
-  for (const context of [env.unauthenticatedContext(), env.authenticatedContext('stranger')]) {
+test('unauthenticated users cannot read or write history', async () => {
+  for (const context of [env.unauthenticatedContext()]) {
     await assertFails(getDoc(history(context.firestore())));
     await assertFails(setDoc(history(context.firestore()), valid()));
   }
 });
 
-test('members can read their own unit, but not another unit or list the collection', async () => {
-  const db = env.authenticatedContext('reader').firestore();
+test('existing app authentication works without pilot membership in any unit; listing stays denied', async () => {
+  const db = env.authenticatedContext('no-pilot-membership').firestore();
   await assertSucceeds(getDoc(history(db)));
-  await assertFails(getDoc(doc(db, 'historialParticipaciones/456')));
+  await assertSucceeds(getDoc(doc(db, 'historialParticipaciones/456')));
   await assertFails(getDocs(collection(db, 'historialParticipaciones')));
-  await assertFails(setDoc(history(db), valid()));
+  await assertSucceeds(setDoc(history(db), valid()));
+  await assertSucceeds(setDoc(doc(db, 'historialParticipaciones/456'), { ...valid(), numeroUnidad: '456' }));
 });
 
 test('editors can create and update with a consecutive revision, but cannot delete', async () => {

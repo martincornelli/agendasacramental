@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const source = fs.readFileSync('docs/app.js', 'utf8');
 const domain = fs.readFileSync('docs/participation-history.mjs', 'utf8').replace(/^export /gm, '');
 const workbook = fs.readFileSync('docs/history-workbook.mjs', 'utf8').replace(/^export /gm, '');
-const names = ['exportableHistory', 'downloadHistoryCSV', 'historySpreadsheetJob', 'downloadHistoryFile', 'openHistoryWorkbook', 'openHistoryTransfer', 'openHistoryMapping', 'openHistoryPreview', 'openModal', 'closeModal', 'escapeHtml', 'escapeAttr', 'option'];
+const names = ['exportableHistory', 'downloadHistoryCSV', 'historySpreadsheetJob', 'downloadHistoryFile', 'openHistoryWorkbook', 'syncHistoryTransferAccess', 'openHistoryTransfer', 'openHistoryMapping', 'openHistoryPreview', 'openModal', 'closeModal', 'escapeHtml', 'escapeAttr', 'option'];
 const functions = names.map(name => {
   const start = source.indexOf(`function ${name}(`);
   assert.ok(start >= 0, name);
@@ -30,6 +30,7 @@ async function runTransaction(db, callback) {
 window.stored = () => persisted;
 window.conflict = () => { persisted.revision++; state.historyRevision = persisted.revision; };
 window.start = openHistoryTransfer;
+window.historyAccess = (ready, error = '') => { state.historyReady = ready; state.historyError = error; syncHistoryTransferAccess(); };
 openHistoryTransfer();
 `;
 const fixtureScript = domain + '\n' + workbook + '\n' + functions + '\n' + fixtures;
@@ -63,6 +64,16 @@ if (process.argv.includes('--serve')) {
       return route.fulfill({ contentType: pathname.endsWith('.css') ? 'text/css' : 'text/javascript; charset=utf-8', body: fs.readFileSync(file) });
     });
     await page.goto('https://history.test/');
+    await page.evaluate(() => { window.historyAccess(false); window.start(); });
+    assert.equal(await page.locator('#history-file').isDisabled(), true);
+    await page.evaluate(() => window.historyAccess(true));
+    assert.equal(await page.locator('#history-file').isEnabled(), true);
+    assert.equal(await page.locator('#history-export').isEnabled(), true);
+    assert.equal(await page.locator('#history-access-status').textContent(), '');
+    await page.evaluate(() => window.historyAccess(false, 'Sin acceso'));
+    assert.equal(await page.locator('#history-file').isDisabled(), true);
+    assert.equal(await page.locator('#history-access-status').textContent(), 'Sin acceso');
+    await page.evaluate(() => window.historyAccess(true));
     const csv = 'ID;Fecha;Nombre;Participación;Tema\n;2026-01-04;Ana;Discurso;Fe\n;2026-01-04;Ana;Discurso;Fe\n;2026-01-04;Juan;Primera oración;';
     const upload = async text => {
       await page.locator('#history-file').setInputFiles({ name: 'historial.csv', mimeType: 'text/csv', buffer: Buffer.from(text) });
