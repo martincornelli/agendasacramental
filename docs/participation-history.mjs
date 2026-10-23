@@ -67,9 +67,13 @@ export function mapRows(table, mapping, order = 'DMY', wide = false) {
   const selected = (wide ? ['date', 'talk', 'opening', 'closing', 'topic'] : ['date', 'name', 'type', 'topic', 'id']).map(k => mapping[k]).filter(v => v >= 0);
   if (new Set(selected).size !== selected.length) throw new Error('Cada campo debe usar una columna diferente.');
   return table.slice(1).flatMap((row, index) => {
+    if (row.every(value => !String(value ?? '').trim())) return [];
     // Reverse only the formula-protection prefix emitted by exportCSV.
-    const get = key => String(row[mapping[key]] ?? '').trim().replace(/^'(?=\s*[=+@\-\t\r])/, '');
-    const base = { date: parseDate(get('date'), order), topic: get('topic'), row: index + 2 };
+    const get = key => {
+      const value = String(row[mapping[key]] ?? '').trim();
+      return table.sourceFormat === 'xlsx' ? value : value.replace(/^'(?=\s*[=+@\-\t\r])/, '');
+    };
+    const base = { date: parseDate(get('date'), order), topic: get('topic'), row: index + 1 + (table.sourceRow || 1) };
     const records = wide ? [['talk', 'Discurso'], ['opening', 'Primera oración'], ['closing', 'Última oración']].filter(([key]) => get(key)).map(([key, type]) => ({ ...base, id: '', name: get(key), type, topic: type === 'Discurso' ? base.topic : '' })) : [{ ...base, id: get('id'), name: get('name'), type: participationType(get('type')) }];
     if (!records.length) records.push({ ...base, id: '', name: '', type: '' });
     return records.map(record => ({ ...record, name: exactName(record.name), error: row.length !== table[0].length ? 'La cantidad de columnas no coincide con el encabezado.' : !record.date ? 'Fecha inválida.' : !record.name ? 'Falta el nombre.' : !record.type ? 'Participación no reconocida.' : record.name.length > 200 || record.topic.length > 2000 ? 'Nombre o tema demasiado largo.' : '' }));

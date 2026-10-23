@@ -35,14 +35,19 @@ La planificación de himnos utiliza los campos de la agenda como única fuente d
 Desde la raíz del repositorio:
 
 ```powershell
-node --test tests/agenda-web.test.cjs tests/hymn-planner-web.test.mjs tests/participation-history.test.mjs
+node --test tests/agenda-web.test.cjs tests/hymn-planner-web.test.mjs tests/participation-history.test.mjs tests/history-workbook.test.mjs
 ```
 
 ## Importación de historial (primera versión web)
 
 En Planificación → Importar / exportar se puede descargar una plantilla vacía o
-exportar el historial con ID, Fecha, Nombre, Participación y Tema. Abrir con Excel
-y guardar como **CSV UTF-8**. La lectura directa de `.xlsx` todavía no está implementada.
+exportar el historial en **Excel (.xlsx)** o **CSV UTF-8**, con ID, Fecha, Nombre,
+Participación y Tema. Se pueden importar `.xlsx`, `.xls`, `.csv` y `.tsv`.
+Para Excel se eligen la hoja y la fila de encabezados; las fechas nativas de Excel
+se convierten a fechas de calendario, incluidos libros con sistema de fechas 1904.
+Las hojas ocultas se omiten. Las hojas con fórmulas o errores requieren una copia
+con valores solamente. Los archivos se procesan en un worker local con tiempo
+máximo de 15 segundos; no se envían a servicios externos para interpretarlos.
 
 El asistente admite coma, punto y coma o tabulador, selección de columnas, fechas
 ISO o día/mes/año y mes/día/año, y una fila por participación o por reunión
@@ -58,8 +63,10 @@ con `numeroUnidad`, `revision`, `records`, `actualizadoEn` y `actualizadoPor`.
 Cada registro tiene `id`, `date` (AAAA-MM-DD), `name`, `type` y `topic`.
 Una transacción verifica la revisión antes de agregar o reemplazar los registros
 seleccionados. Un cambio concurrente cancela el guardado completo para volver a
-revisar. El límite inicial es 2 MB/5000 filas por archivo y 700 KB de historial
-serializado por unidad; superar el límite no guarda parcialmente.
+revisar. El límite inicial es 2 MB/5000 filas de datos por archivo y 700 KB/5000
+participaciones de historial por unidad; superar el límite no guarda parcialmente.
+Excel admite hasta 20 hojas, 5001 filas físicas/64 columnas por hoja y 150000
+celdas visibles por libro. Los límites se informan antes de guardar.
 
 Los registros participan en las sugerencias de discursos, oraciones y temas de la
 web. No se escriben agendas ficticias ni se modifican las fichas de Android. Android
@@ -67,13 +74,14 @@ todavía no lee esta nueva fuente: se incorporará en su propia fase.
 
 ### Antes de publicar
 
-Este repositorio no contiene las reglas desplegadas de Firestore. **No desplegar
-esta función sin verificar las reglas reales**: el documento de historial debe
-permitir lectura y escritura únicamente a usuarios autorizados de esa unidad,
-validar que `numeroUnidad` coincide con el ID de documento y conservar la política
-de acceso existente. No alcanza con comprobar que el usuario esté autenticado.
-No se incluyen reglas permisivas ni se modifican permisos desde el cliente.
+El 2026-10-22 se revisaron las reglas reales en la consola, sin modificarlas.
+Actualmente no habilitan la colección de historial; las colecciones anteriores
+solo comprueban autenticación, sin separar unidades. Ver el análisis y la propuesta
+de acceso específico por unidad en `../firebase/HISTORY-ACCESS.md`. La propuesta
+pasó seis pruebas en el emulador y **no está desplegada**. Antes de publicar se deben
+aprobar los usuarios/unidades y configurar sus accesos administrativos. No se
+ampliaron permisos de producción ni se modificaron las colecciones de Android.
 
-Validar en un entorno de prueba el acceso autorizado, la denegación entre unidades,
-la persistencia/reimportación y los conflictos concurrentes. Si falla la lectura,
+Se validaron en el emulador el acceso autorizado, la denegación entre unidades,
+la persistencia y el rechazo de revisiones desactualizadas. Si falla la lectura,
 la interfaz bloquea importación y exportación para no ofrecer un archivo incompleto.

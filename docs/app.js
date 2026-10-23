@@ -1,4 +1,5 @@
 import { HISTORY_FIELDS, parseCSV, guessColumns, mapRows, previewRows, exportCSV } from "./participation-history.mjs";
+import { workbookTable } from "./history-workbook.mjs";
 import { HYMNS_EN, HYMNS_ES } from "./hymns.js";
 import {
   HYMN_POSITIONS,
@@ -2097,35 +2098,106 @@ function downloadHistoryCSV(records, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function historySpreadsheetJob(action, payload) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL('./history-workbook-worker.js', import.meta.url));
+    const finish = () => { clearTimeout(timeout); worker.terminate(); };
+    const timeout = setTimeout(() => { finish(); reject(new Error('Excel tardó demasiado en procesarse. Probá con un archivo más pequeño.')); }, 15000);
+    worker.onmessage = ({ data }) => {
+      finish();
+      if (data.error) reject(new Error(data.error)); else resolve(data.result);
+    };
+    worker.onerror = () => { finish(); reject(new Error('No se pudo procesar Excel. Revisá la conexión y volvé a intentar.')); };
+    worker.postMessage({ action, ...payload }, payload.buffer ? [payload.buffer] : []);
+  });
+}
+
+async function downloadHistoryFile(records, filename, format) {
+  if (format === 'csv') { downloadHistoryCSV(records, `${filename}.csv`); return; }
+  const buffer = await historySpreadsheetJob('write', { records });
+  const url = URL.createObjectURL(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  const link = document.createElement('a');
+  link.href = url; link.download = `${filename}.xlsx`; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function openHistoryWorkbook(sheets) {
+  openModal({
+    title: 'Elegir hoja de Excel',
+    body: `<form id="history-sheet-form" class="form-grid">
+      <p>El archivo se procesa en este dispositivo. Elegí la hoja y la fila donde aparecen los nombres de las columnas.</p>
+      ${field('history-sheet', 'Hoja', `<select class="select" id="history-sheet">${sheets.map((sheet, i) => option(String(i), sheet.name, '0')).join('')}</select>`)}
+      ${field('history-header', 'Fila de encabezados', '<input class="input" id="history-header" type="number" min="1" max="5001" value="1" required>')}
+      <div id="history-sheet-sample" class="history-preview-list"></div><p id="history-sheet-error" role="alert"></p>
+    </form>`,
+    footer: '<button class="secondary-button" data-action="cancel" type="button">Cancelar</button><button class="primary-button" type="submit" form="history-sheet-form">Elegir columnas</button>',
+    bind: dialog => {
+      const select = dialog.querySelector('#history-sheet');
+      const header = dialog.querySelector('#history-header');
+      const refresh = () => {
+        const sheet = sheets[Number(select.value)];
+        dialog.querySelector('#history-sheet-error').textContent = sheet.error || '';
+        const start = Math.max(0, Number(header.value) - 1);
+        dialog.querySelector('#history-sheet-sample').innerHTML = (sheet.rows || []).slice(start, start + 4).map((row, i) => `<p><strong>Fila ${start + i + 1}:</strong> ${row.map(escapeHtml).join(' · ')}</p>`).join('');
+      };
+      select.onchange = refresh; header.oninput = refresh; refresh();
+      dialog.querySelector('#history-sheet-form').onsubmit = event => {
+        event.preventDefault();
+        try { openHistoryMapping(workbookTable(sheets[Number(select.value)], Number(header.value))); }
+        catch (error) { dialog.querySelector('#history-sheet-error').textContent = error.message; }
+      };
+    }
+  });
+}
+
 function openHistoryTransfer() {
   openModal({
     title: "Historial: importar y exportar",
     body: `<div class="form-grid">
       <p>Agregá participaciones anteriores sin crear agendas. Eliminar filas del archivo nunca borra datos de la app.</p>
-      <div class="button-row"><button id="history-export" class="secondary-button" type="button" ${state.historyReady ? "" : "disabled"}>Exportar historial CSV</button>
-      <button id="history-template" class="secondary-button" type="button">Descargar plantilla CSV</button></div>
-      <p>Podés abrir el CSV en Excel y guardarlo como CSV UTF-8. Conservá los ID existentes y dejá el ID vacío en las filas nuevas. La plantilla contiene solo encabezados.</p>
+      ${field('history-format', 'Formato de descarga', '<select class="select" id="history-format"><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV UTF-8</option></select>')}
+      <div class="button-row"><button id="history-export" class="secondary-button" type="button" ${state.historyReady ? "" : "disabled"}>Exportar historial</button>
+      <button id="history-template" class="secondary-button" type="button">Descargar plantilla</button></div>
+      <p>Conservá los ID existentes y dejá el ID vacío en las filas nuevas. La plantilla contiene solo encabezados. Podés importar Excel (.xlsx o .xls) o CSV UTF-8.</p>
       <p>Participaciones: Discurso, Primera oración, Última oración u Oración. Fechas recomendadas: AAAA-MM-DD. Tema es opcional.</p>
       <p>Las correcciones de registros provenientes de agendas o fichas se hacen en su pantalla original.</p>
       ${state.historyReady ? "" : `<p role="status">${escapeHtml(state.historyError || "Esperando acceso al historial… Cerrá y volvé a abrir cuando termine la carga.")}</p>`}
-      ${field("history-file", "Seleccionar CSV", `<input id="history-file" class="input" type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" ${state.historyReady ? "" : "disabled"}>`)}
+      ${field("history-file", "Seleccionar Excel o CSV", `<input id="history-file" class="input" type="file" accept=".xlsx,.xls,.csv,.tsv" ${state.historyReady ? "" : "disabled"}>`)}
       <p id="history-file-error" role="alert"></p>
     </div>`,
     footer: `<button class="secondary-button" data-action="cancel" type="button">Cerrar</button>`,
     bind: dialog => {
-      dialog.querySelector("#history-template").onclick = () => downloadHistoryCSV([], "plantilla-historial.csv");
-      dialog.querySelector("#history-export").onclick = () => downloadHistoryCSV(exportableHistory(), `historial-${state.unitNumber}.csv`);
+      const download = async (records, filename, button) => {
+        const errorNode = dialog.querySelector('#history-file-error');
+        button.disabled = true;
+        try { await downloadHistoryFile(records, filename, dialog.querySelector('#history-format').value); }
+        catch (error) { errorNode.textContent = error.message; }
+        finally { button.disabled = false; }
+      };
+      dialog.querySelector("#history-template").onclick = event => download([], 'plantilla-historial', event.currentTarget);
+      dialog.querySelector("#history-export").onclick = event => download(exportableHistory(), `historial-${state.unitNumber}`, event.currentTarget);
       dialog.querySelector("#history-file").onchange = async event => {
         const file = event.target.files[0];
         if (!file) return;
+        const input = event.target;
+        const errorNode = dialog.querySelector('#history-file-error');
+        input.disabled = true;
+        errorNode.textContent = 'Leyendo archivo…';
         try {
           if (file.size > 2 * 1024 * 1024) throw new Error("El archivo debe pesar menos de 2 MB.");
+          if (/\.(xlsx|xls)$/i.test(file.name)) {
+            const sheets = await historySpreadsheetJob('read', { buffer: await file.arrayBuffer() });
+            if (dialog.open && dialog.contains(input)) openHistoryWorkbook(sheets);
+            return;
+          }
+          if (!/\.(csv|tsv)$/i.test(file.name)) throw new Error('Elegí un archivo Excel (.xlsx o .xls), CSV o TSV.');
           const text = await file.text();
           if (text.includes("\uFFFD")) throw new Error("Guardá el archivo como CSV UTF-8 para conservar los nombres y tildes.");
           const table = parseCSV(text);
           if (table.length < 2) throw new Error("El archivo solo contiene encabezados. Agregá participaciones antes de importar.");
-          if (dialog.open) openHistoryMapping(table);
-        } catch (error) { dialog.querySelector("#history-file-error").textContent = error.message; }
+          if (dialog.open && dialog.contains(input)) openHistoryMapping(table);
+        } catch (error) { errorNode.textContent = error.message; }
+        finally { input.disabled = false; input.value = ''; }
       };
     }
   });
@@ -2217,6 +2289,7 @@ function openHistoryPreview(rows, table) {
             const byId = new Map((current.records || []).map(r => [r.id, r]));
             changes.forEach(r => byId.set(r.id, r));
             const records = [...byId.values()];
+            if (records.length > 5000) throw new Error('El historial admite hasta 5000 participaciones por unidad. No se guardó ningún cambio.');
             if (new TextEncoder().encode(JSON.stringify(records)).length > 700000) throw new Error("El historial alcanzó el tamaño máximo de esta primera versión. No se guardó ningún cambio.");
             transaction.set(ref, { numeroUnidad: unit, revision: revision + 1, records, actualizadoEn: serverTimestamp(), actualizadoPor: userEmail() });
           });

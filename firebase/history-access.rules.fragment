@@ -1,0 +1,38 @@
+// REVIEW ONLY. Insert inside match /databases/{database}/documents.
+// Not a full replacement for the deployed rules. Do not deploy this fragment as-is.
+// Membership documents must be provisioned by a trusted administrator, never by clients.
+function puedeLeerHistorial(unidad) {
+  return request.auth != null
+    && exists(/databases/$(database)/documents/historialAccesos/$(unidad)/miembros/$(request.auth.uid));
+}
+
+function puedeEditarHistorial(unidad) {
+  return puedeLeerHistorial(unidad)
+    && get(/databases/$(database)/documents/historialAccesos/$(unidad)/miembros/$(request.auth.uid)).data.rol == 'editor';
+}
+
+function historialValido(unidad) {
+  let data = request.resource.data;
+  return data.keys().hasAll(['numeroUnidad', 'revision', 'records', 'actualizadoEn', 'actualizadoPor'])
+    && data.keys().hasOnly(['numeroUnidad', 'revision', 'records', 'actualizadoEn', 'actualizadoPor'])
+    && data.numeroUnidad == unidad
+    && data.revision is int
+    && data.records is list
+    && data.records.size() <= 5000
+    && data.actualizadoEn == request.time
+    && data.actualizadoPor is string;
+}
+
+match /historialParticipaciones/{unidad} {
+  allow get: if puedeLeerHistorial(unidad);
+  allow list, delete: if false;
+  allow create: if puedeEditarHistorial(unidad)
+    && historialValido(unidad) && request.resource.data.revision == 1;
+  allow update: if puedeEditarHistorial(unidad)
+    && historialValido(unidad)
+    && request.resource.data.revision == resource.data.revision + 1;
+}
+
+match /historialAccesos/{unidad}/miembros/{uid} {
+  allow read, write: if false;
+}

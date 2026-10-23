@@ -1,14 +1,14 @@
 // Run with Playwright on NODE_PATH. Firebase is mocked; no live data is written.
-const { chromium } = require('playwright');
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const source = fs.readFileSync('docs/app.js', 'utf8');
 const domain = fs.readFileSync('docs/participation-history.mjs', 'utf8').replace(/^export /gm, '');
-const names = ['exportableHistory', 'downloadHistoryCSV', 'openHistoryTransfer', 'openHistoryMapping', 'openHistoryPreview', 'openModal', 'closeModal', 'escapeHtml', 'escapeAttr', 'option'];
+const workbook = fs.readFileSync('docs/history-workbook.mjs', 'utf8').replace(/^export /gm, '');
+const names = ['exportableHistory', 'downloadHistoryCSV', 'historySpreadsheetJob', 'downloadHistoryFile', 'openHistoryWorkbook', 'openHistoryTransfer', 'openHistoryMapping', 'openHistoryPreview', 'openModal', 'closeModal', 'escapeHtml', 'escapeAttr', 'option'];
 const functions = names.map(name => {
   const start = source.indexOf(`function ${name}(`);
   assert.ok(start >= 0, name);
-  return source.slice(start, source.indexOf('\n}', start) + 2);
+  return source.slice(source.slice(start - 6, start) === 'async ' ? start - 6 : start, source.indexOf('\n}', start) + 2);
 }).join('\n');
 const fixtures = `
 const modal = document.querySelector('dialog');
@@ -21,7 +21,7 @@ function dateInputValue(v) { return v ? new Date(v).toISOString().slice(0, 10) :
 function doc(...args) { return args.join('/'); }
 function serverTimestamp() { return 'test-time'; }
 function userEmail() { return 'test@example.com'; }
-function toastMessage(message) { window.lastToast = message; }
+function toastMessage(message) { window.lastToast = message; document.querySelector('#fixture-status').textContent = message; }
 async function runTransaction(db, callback) {
   await callback({ get: async () => ({ data: () => persisted }), set: (_, data) => {
     persisted = data; state.importedHistory = data.records; state.historyRevision = data.revision;
@@ -32,13 +32,36 @@ window.conflict = () => { persisted.revision++; state.historyRevision = persiste
 window.start = openHistoryTransfer;
 openHistoryTransfer();
 `;
+const fixtureScript = domain + '\n' + workbook + '\n' + functions + '\n' + fixtures;
+const fixtureHTML = '<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/styles.css"></head><body><button onclick="window.start()">Abrir importación de prueba</button><p id="fixture-status" role="status"></p><dialog></dialog><script type="module" src="/history-fixture.mjs"></script></body></html>';
+if (process.argv.includes('--serve')) {
+  const http = require('node:http');
+  const path = require('node:path');
+  const root = path.resolve('docs');
+  http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://localhost');
+    if (url.pathname === '/') { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(fixtureHTML); return; }
+    if (url.pathname === '/history-fixture.mjs') { res.setHeader('Content-Type', 'text/javascript; charset=utf-8'); res.end(fixtureScript); return; }
+    const file = path.resolve(root, '.' + decodeURIComponent(url.pathname));
+    if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); res.end(); return; }
+    res.setHeader('Content-Type', file.endsWith('.css') ? 'text/css' : 'text/javascript; charset=utf-8');
+    fs.createReadStream(file).pipe(res);
+  }).listen(4178, '127.0.0.1', () => console.log('History fixture: http://127.0.0.1:4178 (mock database, real Excel worker)'));
+} else {
 (async () => {
+  const { chromium } = require('playwright');
   const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) });
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    await page.route('https://history.test/**', route => route.fulfill({ contentType: 'text/html; charset=utf-8', body: '<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>' + fs.readFileSync('docs/styles.css', 'utf8') + '</style></head><body><dialog></dialog><script>' + domain + '\n' + functions + '\n' + fixtures + '</script></body></html>' }));
+    await page.route('https://history.test/**', route => {
+      const pathname = new URL(route.request().url()).pathname;
+      if (pathname === '/') return route.fulfill({ contentType: 'text/html; charset=utf-8', body: fixtureHTML });
+      if (pathname === '/history-fixture.mjs') return route.fulfill({ contentType: 'text/javascript; charset=utf-8', body: fixtureScript });
+      const file = require('node:path').resolve('docs', '.' + pathname);
+      return route.fulfill({ contentType: pathname.endsWith('.css') ? 'text/css' : 'text/javascript; charset=utf-8', body: fs.readFileSync(file) });
+    });
     await page.goto('https://history.test/');
     const csv = 'ID;Fecha;Nombre;Participación;Tema\n;2026-01-04;Ana;Discurso;Fe\n;2026-01-04;Ana;Discurso;Fe\n;2026-01-04;Juan;Primera oración;';
     const upload = async text => {
@@ -77,3 +100,4 @@ openHistoryTransfer();
     console.log('UI OK: mobile preview, import, reimport without duplicates, explicit corrections, atomic conflict rejection.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
+}
