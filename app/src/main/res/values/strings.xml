@@ -489,8 +489,13 @@
     <!-- Disclaimer -->
     <string name="disclaimer">Esta es una aplicación no oficial. No está afiliada ni respaldada por La Iglesia de Jesucristo de los Santos de los Últimos Días.</string>
     <string name="editar_presentacion_primaria">Presentación de la Primaria</string>
-    <string name="tiempo_presentacion_primaria">Hoy tendremos el privilegio de disfrutar de la Presentación de la Primaria. Ahora el tiempo de la reunión estará a cargo de los niños del barrio y sus líderes</string>
+    <string name="tiempo_presentacion_primaria">Hoy tendremos el privilegio de disfrutar de la Presentación de la Primaria. Ahora el tiempo de la reunión estará a cargo de los niños del barrio y sus líderes\n\nLeer antes de la presentación: «Para preservar el carácter sagrado de las reuniones de la Iglesia, nadie debe tomar fotografías ni hacer grabaciones en video de las reuniones sacramentales ni de las conferencias de estaca».\nManual General 29.8</string>
     <string name="nombre_sugerencia">¿Quisiste decir %1$s?</string>
     <string name="nombre_aceptar">Usar nombre sugerido</string>
     <string name="nombre_descartar">Conservar nombre escrito</string>
+    <string name="history_transfer">Importar / exportar historial</string>
+    <string name="history_retry">Reintentar</string>
+    <string name="history_back">Volver al planificador</string>
+    <string name="history_changed">El historial cambió. Volvé a abrir la vista previa antes de guardar.</string>
+    <string name="history_error">No se pudo completar la operación. Revisá la conexión e intentá nuevamente.</string>
 </resources>

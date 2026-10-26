@@ -52,8 +52,8 @@ let writeBatch;
 let runTransaction;
 
 const MEETING_TEXT = {
-  es: { primary: "Presentación de la Primaria", announcement: "Hoy tendremos el privilegio de disfrutar de la Presentación de la Primaria. Ahora el tiempo de la reunión estará a cargo de los niños del barrio y sus líderes", suggestion: "¿Quisiste decir {name}?", accept: "Usar nombre sugerido", dismiss: "Conservar nombre escrito" },
-  en: { primary: "Primary Presentation", announcement: "Today we will have the privilege of enjoying the Primary Presentation. The meeting will now be turned over to the children of the ward and their leaders.", suggestion: "Did you mean {name}?", accept: "Use suggested name", dismiss: "Keep entered name" }
+  es: { announcements: "Anuncios", announcementHint: "Un anuncio por línea. Las comas se conservan dentro del anuncio.", announcementPdf: "Anuncios (solamente los más importantes y urgentes):", primary: "Presentación de la Primaria", announcement: "Hoy tendremos el privilegio de disfrutar de la Presentación de la Primaria. Ahora el tiempo de la reunión estará a cargo de los niños del barrio y sus líderes\n\nLeer antes de la presentación: «Para preservar el carácter sagrado de las reuniones de la Iglesia, nadie debe tomar fotografías ni hacer grabaciones en video de las reuniones sacramentales ni de las conferencias de estaca».\nManual General 29.8", suggestion: "¿Quisiste decir {name}?", accept: "Usar nombre sugerido", dismiss: "Conservar nombre escrito" },
+  en: { announcements: "Announcements", announcementHint: "One announcement per line. Commas stay within the announcement.", announcementPdf: "Announcements (only the most important and urgent):", primary: "Primary Presentation", announcement: "Today we will have the privilege of enjoying the Primary Presentation. The meeting will now be turned over to the children of the ward and their leaders.\n\nRead before the presentation: “To preserve the sacredness of Church meetings, no one should take photographs or make video recordings of sacrament meetings or stake conferences.”\nGeneral Handbook 29.8", suggestion: "Did you mean {name}?", accept: "Use suggested name", dismiss: "Keep entered name" }
 };
 function meetingText(key) {
   const language = (navigator.language || "es").toLowerCase().startsWith("en") ? "en" : "es";
@@ -998,7 +998,7 @@ function renderAgendaEditor() {
           </div>
           <div class="inline-fields">
             ${field("reconocimientos", "Reconocimientos", textarea("reconocimientos", agenda.reconocimientos), "Si vas a cargar varios, separalos con una coma.")}
-            ${field("anuncios", "Anuncios", textarea("anuncios", agenda.anuncios), "Si vas a cargar varios, separalos con una coma.")}
+            ${field("anuncios", meetingText("announcements"), textarea("anuncios", agenda.anuncios), meetingText("announcementHint"))}
           </div>
         </div>
       </section>
@@ -1830,7 +1830,7 @@ function readingHtml(agenda) {
     ${readingLine("Dirige", agenda.dirige)}
     ${readingLine("Asistencia", agenda.asistencia ? String(agenda.asistencia) : "")}
     ${readingLine("Reconocimientos", agenda.reconocimientos)}
-    ${readingLine("Anuncios", agenda.anuncios)}
+    ${readingLine(meetingText("announcements"), agenda.anuncios)}
     ${readingLine("Himno de apertura", hymnLabel(agenda.primerHimnoNumero, agenda.primerHimnoNombre))}
     ${readingLine("Director/a", agenda.directorMusica)}
     ${readingLine("Pianista", agenda.pianista)}
@@ -1899,7 +1899,7 @@ function pdfHtml(agenda) {
     ${pdfField("Preside:", agenda.preside)}
     <p class="pdf-muted">Preludio (10-15' antes del inicio de la reunión)</p>
     ${pdfListSection("Bienvenida y reconocimiento de autoridades:", splitCommaItems(agenda.reconocimientos), 1)}
-    ${pdfListSection("Anuncios (Solamente los más importantes y urgentes):", splitCommaItems(agenda.anuncios), 2, true)}
+    ${pdfListSection(meetingText("announcementPdf"), splitAnnouncements(agenda.anuncios), 2, true)}
     ${pdfField("Himno de apertura:", hymnLabel(agenda.primerHimnoNumero, agenda.primerHimnoNombre))}
     <div class="pdf-row">
       ${pdfField("Director/a:", agenda.directorMusica)}
@@ -2027,6 +2027,10 @@ function pdfTestimonyPage(agenda) {
 
 function pdfEmptyLines(count) {
   return Array.from({ length: count }, () => `<div class="pdf-empty-line"></div>`).join("");
+}
+
+function splitAnnouncements(value) {
+  return String(value || '').split(/\r\n|\r|\n/).map(item => item.trim()).filter(Boolean);
 }
 
 function splitCommaItems(value) {
@@ -4126,7 +4130,7 @@ function agendaText(agenda) {
     `Preside: ${agenda.preside || "Sin datos"}`,
     `Dirige: ${agenda.dirige || "Sin datos"}`,
     agenda.reconocimientos ? `Reconocimientos: ${agenda.reconocimientos}` : "",
-    agenda.anuncios ? `Anuncios: ${agenda.anuncios}` : "",
+    agenda.anuncios ? `${meetingText("announcements")}: ${agenda.anuncios}` : "",
     `Himno de apertura: ${hymnLabel(agenda.primerHimnoNumero, agenda.primerHimnoNombre)}`,
     `Primera oración: ${agenda.primeraOracion || "Sin datos"}`,
     agenda.asuntosEstacaBarrio?.length

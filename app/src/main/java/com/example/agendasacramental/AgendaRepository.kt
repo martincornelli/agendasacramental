@@ -540,7 +540,7 @@ class AgendaRepository {
         }
     }
 
-    suspend fun getHermanos(numeroUnidad: String): List<Hermano> {
+    suspend fun getHermanos(numeroUnidad: String, importedRecords: List<Map<String, Any>>? = null): List<Hermano> {
         return try {
             val snapshot = db.collection("hermanos")
                 .whereEqualTo("numeroUnidad", numeroUnidad)
@@ -574,6 +574,9 @@ class AgendaRepository {
                 }
             }
 
+            (importedRecords ?: HistorialRepository().registros(numeroUnidad)).forEach { record ->
+                (record["name"] as? String)?.takeIf { it.isNotBlank() }?.let { nombresHistorial.add(it.trim()) }
+            }
             val nombresManual = manual.map { normalizarNombre(it.nombre) }.toSet()
             val deHistorial = nombresHistorial
                 .filter { normalizarNombre(it) !in nombresManual && normalizarNombre(it) !in excluidos }

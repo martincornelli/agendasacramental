@@ -23,6 +23,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -49,6 +52,7 @@ fun PlanificacionScreen(
     var agendas by remember { mutableStateOf<List<Agenda>>(emptyList()) }
     var config by remember { mutableStateOf(ConfiguracionPlanificacion(numeroUnidad = numeroUnidad)) }
     var isLoading by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf(false) }
     var showAgregarHermano by remember { mutableStateOf(false) }
     var showConfiguracion by remember { mutableStateOf(false) }
     var hermanoParaAsignar by remember { mutableStateOf<HermanoRanking?>(null) }
@@ -65,26 +69,29 @@ fun PlanificacionScreen(
     var filtrosDiscurso by remember { mutableStateOf(setOf(ColorRanking.VERDE, ColorRanking.AMARILLO)) }
     var filtrosOracion by remember { mutableStateOf(setOf(ColorRanking.VERDE, ColorRanking.AMARILLO)) }
 
-    LaunchedEffect(numeroUnidad) {
+    suspend fun cargarPlanificador() {
         isLoading = true
-        val cfg = repository.getConfiguracion(numeroUnidad)
-        val configActiva = cfg ?: config
-        config = configActiva
-        val hermanos = repository.getHermanos(numeroUnidad)
-        val agResults = repository.getAgendas(numeroUnidad).getOrElse { emptyList() }
-        agendas = agResults
-        rankings = calcularRankings(hermanos, agResults, configActiva)
-        isLoading = false
-    }
-
-    fun recargar() {
-        scope.launch {
-            val hermanos = repository.getHermanos(numeroUnidad)
-            val agResults = repository.getAgendas(numeroUnidad).getOrElse { emptyList() }
+        loadError = false
+        try {
+            config = repository.getConfiguracion(numeroUnidad) ?: config
+            val records = HistorialRepository().registros(numeroUnidad)
+            val hermanos = repository.getHermanos(numeroUnidad, records)
+            val agResults = repository.getAgendas(numeroUnidad).getOrThrow() + historialParaPlanificacion(numeroUnidad, records)
             agendas = agResults
             rankings = calcularRankings(hermanos, agResults, config)
-        }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            loadError = true
+        } finally { isLoading = false }
     }
+
+    LaunchedEffect(numeroUnidad) { cargarPlanificador() }
+    fun recargar() {
+        scope.launch { cargarPlanificador() }
+    }
+
+    val historyLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { recargar() }
 
     // Salir del modo selección con el botón atrás
     BackHandler(enabled = modoSeleccion) {
@@ -366,9 +373,21 @@ fun PlanificacionScreen(
                 Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text(LocalContext.current.getString(R.string.plan_temas)) })
             }
 
+            TextButton(onClick = {
+                historyLauncher.launch(Intent(context, HistorialImportActivity::class.java).putExtra("numeroUnidad", numeroUnidad))
+            }, modifier = Modifier.align(Alignment.End).padding(horizontal = 12.dp)) {
+                Icon(Icons.Default.ImportExport, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.history_transfer))
+            }
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
+                }
+            } else if (loadError) {
+                Column(Modifier.padding(24.dp)) {
+                    Text(stringResource(R.string.history_error))
+                    TextButton(onClick = { recargar() }) { Text(stringResource(R.string.history_retry)) }
                 }
             } else if (selectedTab == 2) {
                 TemasPlanificacionContent(

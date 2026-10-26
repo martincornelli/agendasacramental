@@ -117,6 +117,12 @@ test('special meeting options are exclusive and restore regular messages', () =>
   testimony.checked = false; c.syncTestimoniesFieldVisibility({ target: testimony });
   assert.equal(elements['#message-list'].hidden, false);
 });
+
+test('announcement separators preserve commas, empty lines and old single strings', () => {
+  const c = load(['splitAnnouncements']);
+  assert.deepEqual(Array.from(c.splitAnnouncements('El sábado, a las 18:00\r\n\r\nTraer agua, pan y abrigo')), ['El sábado, a las 18:00', 'Traer agua, pan y abrigo']);
+  assert.deepEqual(Array.from(c.splitAnnouncements('Saturday, 6 pm, in the chapel')), ['Saturday, 6 pm, in the chapel']);
+});
 test('Primary presentation persists, old agendas default to regular, both languages export', () => {
   for (const language of ['es', 'en']) {
     const c = load(['normalizeAgenda', 'agendaToFirestore', 'pdfMessagesSection', 'agendaText', 'readingHtml', 'escapeHtml'], {
@@ -129,6 +135,8 @@ test('Primary presentation persists, old agendas default to regular, both langua
     assert.equal(agenda.reunionTestimonios, false);
     assert.equal(c.agendaToFirestore(agenda).presentacionPrimaria, true);
     const announcement = c.meetingText('announcement');
+    assert.ok(announcement.includes(language === 'en' ? 'General Handbook 29.8' : 'Manual General 29.8'));
+    assert.ok(announcement.includes(language === 'en' ? 'Read before the presentation' : 'Leer antes de la presentación'));
     for (const output of [c.pdfMessagesSection(agenda), c.agendaText(agenda), c.readingHtml(agenda)]) {
       assert.ok(output.includes(announcement));
       assert.ok(!output.includes('Mensajes del Evangelio'));

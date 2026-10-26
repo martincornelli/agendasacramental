@@ -22,32 +22,52 @@ object GeneradorPDF {
     private const val COL_WIDTH = PAGE_WIDTH - 80f
     private val FONT_SCALES = listOf(1.18f, 1.14f, 1.10f, 1.06f, 1.02f, 1.0f, 0.96f, 0.92f)
 
-    private fun Canvas?.drawText(text: String, x: Float, y: Float, paint: Paint) {
-        this?.drawText(text, x, y, paint)
+    private class Surface(val canvas: Canvas? = null) {
+        val textBounds = mutableListOf<Pair<Float, Float>>()
+        fun drawText(text: String, x: Float, y: Float, paint: Paint) {
+            val bounds = android.graphics.Rect()
+            paint.getTextBounds(text, 0, text.length, bounds)
+            textBounds.add((y + bounds.top - 0.5f) to (y + bounds.bottom + 0.5f))
+            canvas?.drawText(text, x, y, paint)
+        }
+        fun drawLine(startX: Float, startY: Float, stopX: Float, stopY: Float, paint: Paint) {
+            canvas?.drawLine(startX, startY, stopX, stopY, paint)
+        }
+        fun drawRect(left: Float, top: Float, right: Float, bottom: Float, paint: Paint) {
+            canvas?.drawRect(left, top, right, bottom, paint)
+        }
     }
 
-    private fun Canvas?.drawLine(startX: Float, startY: Float, stopX: Float, stopY: Float, paint: Paint) {
-        this?.drawLine(startX, startY, stopX, stopY, paint)
-    }
-
-    private fun Canvas?.drawRect(left: Float, top: Float, right: Float, bottom: Float, paint: Paint) {
-        this?.drawRect(left, top, right, bottom, paint)
-    }
-
-    fun generarYCompartir(context: Context, agenda: Agenda) {
+    fun crearPdf(context: Context, agenda: Agenda): File {
         val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
         val fontScale = seleccionarEscala(agenda, dateFormat, context)
         val document = PdfDocument()
-        val pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, 1).create()
-        val page = document.startPage(pageInfo)
-        val canvas = page.canvas
-
-        dibujarContenido(canvas, agenda, dateFormat, context, fontScale)
-
-        document.finishPage(page)
+        val measurement = Surface()
+        val height = dibujarContenido(measurement, agenda, dateFormat, context, fontScale)
+        var start = 0f
+        var pageNumber = 1
+        do {
+            val top = if (pageNumber == 1) 0f else 32f
+            var end = start + PAGE_HEIGHT - top - 24f
+            // Cut in the whitespace between text lines, never through a glyph.
+            while (true) {
+                val crossing = measurement.textBounds.filter { it.first < end && it.second > end }
+                if (crossing.isEmpty()) break
+                end = crossing.minOf { it.first }
+            }
+            check(end > start) { "Unable to paginate PDF" }
+            val page = document.startPage(PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber++).create())
+            page.canvas.save()
+            page.canvas.clipRect(0f, top, PAGE_WIDTH.toFloat(), top + end - start)
+            page.canvas.translate(0f, top - start)
+            dibujarContenido(Surface(page.canvas), agenda, dateFormat, context, fontScale)
+            page.canvas.restore()
+            document.finishPage(page)
+            start = end
+        } while (start < height)
 
         if (agenda.reunionTestimonios && !agenda.presentacionPrimaria) {
-            val pageInfoTestimonios = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, 2).create()
+            val pageInfoTestimonios = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber).create()
             val pageTestimonios = document.startPage(pageInfoTestimonios)
             dibujarPaginaTestimonios(pageTestimonios.canvas, agenda, dateFormat, context)
             document.finishPage(pageTestimonios)
@@ -56,9 +76,13 @@ object GeneradorPDF {
         // Guardar en cache
         val fileName = "agenda_${dateFormat.format(agenda.fecha.toDate()).replace("/", "-")}.pdf"
         val file = File(context.cacheDir, fileName)
-        document.writeTo(FileOutputStream(file))
+        FileOutputStream(file).use { document.writeTo(it) }
         document.close()
+        return file
+    }
 
+    fun generarYCompartir(context: Context, agenda: Agenda) {
+        val file = crearPdf(context, agenda)
         // Abrir en lector de PDF (el usuario puede compartir desde ahí)
         val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
         val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -82,11 +106,11 @@ object GeneradorPDF {
 
     private fun seleccionarEscala(agenda: Agenda, dateFormat: SimpleDateFormat, context: Context): Float {
         return FONT_SCALES.firstOrNull { scale ->
-            dibujarContenido(null, agenda, dateFormat, context, scale) <= PAGE_HEIGHT - 24f
+            dibujarContenido(Surface(), agenda, dateFormat, context, scale) <= PAGE_HEIGHT - 24f
         } ?: FONT_SCALES.last()
     }
 
-    private fun dibujarContenido(canvas: Canvas?, agenda: Agenda, dateFormat: SimpleDateFormat, context: Context, fontScale: Float): Float {
+    private fun dibujarContenido(canvas: Surface, agenda: Agenda, dateFormat: SimpleDateFormat, context: Context, fontScale: Float): Float {
         fun sp(value: Float) = value * fontScale
         var y = 50f
 
@@ -174,7 +198,7 @@ object GeneradorPDF {
         canvas.drawText(context.getString(R.string.pdf_anuncios), MARGIN_LEFT, y, paintLabel.apply { color = Color.GRAY; textSize = sp(9f) })
         y += sp(13f)
         paintLabel.apply { color = Color.BLACK; textSize = sp(10f) }
-        val anunciosItems = agenda.anuncios.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        val anunciosItems = separarAnuncios(agenda.anuncios)
         if (anunciosItems.isEmpty()) {
             canvas.drawLine(MARGIN_LEFT, y, MARGIN_RIGHT, y, paintLinea)
             y += sp(12f)
@@ -182,8 +206,9 @@ object GeneradorPDF {
             y += sp(14f)
         } else {
             anunciosItems.forEach { item ->
-                canvas.drawText("• $item", MARGIN_LEFT + 8f, y, paintLabel)
-                y += sp(13f)
+                canvas.drawText("•", MARGIN_LEFT + 8f, y, paintLabel)
+                y = dibujarTextoAjustado(canvas, item, MARGIN_LEFT + 18f, y,
+                    MARGIN_RIGHT - MARGIN_LEFT - 18f, paintLabel, sp(13f))
             }
             y += sp(6f)
         }
@@ -277,17 +302,9 @@ object GeneradorPDF {
             canvas.drawText(context.getString(R.string.editar_presentacion_primaria), MARGIN_LEFT, y, paintBold)
             y += sp(18f)
             val primaryPaint = Paint().apply { color = Color.BLACK; textSize = sp(9.5f); isAntiAlias = true }
-            var line = ""
-            context.getString(R.string.tiempo_presentacion_primaria).split(" ").forEach { word ->
-                val next = if (line.isEmpty()) word else "$line $word"
-                if (primaryPaint.measureText(next) > MARGIN_RIGHT - MARGIN_LEFT) {
-                    canvas.drawText(line, MARGIN_LEFT, y, primaryPaint)
-                    y += sp(14f)
-                    line = word
-                } else line = next
-            }
-            canvas.drawText(line, MARGIN_LEFT, y, primaryPaint)
-            y += sp(24f)
+            y = dibujarTextoAjustado(canvas, context.getString(R.string.tiempo_presentacion_primaria),
+                MARGIN_LEFT, y, COL_WIDTH, primaryPaint, sp(14f))
+            y += sp(10f)
         } else if (agenda.reunionTestimonios) {
             canvas.drawText(context.getString(R.string.pdf_reunion_testimonios), MARGIN_LEFT, y, paintBold)
             y += sp(8f)
@@ -438,7 +455,7 @@ object GeneradorPDF {
     }
 
     private fun dibujarTextoAjustado(
-        canvas: Canvas?,
+        canvas: Surface,
         texto: String,
         x: Float,
         yInicial: Float,

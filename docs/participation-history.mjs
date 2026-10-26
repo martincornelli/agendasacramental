@@ -35,7 +35,7 @@ export function parseCSV(text) {
   return rows;
 }
 export function guessColumns(headers) {
-  const aliases = { id: ['id', 'identificador'], date: ['fecha', 'date', 'domingo'], name: ['nombre', 'name', 'hermano', 'participante'], type: ['participacion', 'tipo', 'funcion', 'role'], topic: ['tema', 'topic'], opening: ['primera oracion', 'oracion inicial', 'apertura'], closing: ['ultima oracion', 'oracion final', 'cierre'], talk: ['discursante', 'discurso', 'orador'] };
+  const aliases = { id: ['id', 'identificador'], date: ['fecha', 'date', 'domingo'], name: ['nombre', 'name', 'hermano', 'participante'], type: ['participacion', 'participation', 'tipo', 'type', 'funcion', 'role'], topic: ['tema', 'topic'], opening: ['primera oracion', 'oracion inicial', 'apertura', 'opening prayer'], closing: ['ultima oracion', 'oracion final', 'cierre', 'closing prayer'], talk: ['discursante', 'discurso', 'orador', 'speaker', 'talk'] };
   return Object.fromEntries(Object.entries(aliases).map(([key, values]) => [key, headers.findIndex(h => values.includes(normalize(h)))]));
 }
 export function parseDate(value, order = 'DMY') {
@@ -104,11 +104,13 @@ export function previewRows(rows, existing) {
     return { ...result, candidates };
   });
 }
-export function exportCSV(records) {
+export function exportCSV(records, language = 'es') {
   const safe = v => {
     let s = String(v ?? '');
     if (/^[\s]*[=+@\-\t\r]/.test(s)) s = "'" + s;
     return '"' + s.replace(/"/g, '""') + '"';
   };
-  return '\uFEFF' + [['ID', 'Fecha', 'Nombre', 'Participación', 'Tema'], ...records.map(r => [r.id, r.date, r.name, r.type, r.topic])].map(row => row.map(safe).join(';')).join('\r\n');
+  const en = language === 'en';
+  const types = { 'Discurso': 'Talk', 'Primera oración': 'Opening prayer', 'Última oración': 'Closing prayer', 'Oración': 'Prayer' };
+  return '\uFEFF' + [en ? ['ID', 'Date', 'Name', 'Participation', 'Topic'] : ['ID', 'Fecha', 'Nombre', 'Participación', 'Tema'], ...records.map(r => [r.id, r.date, r.name, en ? types[r.type] || r.type : r.type, r.topic])].map(row => row.map(safe).join(';')).join('\r\n');
 }

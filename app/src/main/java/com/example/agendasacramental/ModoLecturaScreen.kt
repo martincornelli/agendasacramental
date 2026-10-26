@@ -78,7 +78,7 @@ fun ModoLecturaScreen(
 
             // Anuncios
             item {
-                val items = agenda.anuncios.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                val items = separarAnuncios(agenda.anuncios)
                 SeccionLectura(stringResource(R.string.lectura_anuncios)) {
                     if (items.isEmpty()) {
                         Text("—", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)

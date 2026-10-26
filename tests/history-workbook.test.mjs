@@ -26,6 +26,14 @@ test('Excel template contains headers only, no sample participations', () => {
   assert.throws(() => workbookTable(sheet, 1), /No hay participaciones/);
 });
 
+test('English Excel headers and roles round-trip to the shared canonical history', () => {
+  const [sheet] = readHistoryWorkbook(writeHistoryWorkbook([record], XLSX, 'en'), XLSX);
+  assert.deepEqual(sheet.rows[0], ['ID', 'Date', 'Name', 'Participation', 'Topic']);
+  assert.equal(sheet.rows[1][3], 'Talk');
+  const table = workbookTable(sheet, 1);
+  assert.equal(previewRows(mapRows(table, guessColumns(table[0])), [record])[0].status, 'unchanged');
+});
+
 test('1900 and 1904 Excel date systems yield the same calendar date', () => {
   for (const date1904 of [false, true]) {
     const sheet = XLSX.utils.aoa_to_sheet([['Fecha', 'Nombre', 'Participación'], [date1904 ? 44564 : 46026, 'Ana', 'Discurso']]);

@@ -1104,12 +1104,16 @@ h3 {
 }
 
 .pdf-list {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
   margin: 0;
   padding-left: 20px;
   font-size: var(--pdf-main-size);
 }
 
 .pdf-box {
+  overflow-wrap: anywhere;
   min-height: 60px;
   padding: 8px 10px;
   border: 1px solid #111111;
@@ -3984,3 +3988,5 @@ summary:focus-visible {
     transition-duration: .01ms !important;
   }
 }
+
+.pdf-box > p, .reading-section, [data-primary-announcement] { white-space: pre-wrap; overflow-wrap: anywhere; }

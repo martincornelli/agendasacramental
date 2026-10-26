@@ -488,8 +488,13 @@
     <!-- Disclaimer -->
     <string name="disclaimer">This is an unofficial app. It is not affiliated with or endorsed by The Church of Jesus Christ of Latter-day Saints.</string>
     <string name="editar_presentacion_primaria">Primary Presentation</string>
-    <string name="tiempo_presentacion_primaria">Today we will have the privilege of enjoying the Primary Presentation. The meeting will now be turned over to the children of the ward and their leaders.</string>
+    <string name="tiempo_presentacion_primaria">Today we will have the privilege of enjoying the Primary Presentation. The meeting will now be turned over to the children of the ward and their leaders.\n\nRead before the presentation: “To preserve the sacredness of Church meetings, no one should take photographs or make video recordings of sacrament meetings or stake conferences.”\nGeneral Handbook 29.8</string>
     <string name="nombre_sugerencia">Did you mean %1$s?</string>
     <string name="nombre_aceptar">Use suggested name</string>
     <string name="nombre_descartar">Keep entered name</string>
+    <string name="history_transfer">Import / export history</string>
+    <string name="history_retry">Retry</string>
+    <string name="history_back">Back to planner</string>
+    <string name="history_changed">History changed. Reopen the preview before saving.</string>
+    <string name="history_error">The operation could not be completed. Check your connection and try again.</string>
 </resources>

@@ -90,8 +90,7 @@ fun EditarAgendaScreen(
                 dirige = agenda.dirige
                 reconocimientos = agenda.reconocimientos
                     .split(",").map { it.trim() }.filter { it.isNotBlank() }
-                anuncios = agenda.anuncios
-                    .split(",").map { it.trim() }.filter { it.isNotBlank() }
+                anuncios = separarAnuncios(agenda.anuncios)
                 primerHimnoNumero = if (agenda.primerHimnoNumero > 0) agenda.primerHimnoNumero.toString() else ""
                 primerHimnoNombre = agenda.primerHimnoNombre
                 directorMusica = agenda.directorMusica
@@ -125,7 +124,7 @@ fun EditarAgendaScreen(
             preside = preside.trimEnd(),
             dirige = dirige.trimEnd(),
             reconocimientos = reconocimientos.filter { it.isNotBlank() }.joinToString(", "),
-            anuncios = anuncios.filter { it.isNotBlank() }.joinToString(", "),
+            anuncios = anuncios.filter { it.isNotBlank() }.joinToString("\n"),
             primerHimnoNumero = primerHimnoNumero.toIntOrNull() ?: 0,
             primerHimnoNombre = primerHimnoNombre,
             directorMusica = directorMusica.trimEnd(),
@@ -1217,7 +1216,7 @@ fun generarTextoAgenda(agenda: Agenda, dateFormat: SimpleDateFormat, context: an
     if (agenda.preside.isNotBlank()) sb.appendLine("👤 ${context.getString(R.string.editar_preside)}: ${agenda.preside}")
     if (agenda.dirige.isNotBlank()) sb.appendLine("🎙 ${context.getString(R.string.editar_dirige)}: ${agenda.dirige}")
     val reconocimientosStr = agenda.reconocimientos.split(",").map { it.trim() }.filter { it.isNotBlank() }
-    val anunciosStr = agenda.anuncios.split(",").map { it.trim() }.filter { it.isNotBlank() }
+    val anunciosStr = separarAnuncios(agenda.anuncios)
     if (reconocimientosStr.isNotEmpty()) {
         sb.appendLine("⭐ ${context.getString(R.string.editar_reconocimientos)}:")
         reconocimientosStr.forEach { sb.appendLine("  • $it") }

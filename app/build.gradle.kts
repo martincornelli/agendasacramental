@@ -34,7 +34,17 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/historyAssets"))
 }
+
+// Android and web ship the exact same parser, workbook limits and duplicate rules.
+val syncHistoryAssets by tasks.registering(Copy::class) {
+    from(rootProject.file("docs")) {
+        include("participation-history.mjs", "history-workbook.mjs", "history-workbook-worker.js", "vendor/xlsx*", "vendor/SHEETJS-LICENSE.txt")
+    }
+    into(layout.buildDirectory.dir("generated/historyAssets/history"))
+}
+tasks.named("preBuild").configure { dependsOn(syncHistoryAssets) }
 
 dependencies {
 
