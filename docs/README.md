@@ -69,8 +69,9 @@ Excel admite hasta 20 hojas, 5001 filas físicas/64 columnas por hoja y 150000
 celdas visibles por libro. Los límites se informan antes de guardar.
 
 Los registros participan en las sugerencias de discursos, oraciones y temas de la
-web. No se escriben agendas ficticias ni se modifican las fichas de Android. Android
-todavía no lee esta nueva fuente: se incorporará en su propia fase.
+web y de Android desde la versión 1.5.0. No se escriben agendas ficticias ni se
+modifican las fichas de participaciones manuales. Las versiones anteriores de
+Android siguen funcionando, pero no muestran el historial importado.
 
 ### Alcance publicado y acceso
 
@@ -82,7 +83,7 @@ no se modificaron. La autorización por unidad validada en servidor queda como
 un trabajo de seguridad separado: el modelo actual aún no garantiza aislamiento
 entre unidades ante acceso directo a Firebase.
 Ver el detalle en `../firebase/HISTORY-ACCESS.md`. Android no necesita actualizarse
-para esta corrección y todavía no utiliza el historial importado.
+para esta corrección de acceso. La lectura del historial importado requiere Android 1.5.0.
 
 Se validaron en el emulador el acceso autenticado sin membresía de piloto,
 la persistencia y el rechazo de revisiones desactualizadas. Si falla la lectura,

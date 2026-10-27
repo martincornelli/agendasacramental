@@ -295,7 +295,7 @@ fun HomeScreen(
             }
 
             Text(
-                LocalContext.current.getString(R.string.version),
+                "v${BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.BottomCenter)

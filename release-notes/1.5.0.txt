@@ -1,0 +1,10 @@
+<es-419>
+Importá y exportá el historial de discursos y oraciones en Excel o CSV desde el planificador. Revisá duplicados y confirmá correcciones antes de guardar; quitar filas del archivo no borra datos de la app.
+Corregimos los saltos de línea de anuncios largos en PDF y los anuncios con comas.
+Agregamos el aviso del Manual General 29.8 para la presentación de Primaria.
+</es-419>
+<en-US>
+Import and export talk and prayer history in Excel or CSV from the planner. Review duplicates and confirm corrections before saving; removing rows from a file does not delete app data.
+Fixed line wrapping for long PDF announcements and announcements containing commas.
+Added the General Handbook 29.8 notice for the Primary presentation.
+</en-US>
