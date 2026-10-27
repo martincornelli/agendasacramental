@@ -117,7 +117,7 @@ class HistorialImportActivity : AppCompatActivity() {
                                 pickerId = id
                                 picker.launch(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                                     addCategory(Intent.CATEGORY_OPENABLE); type = "*/*"
-                                    putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/csv", "text/plain", "text/tab-separated-values", "application/csv", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                                    putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/csv", "text/comma-separated-values", "text/plain", "text/tab-separated-values", "application/csv", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                                 })
                             }
                             "download" -> {
