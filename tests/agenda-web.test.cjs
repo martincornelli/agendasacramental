@@ -9,7 +9,7 @@ function load(names, globals = {}) {
   const functions = names.map(name => {
     const start = source.indexOf(`function ${name}(`);
     assert.ok(start >= 0, name);
-    return source.slice(start, source.indexOf('\n}', start) + 2);
+    return source.slice(source.slice(start - 6, start) === 'async ' ? start - 6 : start, source.indexOf('\n}', start) + 2);
   });
   vm.runInContext(translations + functions.join('\n'), context);
   return context;
@@ -48,6 +48,25 @@ test('imported history feeds planning dates, frequency and topics without creati
   assert.deepEqual(state.agendas, []);
   assert.deepEqual(state.hermanos, []);
 });
+test('deleting a planner member excludes historical names on the first attempt', async () => {
+  for (const stored of [[], [{ id: 'one', nombre: 'Ana' }], [{ id: 'one', nombre: 'Ana' }, { id: 'two', nombre: ' ANA ' }]]) {
+    const state = { unitNumber: '123', hermanos: stored, agendas: [], importedHistory: [{ name: 'Ana', date: '2026-01-04', type: 'Discurso' }] };
+    const c = load(['deleteBrother', 'planningRankings', 'collectHistoryNames', 'normalizeName', 'normalizeText'], {
+      state, confirm: () => true, withToastError: fn => fn(),
+      hermanoRef: id => id, collection: () => 'hermanos', db: {}, serverTimestamp: () => 0,
+      updateDoc: async (id, data) => Object.assign(state.hermanos.find(item => item.id === id), data),
+      addDoc: async (_, data) => state.hermanos.push({ id: 'new', ...data }),
+      toastMessage: () => {}, latestDate: () => null, countWithinDays: () => 0
+    });
+    const [ranking] = c.planningRankings();
+    assert.ok(ranking);
+    await c.deleteBrother(ranking);
+    assert.equal(c.planningRankings().length, 0);
+    assert.equal(state.importedHistory.length, 1);
+    assert.ok(state.hermanos.every(item => item.excluido));
+  }
+});
+
 function nameField(value, names) {
   const input = new Element(); input.value = value;
   const context = load(['bindNameSuggestions', 'normalizeName', 'normalizeText'], {
@@ -198,7 +217,7 @@ test('planning cards use the whole card for assigning and compact secondary acti
     isInactiveForTab: () => false,
     rankColor: () => 'rank-yellow',
     formatDateShort: () => '15 nov 2026',
-    daysSince: () => 45,
+    topicDistanceText: () => 'Hace 45 días',
     escapeAttr: value => String(value),
     escapeHtml: value => String(value),
     buttonIcon: name => `<i>${name}</i>`,
@@ -219,6 +238,29 @@ test('planning cards use the whole card for assigning and compact secondary acti
   assert.ok(html.includes('planning-action-button'));
   assert.ok(html.includes('Último tema: Fe'));
 });
+test('planning participation shows future, current and past calendar days for talks and prayers', () => {
+  const c = load(['brotherRow', 'planningRankTone', 'planningRankLabel', 'topicDistanceText', 'daysFromToday', 'calendarDayIndex', 'toDate'], {
+    isInactiveForTab: () => false,
+    rankColor: () => 'rank-red',
+    formatDateShort: () => 'fecha',
+    escapeAttr: String, escapeHtml: String,
+    buttonIcon: () => '', icon: () => ''
+  });
+  for (const tab of ['talks', 'prayers']) {
+    for (const [offset, expected] of [[7, 'Dentro de 7 días'], [0, 'Hoy'], [-7, 'Hace 7 días']]) {
+      const date = new Date();
+      date.setDate(date.getDate() + offset);
+      date.setHours(12, 0, 0, 0);
+      const html = c.brotherRow({
+        key: 'ana', hermano: { nombre: 'Ana' },
+        ultimaVezDiscurso: date, ultimaVezOracion: date
+      }, tab);
+      assert.ok(html.includes(`(${expected})`), `${tab}: ${expected}`);
+    }
+    assert.ok(c.brotherRow({ key: 'ana', hermano: { nombre: 'Ana' } }, tab).includes('Sin registros'));
+  }
+});
+
 test('current hymn month is first and its next Sunday is the first date', () => {
   const c = load(['orderHymnMonths']);
   const item = day => ({ date: new Date(2026, 9, day) });

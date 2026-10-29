@@ -2554,7 +2554,7 @@ function topicDistanceText(date) {
   const days = daysFromToday(date);
   if (!Number.isFinite(days)) return "Sin registros";
   if (days === 0) return "Hoy";
-  return days > 0 ? `Hace ${days} dias` : `Dentro de ${Math.abs(days)} dias`;
+  return days > 0 ? `Hace ${days} días` : `Dentro de ${Math.abs(days)} días`;
 }
 
 function uniqueCleanList(items) {
@@ -2584,7 +2584,7 @@ function brotherRow(item, tab) {
   const color = inactive ? "rank-muted" : rankColor(last, tab);
   const tone = planningRankTone(color, inactive);
   const topic = tab === "talks" ? (item.ultimaEtiquetaDiscurso || item.ultimoTemaDiscurso || "") : "";
-  const participation = `${inactive ? "Inactivo · " : ""}${last ? `Última participación: ${formatDateShort(last)} (${daysSince(last)} días)` : "Sin registros"}${count ? ` · ${count} vez/veces en 90 días` : ""}`;
+  const participation = `${inactive ? "Inactivo · " : ""}${last ? `Última participación: ${formatDateShort(last)} (${topicDistanceText(last)})` : "Sin registros"}${count ? ` · ${count} vez/veces en 90 días` : ""}`;
   return `
     <article class="brother-item ${inactive ? "brother-inactive" : ""}">
       <button class="brother-item-main" data-assign="${escapeAttr(item.key)}" type="button" aria-label="Asignar a ${escapeAttr(item.hermano.nombre)}">
@@ -2886,8 +2886,9 @@ async function toggleInactive(ranking) {
 async function deleteBrother(ranking) {
   if (!ranking || !confirm(`¿Eliminar a ${ranking.hermano.nombre} del planificador?`)) return;
   await withToastError(async () => {
-    if (ranking.hermano.id) {
-      await deleteDoc(hermanoRef(ranking.hermano.id));
+    const matches = state.hermanos.filter((item) => normalizeName(item.nombre) === normalizeName(ranking.hermano.nombre));
+    if (matches.length) {
+      await Promise.all(matches.map((item) => updateDoc(hermanoRef(item.id), { excluido: true })));
     } else {
       await addDoc(collection(db, "hermanos"), {
         numeroUnidad: state.unitNumber,
