@@ -280,6 +280,12 @@ export const HYMNS_ES = {
   "1070": "El milagro",
   "1071": "Esto es lo que pide Dios",
   "1072": "Cuando la cruz contemplo yo",
+  "1073": "Sé Tú mi visión",
+  "1074": "Qué gozo da el Salvador",
+  "1075": "Mi fortaleza es Jesús",
+  "1076": "Amo el templo de mi Dios",
+  "1077": "La armadura de Dios",
+  "1078": "Su paz buscar",
   "1201": "Gloria al día de redención",
   "1202": "El divino Jesús nació",
   "1203": "¿Qué niño es este?",
@@ -289,7 +295,9 @@ export const HYMNS_ES = {
   "1207": "Paz, paz, paz",
   "1208": "¡Ve! Dilo en las montañas",
   "1209": "Pequeñito en pesebre",
-  "1210": "Tiempo atrás, en un jardín"
+  "1210": "Tiempo atrás, en un jardín",
+  "1211": "Oh, ven, oh, ven, Emanuel",
+  "1212": "Tranquila noche en Belén"
 };
 
 export const HYMNS_EN = {
@@ -706,6 +714,12 @@ export const HYMNS_EN = {
   "1070": "The Miracle",
   "1071": "What God Calls Us To",
   "1072": "When I Survey the Wondrous Cross",
+  "1073": "Be Thou My Vision",
+  "1074": "Our Savior Brings Us Joy",
+  "1075": "Jesus Is the Strength of Youth",
+  "1076": "How I Love the House of God",
+  "1077": "God’s Armor",
+  "1078": "Seek Peace",
   "1201": "Hail the Day That Sees Him Rise",
   "1202": "He Is Born, the Divine Christ Child",
   "1203": "What Child Is This?",
@@ -715,5 +729,7 @@ export const HYMNS_EN = {
   "1207": "Still, Still, Still",
   "1208": "Go Tell It on the Mountain",
   "1209": "Little Baby in a Manger",
-  "1210": "Long Ago, Within a Garden"
+  "1210": "Long Ago, Within a Garden",
+  "1211": "O Come, O Come, Emmanuel",
+  "1212": "A Quiet Night"
 };

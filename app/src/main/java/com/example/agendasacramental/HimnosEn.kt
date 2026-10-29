@@ -415,6 +415,12 @@ object HimnosEn {
         1070 to "The Miracle",
         1071 to "What God Calls Us To",
         1072 to "When I Survey the Wondrous Cross",
+        1073 to "Be Thou My Vision",
+        1074 to "Our Savior Brings Us Joy",
+        1075 to "Jesus Is the Strength of Youth",
+        1076 to "How I Love the House of God",
+        1077 to "God’s Armor",
+        1078 to "Seek Peace",
         1201 to "Hail the Day That Sees Him Rise",
         1202 to "He Is Born, the Divine Christ Child",
         1203 to "What Child Is This?",
@@ -425,6 +431,8 @@ object HimnosEn {
         1208 to "Go Tell It on the Mountain",
         1209 to "Little Baby in a Manger",
         1210 to "Long Ago, Within a Garden",
+        1211 to "O Come, O Come, Emmanuel",
+        1212 to "A Quiet Night",
     )
 
     fun getNombre(numero: Int): String {

@@ -283,6 +283,12 @@ object Himnos {
         1070 to "El milagro",
         1071 to "Esto es lo que pide Dios",
         1072 to "Cuando la cruz contemplo yo",
+        1073 to "Sé Tú mi visión",
+        1074 to "Qué gozo da el Salvador",
+        1075 to "Mi fortaleza es Jesús",
+        1076 to "Amo el templo de mi Dios",
+        1077 to "La armadura de Dios",
+        1078 to "Su paz buscar",
         1201 to "Gloria al día de redención",
         1202 to "El divino Jesús nació",
         1203 to "¿Qué niño es este?",
@@ -292,7 +298,9 @@ object Himnos {
         1207 to "Paz, paz, paz",
         1208 to "¡Ve! Dilo en las montañas",
         1209 to "Pequeñito en pesebre",
-        1210 to "Tiempo atrás, en un jardín"
+        1210 to "Tiempo atrás, en un jardín",
+        1211 to "Oh, ven, oh, ven, Emanuel",
+        1212 to "Tranquila noche en Belén"
     )
 
     fun getNombre(numero: Int): String {
