@@ -3990,3 +3990,20 @@ summary:focus-visible {
 }
 
 .pdf-box > p, .reading-section, [data-primary-announcement] { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.bulk-list { max-height: 42vh; overflow-y: auto; margin-block: 12px; }
+.bulk-list label { display: flex; align-items: center; gap: 10px; padding: 10px 4px; }
+#bulk-pages { position: absolute; left: -10000px; top: 0; visibility: hidden; }
+.bulk-sheet { position: relative; width: 210mm; height: 296.8mm; overflow: hidden; }
+.bulk-sheet .pdf-page {
+  position: absolute; width: 210mm; max-width: none; min-height: 0;
+  margin: 0; padding: 10mm 12mm; border: 0; box-shadow: none;
+  transform-origin: top center;
+}
+.bulk-sheet .pdf-testimony-row { min-height: 7.25mm; }
+@media print {
+  body:has(> #bulk-pages) > :not(#bulk-pages) { display: none !important; }
+  body:has(> #bulk-pages) dialog::backdrop { display: none; }
+  #bulk-pages { position: static; visibility: visible; }
+  .bulk-sheet:not(:last-child) { break-after: page; }
+}

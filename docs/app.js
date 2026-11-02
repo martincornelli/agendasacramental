@@ -60,6 +60,46 @@ function meetingText(key) {
   return MEETING_TEXT[language][key];
 }
 
+const BULK_TEXT = {
+  es: {
+    title: "Imprimir agendas",
+    range: "Seleccionar por fechas",
+    from: "Desde",
+    until: "Hasta",
+    select: "Seleccionar rango",
+    regular: "Domingos regulares",
+    fast: "Ayuno y testimonio",
+    all: "Todas las agendas",
+    back: "Volver a la selección",
+    next: "Continuar",
+    print: "Imprimir",
+    single: "Elegí una cara.",
+    duplex: "Elegí doble faz con giro por el borde largo.",
+    mixed: "Elegí una cara. Se imprimirán las reuniones de ayuno y testimonio en dos hojas en lugar de doble faz.",
+    close: "Cerrar"
+  },
+  en: {
+    title: "Print agendas",
+    range: "Select by date range",
+    from: "From",
+    until: "To",
+    select: "Select range",
+    regular: "Regular Sundays",
+    fast: "Fast and testimony",
+    all: "All agendas",
+    back: "Back to selection",
+    next: "Continue",
+    print: "Print",
+    single: "Choose single-sided printing.",
+    duplex: "Choose two-sided printing and flip on the long edge.",
+    mixed: "Choose single-sided printing. Each fast and testimony meeting will print on two separate sheets instead of on both sides of one sheet.",
+    close: "Close"
+  }
+};
+function bulkText() {
+  return BULK_TEXT[(navigator.language || "es").toLowerCase().startsWith("en") ? "en" : "es"];
+}
+
 const UNIT_STORAGE_KEY = "agenda_sacramental_web_unit";
 const THEME_STORAGE_KEY = "agenda_sacramental_web_theme";
 const GITHUB_PAGES_DOMAIN = "martincornelli.github.io";
@@ -762,6 +802,7 @@ function renderAgendas() {
         </div>
       </div>
       <div class="toolbar-right">
+        <button id="bulk-print" class="secondary-button" type="button" ${state.agendas.length ? "" : "disabled"}>${bulkText().title}</button>
         <button id="create-sundays" class="secondary-button" type="button">${buttonIcon("calendarPlus")}<span class="button-label">Crear domingos</span></button>
         <button id="new-agenda" class="primary-button agenda-new-button" type="button" aria-label="Nueva agenda">${buttonIcon("plus")}<span class="button-label">Nueva agenda</span></button>
       </div>
@@ -771,6 +812,7 @@ function renderAgendas() {
   `;
   screen.querySelector("#new-agenda").addEventListener("click", () => openEditor(null));
   screen.querySelector("#create-sundays").addEventListener("click", openCreateSundaysDialog);
+  screen.querySelector("#bulk-print").addEventListener("click", openBulkPrint);
   const searchInput = screen.querySelector("#agenda-search");
   const filters = [...screen.querySelectorAll("[data-filter-state]")];
   const rerender = () => {
@@ -787,6 +829,109 @@ function renderAgendas() {
     });
   });
   bindAgendaListActions();
+}
+
+function openBulkPrint() {
+  const agendas = [...state.agendas].sort((a, b) => toDate(a.fecha) - toDate(b.fecha));
+  const selected = new Set();
+  const testimony = agenda => agenda.reunionTestimonios && !agenda.presentacionPrimaria;
+  const copy = bulkText();
+  const dates = new Intl.DateTimeFormat(navigator.language, { dateStyle: "medium" });
+  openModal({
+    title: copy.title,
+    body: `<section id="bulk-selection">
+      <details><summary>${copy.range}</summary>
+        <form id="bulk-range" class="button-row"><label>${copy.from} <input class="input" type="date" required name="from"></label>
+          <label>${copy.until} <input class="input" type="date" required name="until"></label>
+          <button class="secondary-button">${copy.select}</button></form>
+      </details>
+      <div class="bulk-list">${agendas.slice().reverse().map(agenda => `<label><input type="checkbox" value="${escapeAttr(agenda.id)}">
+        ${escapeHtml(dates.format(toDate(agenda.fecha)))} · ${testimony(agenda) ? copy.fast : "Regular"}</label>`).join("")}</div>
+      <p id="bulk-hint" aria-live="polite"></p>
+      <button type="button" class="primary-button" id="bulk-next"></button>
+    </section><section id="bulk-options" hidden></section>`,
+    footer: "",
+    bind(root) {
+      const selection = root.querySelector("#bulk-selection");
+      root.querySelector('[data-action="cancel"]').setAttribute("aria-label", copy.close);
+      const options = root.querySelector("#bulk-options");
+      const next = root.querySelector("#bulk-next");
+      const checks = [...root.querySelectorAll(".bulk-list input")];
+      const chosen = () => agendas.filter(agenda => selected.has(agenda.id));
+      function update() {
+        const items = chosen();
+        const mixed = items.some(testimony) && items.some(item => !testimony(item));
+        next.disabled = !items.length;
+        next.textContent = mixed ? copy.next : copy.print;
+        root.querySelector("#bulk-hint").textContent = !items.length || mixed ? "" : testimony(items[0]) ? copy.duplex : copy.single;
+      }
+      selection.addEventListener("change", event => {
+        if (event.target.type !== "checkbox") return;
+        if (event.target.checked) selected.add(event.target.value);
+        else selected.delete(event.target.value);
+        update();
+      });
+      const range = root.querySelector("#bulk-range");
+      range.elements.from.oninput = () => { range.elements.until.min = range.elements.from.value; };
+      range.onsubmit = event => {
+        event.preventDefault();
+        selected.clear();
+        for (const agenda of agendas) {
+          const day = dateInputValue(agenda.fecha);
+          if (day >= range.elements.from.value && day <= range.elements.until.value) selected.add(agenda.id);
+        }
+        checks.forEach(check => { check.checked = selected.has(check.value); });
+        update();
+      };
+      next.onclick = () => {
+        const items = chosen();
+        const regular = items.filter(item => !testimony(item));
+        const fast = items.filter(testimony);
+        if (!fast.length || !regular.length) return printAgendaBatch(items);
+        selection.hidden = true;
+        options.hidden = false;
+        options.replaceChildren();
+        for (const [label, group, hint] of [
+          [copy.regular, regular, copy.single], [copy.fast, fast, copy.duplex],
+          [copy.all, items, copy.mixed]
+        ]) {
+          const button = document.createElement("button");
+          button.className = "primary-button";
+          button.textContent = label;
+          button.onclick = () => printAgendaBatch(group);
+          const note = document.createElement("p");
+          note.textContent = hint;
+          options.append(button, note);
+        }
+        const back = document.createElement("button");
+        back.className = "secondary-button";
+        back.textContent = copy.back;
+        back.onclick = () => { options.hidden = true; selection.hidden = false; };
+        options.append(back);
+        options.querySelector("button").focus();
+      };
+      update();
+    }
+  });
+}
+
+function printAgendaBatch(agendas) {
+  document.querySelector("#bulk-pages")?.remove();
+  const pages = document.createElement("div");
+  pages.id = "bulk-pages";
+  pages.setAttribute("aria-hidden", "true");
+  pages.innerHTML = agendas.map(pdfHtml).join("");
+  document.body.append(pages);
+  for (const page of [...pages.children]) {
+    const sheet = document.createElement("div");
+    sheet.className = "bulk-sheet";
+    page.replaceWith(sheet);
+    sheet.append(page);
+    const scale = Math.min(1, sheet.clientHeight / page.scrollHeight);
+    page.style.transform = `scale(${scale})`;
+  }
+  window.addEventListener("afterprint", () => pages.remove(), { once: true });
+  window.print();
 }
 
 function renderAgendaDashboard(searchValue, filterState) {
@@ -1916,7 +2061,7 @@ function pdfHtml(agenda) {
     <p class="pdf-quote">"Pero a pesar de las cosas que están escritas, siempre se ha concedido a los élderes de mi iglesia desde el principio, y siempre será así, dirigir todas las reuniones conforme los oriente y los guíe el Santo Espíritu." D y C 46:2</p>
     <p class="pdf-area">Área Sudamérica Sur</p>
     </article>
-    ${agenda.reunionTestimonios ? pdfTestimonyPage(agenda) : ""}
+    ${agenda.reunionTestimonios && !agenda.presentacionPrimaria ? pdfTestimonyPage(agenda) : ""}
   `;
 }
 
