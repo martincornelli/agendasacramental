@@ -4007,3 +4007,17 @@ summary:focus-visible {
   #bulk-pages { position: static; visibility: visible; }
   .bulk-sheet:not(:last-child) { break-after: page; }
 }
+:root .language-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.language-control .select {
+  width: auto;
+  max-width: 100%;
+  min-width: 7rem;
+}

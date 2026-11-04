@@ -33,7 +33,7 @@ window.start = openHistoryTransfer;
 window.historyAccess = (ready, error = '') => { state.historyReady = ready; state.historyError = error; syncHistoryTransferAccess(); };
 openHistoryTransfer();
 `;
-const fixtureScript = domain + '\n' + workbook + '\n' + functions + '\n' + fixtures;
+const fixtureScript = `import { translate } from './i18n.mjs';\nconst t = text => translate(text, 'es');\nconst uiLanguage = () => 'es';\n` + domain + '\n' + workbook + '\n' + functions + '\n' + fixtures;
 const fixtureHTML = '<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/styles.css"></head><body><button onclick="window.start()">Abrir importación de prueba</button><p id="fixture-status" role="status"></p><dialog></dialog><script type="module" src="/history-fixture.mjs"></script></body></html>';
 if (process.argv.includes('--serve')) {
   const http = require('node:http');

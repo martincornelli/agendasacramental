@@ -1,3 +1,4 @@
+import { currentLanguage, translate, LANGUAGE_STORAGE_KEY } from "./i18n.mjs";
 import { HISTORY_FIELDS, parseCSV, guessColumns, mapRows, previewRows, exportCSV } from "./participation-history.mjs";
 import { workbookTable } from "./history-workbook.mjs";
 import { HYMNS_EN, HYMNS_ES } from "./hymns.js";
@@ -56,8 +57,20 @@ const MEETING_TEXT = {
   en: { announcements: "Announcements", announcementHint: "One announcement per line. Commas stay within the announcement.", announcementPdf: "Announcements (only the most important and urgent):", primary: "Primary Presentation", announcement: "Today we will have the privilege of enjoying the Primary Presentation. The meeting will now be turned over to the children of the ward and their leaders.\n\nRead before the presentation: “To preserve the sacredness of Church meetings, no one should take photographs or make video recordings of sacrament meetings or stake conferences.”\nGeneral Handbook 29.8", suggestion: "Did you mean {name}?", accept: "Use suggested name", dismiss: "Keep entered name" }
 };
 function meetingText(key) {
-  const language = (navigator.language || "es").toLowerCase().startsWith("en") ? "en" : "es";
+  const language = uiLanguage();
   return MEETING_TEXT[language][key];
+}
+
+function uiLanguage() {
+  return typeof currentLanguage === "function" ? currentLanguage() : (typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("en") ? "en" : "es");
+}
+
+function t(text) {
+  return typeof translate === "function" ? translate(text, uiLanguage()) : text;
+}
+
+function uiLocale() {
+  return uiLanguage() === "en" ? "en-US" : "es-UY";
 }
 
 const BULK_TEXT = {
@@ -97,7 +110,7 @@ const BULK_TEXT = {
   }
 };
 function bulkText() {
-  return BULK_TEXT[(navigator.language || "es").toLowerCase().startsWith("en") ? "en" : "es"];
+  return BULK_TEXT[uiLanguage()];
 }
 
 const UNIT_STORAGE_KEY = "agenda_sacramental_web_unit";
@@ -105,9 +118,9 @@ const THEME_STORAGE_KEY = "agenda_sacramental_web_theme";
 const GITHUB_PAGES_DOMAIN = "martincornelli.github.io";
 const AGENDA_STATES = ["BORRADOR", "CONFIRMADA", "REALIZADA"];
 const AGENDA_GROUPS = [
-  { state: "BORRADOR", label: "Borrador", defaultOpen: true },
-  { state: "CONFIRMADA", label: "Confirmadas", defaultOpen: true },
-  { state: "REALIZADA", label: "Realizadas", defaultOpen: false }
+  { state: "BORRADOR", label: t("Borrador"), defaultOpen: true },
+  { state: "CONFIRMADA", label: t("Confirmadas"), defaultOpen: true },
+  { state: "REALIZADA", label: t("Realizadas"), defaultOpen: false }
 ];
 const SVG_ICONS = {
   search: `<path d="m21 21-4.35-4.35"></path><circle cx="11" cy="11" r="7"></circle>`,
@@ -184,36 +197,36 @@ const BASE_TOPIC_TAGS = [
   "Obediencia"
 ];
 const HYMN_POSITION_LABELS = {
-  opening: "Apertura",
-  sacrament: "Santa Cena",
-  intermediate: "Intermedio",
-  closing: "Final"
+  opening: t("Apertura"),
+  sacrament: t("Santa Cena"),
+  intermediate: t("Intermedio"),
+  closing: t("Final")
 };
 const HYMN_CATEGORY_LABELS = {
-  praise: "Alabanza",
-  jesus_christ: "Jesucristo",
-  sacrament: "Santa Cena",
-  faith: "Fe y testimonio",
-  prayer: "Oración",
-  holy_ghost: "Espíritu Santo",
-  gratitude: "Gratitud",
-  service: "Servicio",
-  family: "Familia",
-  temple: "Templo y convenios",
-  scriptures: "Escrituras",
-  restoration: "Restauración",
-  missionary: "Obra misional",
-  christmas: "Navidad",
-  easter: "Pascua",
-  peace: "Paz",
-  love: "Amor y caridad",
-  commandments: "Mandamientos",
-  zion: "Sión"
+  praise: t("Alabanza"),
+  jesus_christ: t("Jesucristo"),
+  sacrament: t("Santa Cena"),
+  faith: t("Fe y testimonio"),
+  prayer: t("Oración"),
+  holy_ghost: t("Espíritu Santo"),
+  gratitude: t("Gratitud"),
+  service: t("Servicio"),
+  family: t("Familia"),
+  temple: t("Templo y convenios"),
+  scriptures: t("Escrituras"),
+  restoration: t("Restauración"),
+  missionary: t("Obra misional"),
+  christmas: t("Navidad"),
+  easter: t("Pascua"),
+  peace: t("Paz"),
+  love: t("Amor y caridad"),
+  commandments: t("Mandamientos"),
+  zion: t("Sión")
 };
 const HYMN_ORIGIN_LABELS = {
-  AGENDA_MANUAL: "Elegido en la agenda",
-  PLANIFICADOR_MANUAL: "Elegido en el planificador",
-  AUTOMATICA: "Selección automática"
+  AGENDA_MANUAL: t("Elegido en la agenda"),
+  PLANIFICADOR_MANUAL: t("Elegido en el planificador"),
+  AUTOMATICA: t("Selección automática")
 };
 const APP_HISTORY_KEY = "agenda-sacramental-route";
 const defaultConfig = {
@@ -275,10 +288,44 @@ const sidebarFooterUnit = document.querySelector("#sidebar-footer-unit");
 const topbarEyebrow = document.querySelector("#topbar-eyebrow");
 const topbarTitle = document.querySelector("#topbar-title");
 
+initializeLanguage();
 initializeNavigationHistory(initialNavigation);
 bindChrome();
 applyTheme();
 boot();
+
+function languageSelector() {
+  return `<label class="language-control"><span>${uiLanguage() === "en" ? "Language" : "Idioma"}</span><select class="select" data-language aria-label="${uiLanguage() === "en" ? "Language" : "Idioma"}"><option value="es" ${uiLanguage() === "es" ? "selected" : ""}>Español</option><option value="en" ${uiLanguage() === "en" ? "selected" : ""}>English</option></select></label>`;
+}
+
+function initializeLanguage() {
+  document.documentElement.lang = uiLanguage();
+  document.title = t("Agenda Sacramental");
+  // Only the initial, static shell is visited. Never translate rendered user data.
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const text = node.nodeValue.trim();
+    if (text && !node.parentElement.closest("script, style")) node.nodeValue = node.nodeValue.replace(text, t(text));
+  }
+  document.querySelectorAll("[aria-label]").forEach(node => node.setAttribute("aria-label", t(node.getAttribute("aria-label"))));
+  document.querySelector("#sidebar-language").innerHTML = languageSelector();
+  document.addEventListener("change", event => {
+    if (!event.target.matches("[data-language]")) return;
+    const language = event.target.value;
+    if (language === uiLanguage()) return;
+    if ((state.route === "edit" || modal.open || state.draftReadingAgenda || state.draftPdfAgenda) && !confirm(uiLanguage() === "en"
+      ? "Changing language reloads the page. Unsaved changes will be lost. Continue?"
+      : "Cambiar de idioma recarga la página. Se perderán los cambios sin guardar. ¿Continuar?")) {
+      event.target.value = uiLanguage();
+      return;
+    }
+    try { localStorage.setItem(LANGUAGE_STORAGE_KEY, language); } catch { /* URL also retains the choice. */ }
+    const url = new URL(window.location.href);
+    url.searchParams.set("lang", language);
+    window.location.assign(url.href);
+  });
+}
 
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
@@ -288,14 +335,14 @@ window.addEventListener("beforeinstallprompt", (event) => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch((error) => {
-    console.warn("No se pudo registrar el modo instalable.", error);
+    console.warn(t("No se pudo registrar el modo instalable."), error);
   }));
 }
 
 setTimeout(() => {
   if (state.isBooting) {
     state.isBooting = false;
-    state.fatalError = new Error("Firebase no respondió a tiempo. Revisa la conexión o intenta recargar la página.");
+    state.fatalError = new Error(t("Firebase no respondió a tiempo. Revisa la conexión o intenta recargar la página."));
     render();
   }
 }, 9000);
@@ -508,7 +555,7 @@ function subscribeUnitData(unitNumber) {
     syncHistoryTransferAccess();
   }, () => {
     state.historyReady = false;
-    state.historyError = "No se pudo acceder al historial importado. Revisá la conexión y los permisos de la unidad.";
+    state.historyError = t("No se pudo acceder al historial importado. Revisá la conexión y los permisos de la unidad.");
     render();
     syncHistoryTransferAccess();
   }));
@@ -546,7 +593,7 @@ function applyAutomaticAgendaStatus(agendas) {
       agenda.estado = "REALIZADA";
     });
     autoCompletePastAgendas(pastDrafts).catch((error) => {
-      console.warn("No se pudieron marcar agendas pasadas como realizadas.", error);
+      console.warn(t("No se pudieron marcar agendas pasadas como realizadas."), error);
     });
   }
   return agendas;
@@ -579,7 +626,7 @@ async function autoCompletePastAgendas(agendas) {
 function render() {
   renderChrome();
   if (state.isBooting) {
-    screen.innerHTML = loadingPanel("Conectando...");
+    screen.innerHTML = loadingPanel(t("Conectando..."));
     return;
   }
   if (state.fatalError) {
@@ -595,7 +642,7 @@ function render() {
     return;
   }
   if (!state.isReady && state.route !== "settings") {
-    screen.innerHTML = loadingPanel("Cargando agendas...");
+    screen.innerHTML = loadingPanel(t("Cargando agendas..."));
     return;
   }
 
@@ -622,26 +669,26 @@ function renderChrome() {
   });
   sessionChip.classList.toggle("skeleton", state.isBooting);
   sessionChip.textContent = state.unitNumber
-    ? `Unidad ${state.unitNumber}`
+    ? `${t("Unidad")} ${state.unitNumber}`
     : state.user
-      ? "Sin unidad activa"
+      ? t("Sin unidad activa")
       : state.isBooting
-        ? "Conectando..."
-        : "Sin sesión";
+        ? t("Conectando...")
+        : t("Sin sesión");
   if (sidebarFooterUnit) {
-    sidebarFooterUnit.textContent = `\u00a9 ${new Date().getFullYear()} \u00b7 ${state.unitNumber ? `Unidad ${state.unitNumber}` : "Sin unidad"}`;
+    sidebarFooterUnit.textContent = `\u00a9 ${new Date().getFullYear()} \u00b7 ${state.unitNumber ? `${t("Unidad")} ${state.unitNumber}` : t("Sin unidad")}`;
   }
-  topbarEyebrow.textContent = state.unitNumber ? `Unidad ${state.unitNumber}` : "Agenda Sacramental";
+  topbarEyebrow.textContent = state.unitNumber ? `${t("Unidad")} ${state.unitNumber}` : t("Agenda Sacramental");
   topbarTitle.textContent = routeTitle();
 }
 
 function routeTitle() {
-  if (state.route === "planning") return "Planificación";
-  if (state.route === "hymns") return "Planificador de himnos";
-  if (state.route === "settings") return "Ajustes";
-  if (state.route === "edit") return state.activeAgendaId ? "Editar agenda" : "Nueva agenda";
-  if (state.route === "reading") return "Modo lectura";
-  if (state.route === "pdf") return "Exportar PDF";
+  if (state.route === "planning") return t("Planificación");
+  if (state.route === "hymns") return t("Planificador de himnos");
+  if (state.route === "settings") return t("Ajustes");
+  if (state.route === "edit") return state.activeAgendaId ? t("Editar agenda") : t("Nueva agenda");
+  if (state.route === "reading") return t("Modo lectura");
+  if (state.route === "pdf") return t("Exportar PDF");
   return "Agendas";
 }
 
@@ -651,14 +698,15 @@ function renderLogin() {
     <div class="setup-wrap auth-wrap">
       <section class="auth-intro">
         ${authMark()}
-        <p class="eyebrow">Agenda Sacramental Web</p>
-        <h2>Entrar con Google</h2>
-        <p class="muted">Usa la misma cuenta y la misma unidad que en Android para trabajar sobre los datos existentes.</p>
+        ${languageSelector()}
+        <p class="eyebrow">${t("Agenda Sacramental Web")}</p>
+        <h2>${t("Entrar con Google")}</h2>
+        <p class="muted">${t("Usa la misma cuenta y la misma unidad que en Android para trabajar sobre los datos existentes.")}</p>
       </section>
       <section class="setup-panel auth-card">
         <button id="google-login" class="google-button" type="button">
           <span class="google-mark" aria-hidden="true">G</span>
-          Iniciar sesión con Google
+          ${t("Iniciar sesión con Google")}
         </button>
       </section>
     </div>
@@ -670,7 +718,7 @@ function renderLogin() {
       if (error?.code === "auth/popup-blocked" || error?.code === "auth/operation-not-supported-in-this-environment") {
         await signInWithRedirect(auth, googleProvider);
       } else {
-        toastMessage(formatErrorMessage(error) || "No se pudo iniciar sesión.", 7000);
+        toastMessage(formatErrorMessage(error) || t("No se pudo iniciar sesión."), 7000);
       }
     }
   });
@@ -682,23 +730,24 @@ function renderUnitAccess() {
     <div class="setup-wrap auth-wrap">
       <section class="auth-intro">
         ${authMark()}
+        ${languageSelector()}
         <p class="eyebrow">${escapeHtml(userEmail())}</p>
-        <h2>Acceso a unidad</h2>
-        <p class="muted">Ingresa el número de unidad y su contraseña. Si la unidad no existe, podrás crearla con esa contraseña.</p>
+        <h2>${t("Acceso a unidad")}</h2>
+        <p class="muted">${t("Ingresa el número de unidad y su contraseña. Si la unidad no existe, podrás crearla con esa contraseña.")}</p>
       </section>
       <section class="setup-panel auth-card">
         <form id="unit-form" class="form-grid">
           <div class="field">
-            <label for="unit-number">Número de unidad</label>
+            <label for="unit-number">${t("Número de unidad")}</label>
             <input id="unit-number" class="input" inputmode="numeric" autocomplete="off" required>
           </div>
           <div class="field">
-            <label for="unit-password">Contraseña</label>
+            <label for="unit-password">${t("Contraseña")}</label>
             <input id="unit-password" class="input" type="password" autocomplete="current-password" required>
           </div>
           <div class="auth-actions">
-            <button class="primary-button" type="submit">Ingresar</button>
-            <button id="logout-setup" class="secondary-button" type="button">Salir</button>
+            <button class="primary-button" type="submit">${t("Ingresar")}</button>
+            <button id="logout-setup" class="secondary-button" type="button">${t("Salir")}</button>
           </div>
         </form>
       </section>
@@ -729,11 +778,11 @@ function authMark() {
 }
 
 async function ensureUnitAccess(unitNumber, password) {
-  if (!unitNumber || !password) throw new Error("Ingresa unidad y contraseña.");
+  if (!unitNumber || !password) throw new Error(t("Ingresa unidad y contraseña."));
   const unitDoc = await getDoc(unitRef(unitNumber));
   const passwordHash = await hashPassword(password);
   if (!unitDoc.exists()) {
-    if (!confirm(`La unidad ${unitNumber} no existe. ¿Deseas crearla?`)) return false;
+    if (!confirm(`${t("La unidad")} ${unitNumber} ${t("no existe. ¿Deseas crearla?")}`)) return false;
     await setDoc(unitRef(unitNumber), {
       numeroUnidad: unitNumber,
       passwordHash,
@@ -741,26 +790,26 @@ async function ensureUnitAccess(unitNumber, password) {
       creadoEn: serverTimestamp()
     });
   } else if (unitDoc.data().passwordHash !== passwordHash) {
-    throw new Error("Contraseña incorrecta.");
+    throw new Error(t("Contraseña incorrecta."));
   }
   return true;
 }
 
 function openChangeUnitDialog() {
   openModal({
-    title: "Cambiar unidad",
+    title: t("Cambiar unidad"),
     body: `
       <form id="change-unit-form" class="form-grid">
-        <p class="muted">Unidad actual: <strong>${escapeHtml(state.unitNumber)}</strong></p>
+        <p class="muted">${t("Unidad actual:")} <strong>${escapeHtml(state.unitNumber)}</strong></p>
         <div class="inline-fields">
-          ${field("change-unit-number", "Número de unidad", `<input id="change-unit-number" class="input" inputmode="numeric" autocomplete="off" value="${escapeAttr(state.unitNumber)}" required>`)}
-          ${field("change-unit-password", "Contraseña", `<input id="change-unit-password" class="input" type="password" autocomplete="current-password" required>`)}
+          ${field("change-unit-number", t("Número de unidad"), `<input id="change-unit-number" class="input" inputmode="numeric" autocomplete="off" value="${escapeAttr(state.unitNumber)}" required>`)}
+          ${field("change-unit-password", t("Contraseña"), `<input id="change-unit-password" class="input" type="password" autocomplete="current-password" required>`)}
         </div>
       </form>
     `,
     footer: `
-      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
-      <button class="primary-button" form="change-unit-form" type="submit">Entrar</button>
+      <button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button>
+      <button class="primary-button" form="change-unit-form" type="submit">${t("Entrar")}</button>
     `,
     bind: (dialog) => {
       dialog.querySelector("#change-unit-form").addEventListener("submit", async (event) => {
@@ -792,19 +841,19 @@ function renderAgendas() {
       <div class="toolbar-left">
         <div class="search-field">
           <span class="search-icon" aria-hidden="true">${icon("search")}</span>
-          <input id="agenda-search" class="input" type="search" placeholder="Buscar por fecha, nombre, himno..." value="${escapeAttr(searchValue)}">
+          <input id="agenda-search" class="input" type="search" placeholder="${t("Buscar por fecha, nombre, himno...")}" value="${escapeAttr(searchValue)}">
         </div>
-        <div class="agenda-filter-strip" aria-label="Filtrar agendas por estado">
-          ${stateFilter("all", "Todas", true)}
-          ${stateFilter("BORRADOR", "Borrador")}
-          ${stateFilter("CONFIRMADA", "Confirmada")}
-          ${stateFilter("REALIZADA", "Realizada")}
+        <div class="agenda-filter-strip" aria-label="${t("Filtrar agendas por estado")}">
+          ${stateFilter("all", t("Todas"), true)}
+          ${stateFilter("BORRADOR", t("Borrador"))}
+          ${stateFilter("CONFIRMADA", t("Confirmada"))}
+          ${stateFilter("REALIZADA", t("Realizada"))}
         </div>
       </div>
       <div class="toolbar-right">
         <button id="bulk-print" class="secondary-button" type="button" ${state.agendas.length ? "" : "disabled"}>${bulkText().title}</button>
-        <button id="create-sundays" class="secondary-button" type="button">${buttonIcon("calendarPlus")}<span class="button-label">Crear domingos</span></button>
-        <button id="new-agenda" class="primary-button agenda-new-button" type="button" aria-label="Nueva agenda">${buttonIcon("plus")}<span class="button-label">Nueva agenda</span></button>
+        <button id="create-sundays" class="secondary-button" type="button">${buttonIcon("calendarPlus")}<span class="button-label">${t("Crear domingos")}</span></button>
+        <button id="new-agenda" class="primary-button agenda-new-button" type="button" aria-label="${t("Nueva agenda")}">${buttonIcon("plus")}<span class="button-label">${t("Nueva agenda")}</span></button>
       </div>
     </div>
 
@@ -836,7 +885,7 @@ function openBulkPrint() {
   const selected = new Set();
   const testimony = agenda => agenda.reunionTestimonios && !agenda.presentacionPrimaria;
   const copy = bulkText();
-  const dates = new Intl.DateTimeFormat(navigator.language, { dateStyle: "medium" });
+  const dates = new Intl.DateTimeFormat(uiLocale(), { dateStyle: "medium" });
   openModal({
     title: copy.title,
     body: `<section id="bulk-selection">
@@ -942,23 +991,23 @@ function renderAgendaDashboard(searchValue, filterState) {
     agendaMatchesSearch(nextAgenda, searchValue);
   return `
     <section class="summary-section agenda-desktop-summary">
-      ${sectionTitle("Resumen", "", "")}
+      ${sectionTitle(t("Resumen"), "", "")}
       <div class="metric-grid">
         ${metricPill("Total", stats.total)}
-        ${metricPill("Borrador", stats.draft)}
-        ${metricPill("Confirmadas", stats.confirmed)}
+        ${metricPill(t("Borrador"), stats.draft)}
+        ${metricPill(t("Confirmadas"), stats.confirmed)}
       </div>
     </section>
 
     ${showNextAgenda ? `
       <section class="panel next-agenda-panel">
-        ${sectionTitle("Próximo domingo", "", "")}
+        ${sectionTitle(t("Próximo domingo"), "", "")}
         ${agendaCard(nextAgenda, true)}
       </section>
     ` : ""}
 
     <section class="panel agenda-collection-panel">
-      ${sectionTitle(showNextAgenda ? "Otras agendas" : "Agendas", "", "")}
+      ${sectionTitle(showNextAgenda ? t("Otras agendas") : "Agendas", "", "")}
       <div id="agenda-list" class="agenda-list grouped">${renderAgendaList(searchValue, filterState, showNextAgenda ? nextAgenda.id : "")}</div>
     </section>
   `;
@@ -974,7 +1023,7 @@ function renderAgendaList(searchValue, filterState, excludedAgendaId = "") {
     agendaMatchesState(agenda, filterState) &&
     agendaMatchesSearch(agenda, searchValue)
   );
-  if (!items.length) return emptyState("No hay agendas para mostrar.");
+  if (!items.length) return emptyState(t("No hay agendas para mostrar."));
 
   return AGENDA_GROUPS
     .filter((group) => filterState === "all" || group.state === filterState)
@@ -1032,11 +1081,11 @@ function agendaCard(agenda, highlighted = false) {
   const meetingType = agenda.presentacionPrimaria
     ? meetingText("primary")
     : agenda.reunionTestimonios
-      ? "Reunión de ayuno y testimonios"
-      : "Reunión sacramental";
+      ? t("Reunión de ayuno y testimonios")
+      : t("Reunión sacramental");
   return `
     <article class="agenda-card agenda-card-${escapeAttr(agenda.estado)} ${highlighted ? "agenda-card-highlighted" : ""}">
-      <button class="agenda-card-main" data-open="${escapeAttr(agenda.id)}" type="button" aria-label="Editar agenda del ${escapeAttr(formatDateLong(agenda.fecha))}">
+      <button class="agenda-card-main" data-open="${escapeAttr(agenda.id)}" type="button" aria-label="${t("Editar agenda del")} ${escapeAttr(formatDateLong(agenda.fecha))}">
         <div class="agenda-card-copy">
           <div class="agenda-card-titleline">
             <h3>
@@ -1046,7 +1095,7 @@ function agendaCard(agenda, highlighted = false) {
             <span class="status-pill status-${escapeAttr(agenda.estado)}">${escapeHtml(labelState(agenda.estado))}</span>
           </div>
           <p class="item-meta agenda-meeting-type">${escapeHtml(meetingType)}</p>
-          ${agenda.preside ? `<p class="agenda-person-line"><span>Preside</span><strong>${escapeHtml(agenda.preside)}</strong></p>` : `<p class="agenda-person-line is-empty">Presidencia aún sin asignar</p>`}
+          ${agenda.preside ? `<p class="agenda-person-line"><span>${t("Preside")}</span><strong>${escapeHtml(agenda.preside)}</strong></p>` : `<p class="agenda-person-line is-empty">${t("Presidencia aún sin asignar")}</p>`}
         </div>
         <span class="agenda-card-chevron" aria-hidden="true">${icon("chevronRight")}</span>
       </button>
@@ -1054,12 +1103,12 @@ function agendaCard(agenda, highlighted = false) {
         <div class="agenda-card-facts item-meta">
           ${Number(agenda.asistencia || 0) > 0 ? `<span>👥 ${Number(agenda.asistencia)}</span>` : ""}
           ${messages > 0 ? `<span>${messages} ${messages === 1 ? "mensaje" : "mensajes"}</span>` : ""}
-          ${agenda.dirige ? `<span>Dirige: ${escapeHtml(agenda.dirige)}</span>` : ""}
+          ${agenda.dirige ? `<span>${t("Dirige:")} ${escapeHtml(agenda.dirige)}</span>` : ""}
         </div>
         <div class="item-actions agenda-card-actions">
-          <button class="agenda-action-button" data-read="${escapeAttr(agenda.id)}" type="button" title="Modo lectura" aria-label="Abrir modo lectura">${buttonIcon("bookOpen")}<span>Lectura</span></button>
-          <button class="agenda-action-button" data-print-agenda="${escapeAttr(agenda.id)}" type="button" title="Exportar PDF" aria-label="Exportar agenda a PDF">${buttonIcon("fileText")}<span>PDF</span></button>
-          <button class="agenda-action-button danger-action" data-delete-agenda="${escapeAttr(agenda.id)}" type="button" title="Eliminar" aria-label="Eliminar agenda">${icon("x")}<span>Eliminar</span></button>
+          <button class="agenda-action-button" data-read="${escapeAttr(agenda.id)}" type="button" title="${t("Modo lectura")}" aria-label="${t("Abrir modo lectura")}">${buttonIcon("bookOpen")}<span>${t("Lectura")}</span></button>
+          <button class="agenda-action-button" data-print-agenda="${escapeAttr(agenda.id)}" type="button" title="${t("Exportar PDF")}" aria-label="${t("Exportar agenda a PDF")}">${buttonIcon("fileText")}<span>PDF</span></button>
+          <button class="agenda-action-button danger-action" data-delete-agenda="${escapeAttr(agenda.id)}" type="button" title="${t("Eliminar")}" aria-label="${t("Eliminar agenda")}">${icon("x")}<span>${t("Eliminar")}</span></button>
         </div>
       </div>
     </article>
@@ -1089,7 +1138,7 @@ function bindAgendaListActions() {
   });
   screen.querySelectorAll("[data-delete-agenda]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!confirm("¿Eliminar esta agenda?")) return;
+      if (!confirm(t("¿Eliminar esta agenda?"))) return;
       await withToastError(async () => {
         const agenda = state.agendas.find((item) => item.id === button.dataset.deleteAgenda);
         await deleteDoc(agendaRef(button.dataset.deleteAgenda));
@@ -1098,7 +1147,7 @@ function bindAgendaListActions() {
           null,
           state.agendas.filter((item) => item.id !== button.dataset.deleteAgenda)
         );
-        toastMessage("Agenda eliminada");
+        toastMessage(t("Agenda eliminada"));
       });
     });
   });
@@ -1117,74 +1166,74 @@ function renderAgendaEditor() {
     ? state.agendas.find((item) => item.id === state.activeAgendaId)
     : createBlankAgenda(nextSunday());
   if (!agenda) {
-      screen.innerHTML = emptyPanel("No se encontró la agenda.");
+      screen.innerHTML = emptyPanel(t("No se encontró la agenda."));
     return;
   }
   screen.innerHTML = `
     <form id="agenda-form" class="screen-grid">
       <section class="panel">
-        ${sectionTitle(state.activeAgendaId ? "Editar agenda" : "Nueva agenda", "E", `
+        ${sectionTitle(state.activeAgendaId ? t("Editar agenda") : t("Nueva agenda"), "E", `
           <div class="button-row">
-            <button class="secondary-button" data-action="back" type="button">Volver</button>
-            <button class="secondary-button" data-action="reading-preview" type="button">Modo lectura</button>
-            <button class="secondary-button" data-action="export-pdf" type="button">Exportar PDF</button>
-            <button class="primary-button" type="submit">Guardar</button>
+            <button class="secondary-button" data-action="back" type="button">${t("Volver")}</button>
+            <button class="secondary-button" data-action="reading-preview" type="button">${t("Modo lectura")}</button>
+            <button class="secondary-button" data-action="export-pdf" type="button">${t("Exportar PDF")}</button>
+            <button class="primary-button" type="submit">${t("Guardar")}</button>
           </div>
         `)}
         <div class="form-grid">
           <div class="inline-fields">
-            ${field("fecha", "Fecha", `<input id="fecha" class="input" type="date" value="${escapeAttr(dateInputValue(agenda.fecha))}" required>`)}
-            ${field("estado", "Estado", `<select id="estado" class="select">${AGENDA_STATES.map((item) => option(item, labelState(item), agenda.estado)).join("")}</select>`)}
-            ${field("asistencia", "Asist.", `<input id="asistencia" class="input" type="number" min="0" value="${Number(agenda.asistencia || 0)}">`)}
+            ${field("fecha", t("Fecha"), `<input id="fecha" class="input" type="date" value="${escapeAttr(dateInputValue(agenda.fecha))}" required>`)}
+            ${field("estado", t("Estado"), `<select id="estado" class="select">${AGENDA_STATES.map((item) => option(item, labelState(item), agenda.estado)).join("")}</select>`)}
+            ${field("asistencia", t("Asist."), `<input id="asistencia" class="input" type="number" min="0" value="${Number(agenda.asistencia || 0)}">`)}
           </div>
           <div class="inline-fields">
-            ${field("preside", "Preside", textInput("preside", agenda.preside, "names-list"))}
-            ${field("dirige", "Dirige", textInput("dirige", agenda.dirige, "names-list"))}
+            ${field("preside", t("Preside"), textInput("preside", agenda.preside, "names-list"))}
+            ${field("dirige", t("Dirige"), textInput("dirige", agenda.dirige, "names-list"))}
           </div>
           <div class="inline-fields">
-            ${field("reconocimientos", "Reconocimientos", textarea("reconocimientos", agenda.reconocimientos), "Si vas a cargar varios, separalos con una coma.")}
+            ${field("reconocimientos", t("Reconocimientos"), textarea("reconocimientos", agenda.reconocimientos), t("Si vas a cargar varios, separalos con una coma."))}
             ${field("anuncios", meetingText("announcements"), textarea("anuncios", agenda.anuncios), meetingText("announcementHint"))}
           </div>
         </div>
       </section>
 
       <section class="panel">
-        ${sectionTitle("Himnos y música", "H", "")}
+        ${sectionTitle(t("Himnos y música"), "H", "")}
         <div class="form-grid">
-          ${hymnFields("primerHimno", "Primer himno", agenda.primerHimnoNumero, agenda.primerHimnoNombre)}
-          ${hymnFields("himnoSacramental", "Himno sacramental", agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre)}
-          ${hymnFields("himnoFinal", "Himno final", agenda.himnoFinalNumero, agenda.himnoFinalNombre)}
+          ${hymnFields("primerHimno", t("Primer himno"), agenda.primerHimnoNumero, agenda.primerHimnoNombre)}
+          ${hymnFields("himnoSacramental", t("Himno sacramental"), agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre)}
+          ${hymnFields("himnoFinal", t("Himno final"), agenda.himnoFinalNumero, agenda.himnoFinalNombre)}
           <div class="inline-fields">
-            ${field("directorMusica", "Director/a de música", textInput("directorMusica", agenda.directorMusica, "names-list"))}
-            ${field("pianista", "Pianista", textInput("pianista", agenda.pianista, "names-list"))}
+            ${field("directorMusica", t("Director/a de música"), textInput("directorMusica", agenda.directorMusica, "names-list"))}
+            ${field("pianista", t("Pianista"), textInput("pianista", agenda.pianista, "names-list"))}
           </div>
           <div class="inline-fields">
-            ${field("primeraOracion", "Primera oración", textInput("primeraOracion", agenda.primeraOracion, "names-list"))}
-            ${field("oracionFinal", "Oración final", textInput("oracionFinal", agenda.oracionFinal, "names-list"))}
+            ${field("primeraOracion", t("Primera oración"), textInput("primeraOracion", agenda.primeraOracion, "names-list"))}
+            ${field("oracionFinal", t("Oración final"), textInput("oracionFinal", agenda.oracionFinal, "names-list"))}
           </div>
         </div>
       </section>
 
       <section class="panel">
-        ${sectionTitle("Asuntos Estaca/Barrio", "S", `<button class="secondary-button" id="add-business" type="button">Agregar</button>`)}
+        ${sectionTitle(t("Asuntos Estaca/Barrio"), "S", `<button class="secondary-button" id="add-business" type="button">${t("Agregar")}</button>`)}
         <div id="business-list" class="dynamic-list">${agenda.asuntosEstacaBarrio.map(businessRow).join("")}</div>
       </section>
 
       <section class="panel">
-        ${sectionTitle("Tipo de reunión", "M", `<button class="secondary-button" id="add-message" type="button">Agregar</button>`)}
+        ${sectionTitle(t("Tipo de reunión"), "M", `<button class="secondary-button" id="add-message" type="button">${t("Agregar")}</button>`)}
         <label class="checkbox-line">
           <input id="reunionTestimonios" type="checkbox" ${agenda.reunionTestimonios ? "checked" : ""}>
-          Reunión de ayuno y testimonios
+          ${t("Reunión de ayuno y testimonios")}
         </label>
         <label class="checkbox-line">
           <input id="presentacionPrimaria" type="checkbox" ${agenda.presentacionPrimaria ? "checked" : ""}>
           ${meetingText("primary")}
         </label>
         <p data-primary-announcement class="hidden">${meetingText("announcement")}</p>
-        <h3 data-messages-heading>Mensajes del Evangelio</h3>
+        <h3 data-messages-heading>${t("Mensajes del Evangelio")}</h3>
         <div id="message-list" class="dynamic-list">${agenda.mensajesEvangelio.map(messageRow).join("")}</div>
         <div class="field ${agenda.reunionTestimonios ? "" : "hidden"}" data-testimonies-field>
-          <label for="testimonios">Testimonios o nombres, uno por línea</label>
+          <label for="testimonios">${t("Testimonios o nombres, uno por línea")}</label>
           <textarea id="testimonios" class="textarea">${escapeHtml((agenda.testimonios || []).join("\n"))}</textarea>
         </div>
       </section>
@@ -1305,8 +1354,8 @@ function option(value, label, selectedValue) {
 function hymnFields(prefix, label, number, name) {
   return `
     <div class="inline-fields">
-      ${field(`${prefix}Numero`, `${label} Nro.`, `<input id="${prefix}Numero" class="input" type="number" min="0" value="${Number(number || 0) || ""}" data-hymn-number="${prefix}Nombre">`)}
-      ${field(`${prefix}Nombre`, "Nombre del himno", `<input id="${prefix}Nombre" class="input" value="${escapeAttr(name || "")}">`)}
+      ${field(`${prefix}Numero`, `${label} ${t("Nro.")}`, `<input id="${prefix}Numero" class="input" type="number" min="0" value="${Number(number || 0) || ""}" data-hymn-number="${prefix}Nombre">`)}
+      ${field(`${prefix}Nombre`, t("Nombre del himno"), `<input id="${prefix}Nombre" class="input" value="${escapeAttr(name || "")}">`)}
     </div>
   `;
 }
@@ -1317,36 +1366,36 @@ function businessRow(item = {}) {
   const col3 = item.columna3 || "";
   const fields = {
     RELEVO: `
-      <input class="input" data-business-col2 value="${escapeAttr(col2)}" placeholder="Nombre">
-      <input class="input" data-business-col3 value="${escapeAttr(col3)}" placeholder="Cargo">
+      <input class="input" data-business-col2 value="${escapeAttr(col2)}" placeholder="${t("Nombre")}">
+      <input class="input" data-business-col3 value="${escapeAttr(col3)}" placeholder="${t("Cargo")}">
     `,
     SOSTENIMIENTO: `
-      <input class="input" data-business-col2 value="${escapeAttr(col2)}" placeholder="Nombre">
-      <input class="input" data-business-col3 value="${escapeAttr(col3)}" placeholder="Cargo">
+      <input class="input" data-business-col2 value="${escapeAttr(col2)}" placeholder="${t("Nombre")}">
+      <input class="input" data-business-col3 value="${escapeAttr(col3)}" placeholder="${t("Cargo")}">
     `,
     ESTACA: `
       <div class="field compact-field">
-        <input class="input" data-business-col2 value="${escapeAttr(col2)}" placeholder="Ej.: Presidente Garcia">
+        <input class="input" data-business-col2 value="${escapeAttr(col2)}" placeholder="${t("Ej.: Presidente Garcia")}">
         <p class="field-hint">${escapeHtml(descripcionAsuntoEstaca({ columna2: col2 }))}</p>
       </div>
       <input type="hidden" data-business-col3 value="">
     `,
     SOSTENIMIENTO_OFICIALES: `
       <div class="field compact-field">
-        <input class="input" data-business-col2 value="${escapeAttr(col2)}" placeholder="Ej.: Obispo Garcia">
+        <input class="input" data-business-col2 value="${escapeAttr(col2)}" placeholder="${t("Ej.: Obispo Garcia")}">
         <p class="field-hint">${escapeHtml(descripcionSostenimientoOficiales({ columna2: col2 }))}</p>
       </div>
       <input type="hidden" data-business-col3 value="">
     `,
     ORDENACION_AARONICA: `
-      <input class="input" data-business-col2 value="${escapeAttr(col2)}" placeholder="Nombre">
+      <input class="input" data-business-col2 value="${escapeAttr(col2)}" placeholder="${t("Nombre")}">
       <select class="select" data-business-col3>
-        <option value="">Oficio</option>
-        ${AARONIC_OFFICES.map((office) => option(office, office, col3)).join("")}
+        <option value="">${t("Oficio")}</option>
+        ${AARONIC_OFFICES.map((office) => option(office, t(office), col3)).join("")}
       </select>
     `,
     OTROS: `
-      <textarea class="textarea compact-textarea" data-business-col2 placeholder="Escribi el texto tal como debe aparecer">${escapeHtml(col2)}</textarea>
+      <textarea class="textarea compact-textarea" data-business-col2 placeholder="${t("Escribi el texto tal como debe aparecer")}">${escapeHtml(col2)}</textarea>
       <input type="hidden" data-business-col3 value="">
     `
   }[type] || "";
@@ -1361,15 +1410,15 @@ function businessRow(item = {}) {
 
 function messageRow(item = {}) {
   const type = item.tipo || "DISCURSO";
-  const personLabel = type === "TESTIMONIO" ? "Nombre" : "Discursante";
+  const personLabel = type === "TESTIMONIO" ? t("Nombre") : t("Discursante");
   return `
     <div class="dynamic-row message-row" data-message-row>
       <select class="select" data-message-type>${MESSAGE_TYPES.map((value) => option(value, labelMessage(value), type)).join("")}</select>
       <div class="dynamic-row-fields">
         ${type === "HIMNO_INTERMEDIO" ? `
           <div class="inline-fields compact-inline">
-            <input class="input" data-message-hymn-number type="number" min="0" value="${Number(item.himnoNumero || 0) || ""}" placeholder="Nro.">
-            <input class="input" data-message-hymn-name value="${escapeAttr(item.himnoNombre || "")}" placeholder="Nombre del himno">
+            <input class="input" data-message-hymn-number type="number" min="0" value="${Number(item.himnoNumero || 0) || ""}" placeholder="${t("Nro.")}">
+            <input class="input" data-message-hymn-name value="${escapeAttr(item.himnoNombre || "")}" placeholder="${t("Nombre del himno")}">
           </div>
           <input type="hidden" data-message-name value="">
           <input type="hidden" data-message-topic value="">
@@ -1379,8 +1428,8 @@ function messageRow(item = {}) {
           <input type="hidden" data-message-hymn-number value="0">
           <input type="hidden" data-message-hymn-name value="">
           ${type === "DISCURSO" ? `
-            <input class="input" data-message-topic value="${escapeAttr(item.tema || "")}" placeholder="Tema exacto">
-            <input class="input" data-message-topic-tags value="${escapeAttr(item.etiquetaTema || "")}" placeholder="Etiquetas separadas con coma">
+            <input class="input" data-message-topic value="${escapeAttr(item.tema || "")}" placeholder="${t("Tema exacto")}">
+            <input class="input" data-message-topic-tags value="${escapeAttr(item.etiquetaTema || "")}" placeholder="${t("Etiquetas separadas con coma")}">
           ` : `
             <input type="hidden" data-message-topic value="">
             <input type="hidden" data-message-topic-tags value="">
@@ -1394,10 +1443,10 @@ function messageRow(item = {}) {
 
 function dynamicRowActions() {
   return `
-    <div class="dynamic-row-actions" role="group" aria-label="Orden de fila">
-      <button class="icon-button" data-move-row="up" type="button" title="Subir" aria-label="Subir fila">${icon("arrowUp")}</button>
-      <button class="icon-button" data-move-row="down" type="button" title="Bajar" aria-label="Bajar fila">${icon("arrowDown")}</button>
-      <button class="icon-button danger-icon" data-remove-row type="button" title="Eliminar" aria-label="Eliminar fila">${icon("x")}</button>
+    <div class="dynamic-row-actions" role="group" aria-label="${t("Orden de fila")}">
+      <button class="icon-button" data-move-row="up" type="button" title="${t("Subir")}" aria-label="${t("Subir fila")}">${icon("arrowUp")}</button>
+      <button class="icon-button" data-move-row="down" type="button" title="${t("Bajar")}" aria-label="${t("Bajar fila")}">${icon("arrowDown")}</button>
+      <button class="icon-button danger-icon" data-remove-row type="button" title="${t("Eliminar")}" aria-label="${t("Eliminar fila")}">${icon("x")}</button>
     </div>
   `;
 }
@@ -1532,17 +1581,17 @@ async function saveAgendaFromForm(event) {
     const duplicate = state.agendas.some((item) =>
       item.id !== agenda.id && sameDay(item.fecha, agenda.fecha)
     );
-    if (duplicate) throw new Error("Ya existe una agenda para esa fecha.");
+    if (duplicate) throw new Error(t("Ya existe una agenda para esa fecha."));
     const data = agendaToFirestore(agenda, oldAgenda);
     let savedAgenda = agenda;
-    let message = "Agenda guardada";
+    let message = t("Agenda guardada");
     if (agenda.id) {
       await setDoc(agendaRef(agenda.id), data);
     } else {
       const ref = await addDoc(collection(db, "agendas"), data);
       state.activeAgendaId = ref.id;
       savedAgenda = { ...agenda, id: ref.id };
-      message = "Agenda creada";
+      message = t("Agenda creada");
     }
     await syncAgendaParticipants(savedAgenda);
     await syncRemovedAgendaParticipants(oldAgenda, savedAgenda, agendasAfterSave(savedAgenda));
@@ -1916,18 +1965,18 @@ function renderReadingMode() {
   const agenda = state.draftReadingAgenda || state.agendas.find((item) => item.id === state.activeAgendaId);
   state.draftReadingAgenda = null;
   if (!agenda) {
-    screen.innerHTML = emptyPanel("No se encontró la agenda.");
+    screen.innerHTML = emptyPanel(t("No se encontró la agenda."));
     return;
   }
   screen.innerHTML = `
     <div class="toolbar">
       <div class="toolbar-left">
-        <button class="secondary-button" data-action="back" type="button">Volver</button>
+        <button class="secondary-button" data-action="back" type="button">${t("Volver")}</button>
       </div>
       <div class="toolbar-right">
-        <button class="secondary-button" data-action="copy" type="button">Copiar texto</button>
-        <button class="secondary-button" data-action="print-reading" type="button">Imprimir lectura</button>
-        <button class="primary-button" data-action="pdf-agenda" type="button">PDF agenda</button>
+        <button class="secondary-button" data-action="copy" type="button">${t("Copiar texto")}</button>
+        <button class="secondary-button" data-action="print-reading" type="button">${t("Imprimir lectura")}</button>
+        <button class="primary-button" data-action="pdf-agenda" type="button">${t("PDF agenda")}</button>
       </div>
     </div>
     <article class="reading-page">
@@ -1939,7 +1988,7 @@ function renderReadingMode() {
   screen.querySelector('[data-action="pdf-agenda"]').addEventListener("click", () => exportAgendaPdf(agenda));
   screen.querySelector('[data-action="copy"]').addEventListener("click", async () => {
     await navigator.clipboard.writeText(agendaText(agenda));
-    toastMessage("Texto copiado");
+    toastMessage(t("Texto copiado"));
   });
 }
 
@@ -1955,58 +2004,58 @@ function readingHtml(agenda) {
   const messages = agenda.presentacionPrimaria
     ? `<li>${escapeHtml(meetingText("announcement"))}</li>`
     : agenda.reunionTestimonios
-    ? agenda.testimonios.map((name) => `<li>Testimonio: ${escapeHtml(name)}</li>`).join("")
+    ? agenda.testimonios.map((name) => `<li>${t("Testimonio:")} ${escapeHtml(name)}</li>`).join("")
     : agenda.mensajesEvangelio.map((message) => {
-      if (message.tipo === "HIMNO_INTERMEDIO") return `<li>Himno intermedio: ${escapeHtml(hymnLabel(message.himnoNumero, message.himnoNombre))}</li>`;
+      if (message.tipo === "HIMNO_INTERMEDIO") return `<li>${t("Himno intermedio:")} ${escapeHtml(hymnLabel(message.himnoNumero, message.himnoNombre))}</li>`;
       const topic = message.tipo === "DISCURSO" && message.tema
-        ? `<br><span class="reading-detail">Tema: ${escapeHtml(message.tema)}</span>`
+        ? `<br><span class="reading-detail">${t("Tema:")} ${escapeHtml(message.tema)}</span>`
         : "";
       const tags = message.tipo === "DISCURSO" && message.etiquetaTema
-        ? `<br><span class="reading-detail">Etiquetas: ${escapeHtml(message.etiquetaTema)}</span>`
+        ? `<br><span class="reading-detail">${t("Etiquetas:")} ${escapeHtml(message.etiquetaTema)}</span>`
         : "";
-      return `<li>${escapeHtml(labelMessage(message.tipo))}: ${escapeHtml(message.nombre || "Sin datos")}${topic}${tags}</li>`;
+      return `<li>${escapeHtml(labelMessage(message.tipo))}: ${escapeHtml(message.nombre || t("Sin datos"))}${topic}${tags}</li>`;
     }).join("");
   return `
     <div class="reading-title">
-      <h2>Agenda Reunión Sacramental</h2>
+      <h2>${t("Agenda Reunión Sacramental")}</h2>
       <p>${escapeHtml(formatDateLong(agenda.fecha))}</p>
     </div>
-    ${readingLine("Preside", agenda.preside)}
-    ${readingLine("Dirige", agenda.dirige)}
-    ${readingLine("Asistencia", agenda.asistencia ? String(agenda.asistencia) : "")}
-    ${readingLine("Reconocimientos", agenda.reconocimientos)}
+    ${readingLine(t("Preside"), agenda.preside)}
+    ${readingLine(t("Dirige"), agenda.dirige)}
+    ${readingLine(t("Asistencia"), agenda.asistencia ? String(agenda.asistencia) : "")}
+    ${readingLine(t("Reconocimientos"), agenda.reconocimientos)}
     ${readingLine(meetingText("announcements"), agenda.anuncios)}
-    ${readingLine("Himno de apertura", hymnLabel(agenda.primerHimnoNumero, agenda.primerHimnoNombre))}
-    ${readingLine("Director/a", agenda.directorMusica)}
-    ${readingLine("Pianista", agenda.pianista)}
-    ${readingLine("Primera oración", agenda.primeraOracion)}
-    ${agenda.asuntosEstacaBarrio.length ? `<section class="reading-section"><strong>Asuntos Estaca/Barrio</strong><ul>${agenda.asuntosEstacaBarrio.map((item) => `<li>${escapeHtml(labelBusiness(item.tipo))}: ${escapeHtml(businessDescription(item) || "Sin datos")}</li>`).join("")}</ul></section>` : ""}
-    ${readingLine("Himno Sacramental", hymnLabel(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre))}
-    <section class="reading-section"><strong>${agenda.presentacionPrimaria ? meetingText("primary") : agenda.reunionTestimonios ? "Reunión de testimonios" : "Mensajes del Evangelio"}</strong>${messages ? `<ul>${messages}</ul>` : "<p>Sin datos</p>"}</section>
-    ${readingLine("Himno final", hymnLabel(agenda.himnoFinalNumero, agenda.himnoFinalNombre))}
-    ${readingLine("Oración final", agenda.oracionFinal)}
+    ${readingLine(t("Himno de apertura"), hymnLabel(agenda.primerHimnoNumero, agenda.primerHimnoNombre))}
+    ${readingLine(t("Director/a"), agenda.directorMusica)}
+    ${readingLine(t("Pianista"), agenda.pianista)}
+    ${readingLine(t("Primera oración"), agenda.primeraOracion)}
+    ${agenda.asuntosEstacaBarrio.length ? `<section class="reading-section"><strong>${t("Asuntos Estaca/Barrio")}</strong><ul>${agenda.asuntosEstacaBarrio.map((item) => `<li>${escapeHtml(labelBusiness(item.tipo))}: ${escapeHtml(businessDescription(item) || t("Sin datos"))}</li>`).join("")}</ul></section>` : ""}
+    ${readingLine(t("Himno Sacramental"), hymnLabel(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre))}
+    <section class="reading-section"><strong>${agenda.presentacionPrimaria ? meetingText("primary") : agenda.reunionTestimonios ? t("Reunión de testimonios") : t("Mensajes del Evangelio")}</strong>${messages ? `<ul>${messages}</ul>` : "<p>Sin datos</p>"}</section>
+    ${readingLine(t("Himno final"), hymnLabel(agenda.himnoFinalNumero, agenda.himnoFinalNombre))}
+    ${readingLine(t("Oración final"), agenda.oracionFinal)}
   `;
 }
 
 function readingLine(label, value) {
-  return `<section class="reading-section"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value || "Sin datos")}</section>`;
+  return `<section class="reading-section"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value || t("Sin datos"))}</section>`;
 }
 
 function renderPdfMode() {
   const agenda = state.draftPdfAgenda || state.agendas.find((item) => item.id === state.activeAgendaId);
   state.draftPdfAgenda = null;
   if (!agenda) {
-    screen.innerHTML = emptyPanel("No se encontro la agenda.");
+    screen.innerHTML = emptyPanel(t("No se encontro la agenda."));
     return;
   }
-  const returnLabel = state.pdfReturnRoute === "edit" ? "Volver a editar" : "Salir del PDF";
+  const returnLabel = state.pdfReturnRoute === "edit" ? t("Volver a editar") : t("Salir del PDF");
   screen.innerHTML = `
     <div class="toolbar">
       <div class="toolbar-left">
         <button class="secondary-button" data-action="back" type="button">${escapeHtml(returnLabel)}</button>
       </div>
       <div class="toolbar-right">
-        <button class="primary-button" data-action="print" type="button">Imprimir / PDF</button>
+        <button class="primary-button" data-action="print" type="button">${t("Imprimir / PDF")}</button>
       </div>
     </div>
     <div class="pdf-document">
@@ -2030,36 +2079,36 @@ function pdfHtml(agenda) {
   return `
     <article class="pdf-page pdf-main-page ${escapeAttr(pdfDensityClass(agenda))}">
     <div class="pdf-title">
-      <h2>AGENDA REUNIÓN SACRAMENTAL</h2>
-      <p>Una Experiencia Espiritual</p>
+      <h2>${t("AGENDA REUNIÓN SACRAMENTAL")}</h2>
+      <p>${t("Una Experiencia Espiritual")}</p>
       <div class="pdf-attendance">
-        <span>Asistencia</span>
+        <span>${t("Asistencia")}</span>
         <strong>${agenda.asistencia ? escapeHtml(String(agenda.asistencia)) : ""}</strong>
       </div>
     </div>
     <div class="pdf-row">
-      ${pdfField("Fecha:", formatDateShort(agenda.fecha))}
-      ${pdfField("Dirige:", agenda.dirige)}
+      ${pdfField(t("Fecha:"), formatDateShort(agenda.fecha))}
+      ${pdfField(t("Dirige:"), agenda.dirige)}
     </div>
-    ${pdfField("Preside:", agenda.preside)}
-    <p class="pdf-muted">Preludio (10-15' antes del inicio de la reunión)</p>
-    ${pdfListSection("Bienvenida y reconocimiento de autoridades:", splitCommaItems(agenda.reconocimientos), 1)}
+    ${pdfField(t("Preside:"), agenda.preside)}
+    <p class="pdf-muted">${t("Preludio (10-15' antes del inicio de la reunión)")}</p>
+    ${pdfListSection(t("Bienvenida y reconocimiento de autoridades:"), splitCommaItems(agenda.reconocimientos), 1)}
     ${pdfListSection(meetingText("announcementPdf"), splitAnnouncements(agenda.anuncios), 2, true)}
-    ${pdfField("Himno de apertura:", hymnLabel(agenda.primerHimnoNumero, agenda.primerHimnoNombre))}
+    ${pdfField(t("Himno de apertura:"), hymnLabel(agenda.primerHimnoNumero, agenda.primerHimnoNombre))}
     <div class="pdf-row">
-      ${pdfField("Director/a:", agenda.directorMusica)}
-      ${pdfField("Pianista:", agenda.pianista)}
+      ${pdfField(t("Director/a:"), agenda.directorMusica)}
+      ${pdfField(t("Pianista:"), agenda.pianista)}
     </div>
-    ${pdfField("Primera oración:", agenda.primeraOracion)}
+    ${pdfField(t("Primera oración:"), agenda.primeraOracion)}
     ${pdfBusinessSection(agenda)}
-    ${pdfField("Himno Sacramental:", hymnLabel(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre))}
-    <p class="pdf-muted">Bendición y Reparto de la Santa Cena</p>
+    ${pdfField(t("Himno Sacramental:"), hymnLabel(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre))}
+    <p class="pdf-muted">${t("Bendición y Reparto de la Santa Cena")}</p>
     ${pdfMessagesSection(agenda)}
-    ${pdfField("Himno final:", hymnLabel(agenda.himnoFinalNumero, agenda.himnoFinalNombre))}
-    ${pdfField("Oración final:", agenda.oracionFinal)}
-    <p class="pdf-muted">Postludio (10 minutos - sólo música)</p>
-    <p class="pdf-quote">"Pero a pesar de las cosas que están escritas, siempre se ha concedido a los élderes de mi iglesia desde el principio, y siempre será así, dirigir todas las reuniones conforme los oriente y los guíe el Santo Espíritu." D y C 46:2</p>
-    <p class="pdf-area">Área Sudamérica Sur</p>
+    ${pdfField(t("Himno final:"), hymnLabel(agenda.himnoFinalNumero, agenda.himnoFinalNombre))}
+    ${pdfField(t("Oración final:"), agenda.oracionFinal)}
+    <p class="pdf-muted">${t("Postludio (10 minutos - sólo música)")}</p>
+    <p class="pdf-quote">${t("\"Pero a pesar de las cosas que están escritas, siempre se ha concedido a los élderes de mi iglesia desde el principio, y siempre será así, dirigir todas las reuniones conforme los oriente y los guíe el Santo Espíritu.\" D y C 46:2")}</p>
+    <p class="pdf-area">${t("Área Sudamérica Sur")}</p>
     </article>
     ${agenda.reunionTestimonios && !agenda.presentacionPrimaria ? pdfTestimonyPage(agenda) : ""}
   `;
@@ -2093,7 +2142,7 @@ function pdfBusinessSection(agenda) {
     : pdfEmptyLines(3);
   return `
     <section class="pdf-section">
-      <h3>Asuntos</h3>
+      <h3>${t("Asuntos")}</h3>
       <div class="pdf-box">${content}</div>
     </section>
   `;
@@ -2116,9 +2165,9 @@ function pdfMessagesSection(agenda) {
   if (agenda.reunionTestimonios) {
     return `
       <section class="pdf-section">
-        <h3>Reunión de Testimonios</h3>
+        <h3>${t("Reunión de Testimonios")}</h3>
         <div class="pdf-box">
-          <p class="pdf-box-lead">Tiempo de testimonios de la congregación</p>
+          <p class="pdf-box-lead">${t("Tiempo de testimonios de la congregación")}</p>
         </div>
       </section>
     `;
@@ -2127,7 +2176,7 @@ function pdfMessagesSection(agenda) {
   const messages = agenda.mensajesEvangelio || [];
   return `
     <section class="pdf-section">
-      <h3>Mensajes del evangelio, canto de la congregación y números musicales especiales</h3>
+      <h3>${t("Mensajes del evangelio, canto de la congregación y números musicales especiales")}</h3>
       <div class="pdf-box pdf-message-box">
         ${messages.length ? messages.map(pdfMessageItem).join("") : pdfEmptyLines(3)}
       </div>
@@ -2137,14 +2186,14 @@ function pdfMessagesSection(agenda) {
 
 function pdfMessageItem(message) {
   if (message.tipo === "HIMNO_INTERMEDIO") {
-    return `<div class="pdf-message-item"><div class="pdf-message-line"><strong>Himno:</strong> ${escapeHtml(hymnLabel(message.himnoNumero, message.himnoNombre) || "-")}</div></div>`;
+    return `<div class="pdf-message-item"><div class="pdf-message-line"><strong>${t("Himno:")}</strong> ${escapeHtml(hymnLabel(message.himnoNumero, message.himnoNombre) || "-")}</div></div>`;
   }
   if (message.tipo === "TESTIMONIO") {
-    return `<div class="pdf-message-item"><div class="pdf-message-line"><strong>Testimonio:</strong> ${escapeHtml(message.nombre || "-")}</div></div>`;
+    return `<div class="pdf-message-item"><div class="pdf-message-line"><strong>${t("Testimonio:")}</strong> ${escapeHtml(message.nombre || "-")}</div></div>`;
   }
   const details = [
-    `<div class="pdf-message-line"><strong>Discurso:</strong> ${escapeHtml(message.nombre || "-")}</div>`,
-    message.tema ? `<div class="pdf-message-detail">Tema: ${escapeHtml(message.tema)}</div>` : ""
+    `<div class="pdf-message-line"><strong>${t("Discurso:")}</strong> ${escapeHtml(message.nombre || "-")}</div>`,
+    message.tema ? `<div class="pdf-message-detail">${t("Tema:")} ${escapeHtml(message.tema)}</div>` : ""
   ].filter(Boolean);
   return `<div class="pdf-message-item">${details.join("")}</div>`;
 }
@@ -2155,7 +2204,7 @@ function pdfTestimonyPage(agenda) {
   return `
     <article class="pdf-page pdf-testimony-page">
       <div class="pdf-testimony-title">
-        <h2>REUNIÓN DE TESTIMONIOS</h2>
+        <h2>${t("REUNIÓN DE TESTIMONIOS")}</h2>
         <p>${escapeHtml(formatDateShort(agenda.fecha))}</p>
       </div>
       <div class="pdf-testimony-list">
@@ -2242,7 +2291,7 @@ function exportableHistory() {
 }
 
 function downloadHistoryCSV(records, filename) {
-  const url = URL.createObjectURL(new Blob([exportCSV(records)], { type: "text/csv;charset=utf-8" }));
+  const url = URL.createObjectURL(new Blob([exportCSV(records, uiLanguage())], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url; link.download = filename;
   link.click();
@@ -2253,19 +2302,19 @@ function historySpreadsheetJob(action, payload) {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL('./history-workbook-worker.js', import.meta.url));
     const finish = () => { clearTimeout(timeout); worker.terminate(); };
-    const timeout = setTimeout(() => { finish(); reject(new Error('Excel tardó demasiado en procesarse. Probá con un archivo más pequeño.')); }, 15000);
+    const timeout = setTimeout(() => { finish(); reject(new Error(t('Excel tardó demasiado en procesarse. Probá con un archivo más pequeño.'))); }, 15000);
     worker.onmessage = ({ data }) => {
       finish();
       if (data.error) reject(new Error(data.error)); else resolve(data.result);
     };
-    worker.onerror = () => { finish(); reject(new Error('No se pudo procesar Excel. Revisá la conexión y volvé a intentar.')); };
+    worker.onerror = () => { finish(); reject(new Error(t('No se pudo procesar Excel. Revisá la conexión y volvé a intentar.'))); };
     worker.postMessage({ action, ...payload }, payload.buffer ? [payload.buffer] : []);
   });
 }
 
 async function downloadHistoryFile(records, filename, format) {
   if (format === 'csv') { downloadHistoryCSV(records, `${filename}.csv`); return; }
-  const buffer = await historySpreadsheetJob('write', { records });
+  const buffer = await historySpreadsheetJob('write', { records, language: uiLanguage() });
   const url = URL.createObjectURL(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const link = document.createElement('a');
   link.href = url; link.download = `${filename}.xlsx`; link.click();
@@ -2274,28 +2323,28 @@ async function downloadHistoryFile(records, filename, format) {
 
 function openHistoryWorkbook(sheets) {
   openModal({
-    title: 'Elegir hoja de Excel',
+    title: t('Elegir hoja de Excel'),
     body: `<form id="history-sheet-form" class="form-grid">
-      <p>El archivo se procesa en este dispositivo. Elegí la hoja y la fila donde aparecen los nombres de las columnas.</p>
-      ${field('history-sheet', 'Hoja', `<select class="select" id="history-sheet">${sheets.map((sheet, i) => option(String(i), sheet.name, '0')).join('')}</select>`)}
-      ${field('history-header', 'Fila de encabezados', '<input class="input" id="history-header" type="number" min="1" max="5001" value="1" required>')}
+      <p>${t("El archivo se procesa en este dispositivo. Elegí la hoja y la fila donde aparecen los nombres de las columnas.")}</p>
+      ${field('history-sheet', t('Hoja'), `<select class="select" id="history-sheet">${sheets.map((sheet, i) => option(String(i), sheet.name, '0')).join('')}</select>`)}
+      ${field('history-header', t('Fila de encabezados'), '<input class="input" id="history-header" type="number" min="1" max="5001" value="1" required>')}
       <div id="history-sheet-sample" class="history-preview-list"></div><p id="history-sheet-error" role="alert"></p>
     </form>`,
-    footer: '<button class="secondary-button" data-action="cancel" type="button">Cancelar</button><button class="primary-button" type="submit" form="history-sheet-form">Elegir columnas</button>',
+    footer: `<button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button><button class="primary-button" type="submit" form="history-sheet-form">${t("Elegir las columnas")}</button>`,
     bind: dialog => {
       const select = dialog.querySelector('#history-sheet');
       const header = dialog.querySelector('#history-header');
       const refresh = () => {
         const sheet = sheets[Number(select.value)];
-        dialog.querySelector('#history-sheet-error').textContent = sheet.error || '';
+        dialog.querySelector('#history-sheet-error').textContent = t(sheet.error || '');
         const start = Math.max(0, Number(header.value) - 1);
-        dialog.querySelector('#history-sheet-sample').innerHTML = (sheet.rows || []).slice(start, start + 4).map((row, i) => `<p><strong>Fila ${start + i + 1}:</strong> ${row.map(escapeHtml).join(' · ')}</p>`).join('');
+        dialog.querySelector('#history-sheet-sample').innerHTML = (sheet.rows || []).slice(start, start + 4).map((row, i) => `<p><strong>${t("Fila")} ${start + i + 1}:</strong> ${row.map(escapeHtml).join(' · ')}</p>`).join('');
       };
       select.onchange = refresh; header.oninput = refresh; refresh();
       dialog.querySelector('#history-sheet-form').onsubmit = event => {
         event.preventDefault();
         try { openHistoryMapping(workbookTable(sheets[Number(select.value)], Number(header.value))); }
-        catch (error) { dialog.querySelector('#history-sheet-error').textContent = error.message; }
+        catch (error) { dialog.querySelector('#history-sheet-error').textContent = t(error.message); }
       };
     }
   });
@@ -2307,32 +2356,32 @@ function syncHistoryTransferAccess() {
   const status = modal.querySelector('#history-access-status');
   if (input) input.disabled = !state.historyReady || input.dataset.busy === 'true';
   if (exportButton) exportButton.disabled = !state.historyReady || exportButton.dataset.busy === 'true';
-  if (status) status.textContent = state.historyReady ? '' : state.historyError || 'Esperando acceso al historial…';
+  if (status) status.textContent = state.historyReady ? '' : state.historyError || t('Esperando acceso al historial…');
 }
 
 function openHistoryTransfer() {
   openModal({
-    title: "Historial: importar y exportar",
+    title: t("Historial: importar y exportar"),
     body: `<div class="form-grid">
-      <p>Agregá participaciones anteriores sin crear agendas. Eliminar filas del archivo nunca borra datos de la app.</p>
-      ${field('history-format', 'Formato de descarga', '<select class="select" id="history-format"><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV UTF-8</option></select>')}
-      <div class="button-row"><button id="history-export" class="secondary-button" type="button" ${state.historyReady ? "" : "disabled"}>Exportar historial</button>
-      <button id="history-template" class="secondary-button" type="button">Descargar plantilla</button></div>
-      <p>Conservá los ID existentes y dejá el ID vacío en las filas nuevas. La plantilla contiene solo encabezados. Podés importar Excel (.xlsx o .xls) o CSV UTF-8.</p>
-      <p>Participaciones: Discurso, Primera oración, Última oración u Oración. Fechas recomendadas: AAAA-MM-DD. Tema es opcional.</p>
-      <p>Las correcciones de registros provenientes de agendas o fichas se hacen en su pantalla original.</p>
-      <p id="history-access-status" role="status">${state.historyReady ? "" : escapeHtml(state.historyError || "Esperando acceso al historial…")}</p>
-      ${field("history-file", "Seleccionar Excel o CSV", `<input id="history-file" class="input" type="file" accept=".xlsx,.xls,.csv,.tsv" ${state.historyReady ? "" : "disabled"}>`)}
+      <p>${t("Agregá participaciones anteriores sin crear agendas. Eliminar filas del archivo nunca borra datos de la app.")}</p>
+      ${field('history-format', t('Formato de descarga'), '<select class="select" id="history-format"><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV UTF-8</option></select>')}
+      <div class="button-row"><button id="history-export" class="secondary-button" type="button" ${state.historyReady ? "" : "disabled"}>${t("Exportar historial")}</button>
+      <button id="history-template" class="secondary-button" type="button">${t("Descargar plantilla")}</button></div>
+      <p>${t("Conservá los ID existentes y dejá el ID vacío en las filas nuevas. La plantilla contiene solo encabezados. Podés importar Excel (.xlsx o .xls) o CSV UTF-8.")}</p>
+      <p>${t("Participaciones: Discurso, Primera oración, Última oración u Oración. Fechas recomendadas: AAAA-MM-DD. Tema es opcional.")}</p>
+      <p>${t("Las correcciones de registros provenientes de agendas o fichas se hacen en su pantalla original.")}</p>
+      <p id="history-access-status" role="status">${state.historyReady ? "" : escapeHtml(state.historyError || t("Esperando acceso al historial…"))}</p>
+      ${field("history-file", t("Seleccionar Excel o CSV"), `<input id="history-file" class="input" type="file" accept=".xlsx,.xls,.csv,.tsv" ${state.historyReady ? "" : "disabled"}>`)}
       <p id="history-file-error" role="alert"></p>
     </div>`,
-    footer: `<button class="secondary-button" data-action="cancel" type="button">Cerrar</button>`,
+    footer: `<button class="secondary-button" data-action="cancel" type="button">${t("Cerrar")}</button>`,
     bind: dialog => {
       const download = async (records, filename, button) => {
         const errorNode = dialog.querySelector('#history-file-error');
         button.dataset.busy = 'true';
         button.disabled = true;
         try { await downloadHistoryFile(records, filename, dialog.querySelector('#history-format').value); }
-        catch (error) { errorNode.textContent = error.message; }
+        catch (error) { errorNode.textContent = t(error.message); }
         finally { button.dataset.busy = 'false'; button.disabled = false; syncHistoryTransferAccess(); }
       };
       dialog.querySelector("#history-template").onclick = event => download([], 'plantilla-historial', event.currentTarget);
@@ -2345,21 +2394,21 @@ function openHistoryTransfer() {
         input.dataset.busy = 'true';
         const errorNode = dialog.querySelector('#history-file-error');
         input.disabled = true;
-        errorNode.textContent = 'Leyendo archivo…';
+        errorNode.textContent = t('Leyendo archivo…');
         try {
-          if (file.size > 2 * 1024 * 1024) throw new Error("El archivo debe pesar menos de 2 MB.");
+          if (file.size > 2 * 1024 * 1024) throw new Error(t("El archivo debe pesar menos de 2 MB."));
           if (/\.(xlsx|xls)$/i.test(file.name)) {
             const sheets = await historySpreadsheetJob('read', { buffer: await file.arrayBuffer() });
             if (dialog.open && dialog.contains(input)) openHistoryWorkbook(sheets);
             return;
           }
-          if (!/\.(csv|tsv)$/i.test(file.name)) throw new Error('Elegí un archivo Excel (.xlsx o .xls), CSV o TSV.');
+          if (!/\.(csv|tsv)$/i.test(file.name)) throw new Error(t('Elegí un archivo Excel (.xlsx o .xls), CSV o TSV.'));
           const text = await file.text();
-          if (text.includes("\uFFFD")) throw new Error("Guardá el archivo como CSV UTF-8 para conservar los nombres y tildes.");
+          if (text.includes("\uFFFD")) throw new Error(t("Guardá el archivo como CSV UTF-8 para conservar los nombres y tildes."));
           const table = parseCSV(text);
-          if (table.length < 2) throw new Error("El archivo solo contiene encabezados. Agregá participaciones antes de importar.");
+          if (table.length < 2) throw new Error(t("El archivo solo contiene encabezados. Agregá participaciones antes de importar."));
           if (dialog.open && dialog.contains(input)) openHistoryMapping(table);
-        } catch (error) { errorNode.textContent = error.message; }
+        } catch (error) { errorNode.textContent = t(error.message); }
         finally { input.dataset.busy = 'false'; input.value = ''; syncHistoryTransferAccess(); }
       };
     }
@@ -2369,16 +2418,16 @@ function openHistoryTransfer() {
 function openHistoryMapping(table) {
   const guessed = guessColumns(table[0]);
   openModal({
-    title: "Elegir las columnas",
+    title: t("Elegir las columnas"),
     body: `<form id="history-mapping" class="form-grid">
-      <p>Se encontraron ${table.length - 1} filas. Revisá las columnas detectadas.</p>
-      ${field("history-layout", "Organización del archivo", `<select class="select" id="history-layout"><option value="long">Una fila por participación</option><option value="wide" ${guessed.name < 0 && [guessed.talk, guessed.opening, guessed.closing].some(i => i >= 0) ? "selected" : ""}>Una fila por reunión, con participantes en columnas separadas</option></select>`)}
-      ${Object.entries(HISTORY_FIELDS).map(([key, label]) => field(`history-col-${key}`, label, `<select class="select" id="history-col-${key}"><option value="-1">Sin columna</option>${table[0].map((header, i) => option(String(i), `${i + 1}. ${header}`, String(guessed[key]))).join("")}</select>`)).join("")}
-      ${field("history-date-order", "Fechas con barras o guiones (el formato AAAA-MM-DD no cambia)", `<select class="select" id="history-date-order"><option value="DMY">Día / mes / año</option><option value="MDY">Mes / día / año</option></select>`)}
-      <p>En filas por reunión se usan Discursante, Primera oración y Última oración. En filas por participación se usan Nombre, Participación e ID.</p>
+      <p>${t("Se encontraron")} ${table.length - 1} ${t("filas. Revisá las columnas detectadas.")}</p>
+      ${field("history-layout", t("Organización del archivo"), `<select class="select" id="history-layout"><option value="long">${t("Una fila por participación")}</option><option value="wide" ${guessed.name < 0 && [guessed.talk, guessed.opening, guessed.closing].some(i => i >= 0) ? "selected" : ""}>${t("Una fila por reunión, con participantes en columnas separadas")}</option></select>`)}
+      ${Object.entries(HISTORY_FIELDS).map(([key, label]) => field(`history-col-${key}`, t(label), `<select class="select" id="history-col-${key}"><option value="-1">${t("Sin columna")}</option>${table[0].map((header, i) => option(String(i), `${i + 1}. ${header}`, String(guessed[key]))).join("")}</select>`)).join("")}
+      ${field("history-date-order", t("Fechas con barras o guiones (el formato AAAA-MM-DD no cambia)"), `<select class="select" id="history-date-order"><option value="DMY">${t("Día / mes / año")}</option><option value="MDY">${t("Mes / día / año")}</option></select>`)}
+      <p>${t("En filas por reunión se usan Discursante, Primera oración y Última oración. En filas por participación se usan Nombre, Participación e ID.")}</p>
       <p id="history-mapping-error" role="alert"></p>
     </form>`,
-    footer: `<button class="secondary-button" data-action="cancel" type="button">Cancelar</button><button class="primary-button" form="history-mapping" type="submit">Vista previa</button>`,
+    footer: `<button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button><button class="primary-button" form="history-mapping" type="submit">${t("Vista previa")}</button>`,
     bind: dialog => {
       dialog.querySelector("#history-mapping").onsubmit = event => {
         event.preventDefault();
@@ -2386,7 +2435,7 @@ function openHistoryMapping(table) {
           const mapping = Object.fromEntries(Object.keys(HISTORY_FIELDS).map(key => [key, Number(dialog.querySelector(`#history-col-${key}`).value)]));
           const rows = mapRows(table, mapping, dialog.querySelector("#history-date-order").value, dialog.querySelector("#history-layout").value === "wide");
           openHistoryPreview(rows, table);
-        } catch (error) { dialog.querySelector("#history-mapping-error").textContent = error.message; }
+        } catch (error) { dialog.querySelector("#history-mapping-error").textContent = t(error.message); }
       };
     }
   });
@@ -2397,21 +2446,21 @@ function openHistoryPreview(rows, table) {
   const revision = state.historyRevision;
   const existing = exportableHistory();
   const preview = previewRows(rows, existing);
-  const labels = { new: "Nueva", update: "Corrección: confirmar", duplicate: "Coincidencia: se omite", unchanged: "Ya existente", invalid: "Revisar" };
+  const labels = { new: t("Nueva"), update: t("Corrección: confirmar"), duplicate: t("Coincidencia: se omite"), unchanged: t("Ya existente"), invalid: t("Revisar") };
   const count = status => preview.filter(r => r.status === status).length;
   openModal({
-    title: "Revisar antes de importar",
-    body: `<p>${count("new")} nuevas · ${count("update")} correcciones · ${count("unchanged")} sin cambios · ${count("duplicate")} coincidencias · ${count("invalid")} para revisar.</p>
-      <p>Solo se guardan las filas seleccionadas. Las correcciones se muestran con sus valores anteriores. No se elimina ningún registro.</p>
+    title: t("Revisar antes de importar"),
+    body: `<p>${count("new")} ${t("nuevas ·")} ${count("update")} ${t("correcciones ·")} ${count("unchanged")} ${t("sin cambios ·")} ${count("duplicate")} ${t("coincidencias ·")} ${count("invalid")} ${t("para revisar.")}</p>
+      <p>${t("Solo se guardan las filas seleccionadas. Las correcciones se muestran con sus valores anteriores. No se elimina ningún registro.")}</p>
       <div class="history-preview-list">${preview.map((r, i) => `<article class="history-preview-row">
         <label><input type="checkbox" data-history-row="${i}" ${r.status === "new" && !r.candidates?.length ? "checked" : ""} ${!["new", "update"].includes(r.status) || r.candidates?.length ? "disabled" : ""}>
-        <strong>Fila ${r.row}: ${escapeHtml(labels[r.status])}</strong></label>
-        <p>${escapeHtml(r.date || "Sin fecha válida")} · ${escapeHtml(r.name)} · ${escapeHtml(r.type)}${r.topic ? ` · ${escapeHtml(r.topic)}` : ""}</p>
-        ${r.original ? `<p>Existente: ${escapeHtml(r.original.date)} · ${escapeHtml(r.original.name)} · ${escapeHtml(r.original.type)} · ${escapeHtml(r.original.topic || "Sin tema")}</p>` : ""}
-        ${r.error ? `<p role="alert">${escapeHtml(r.error)}</p>` : ""}
-        ${r.candidates?.length ? `<label>Nombre parecido: <select class="select" data-history-name="${i}"><option value="">Elegí cómo interpretarlo</option><option value="keep">Conservar ${escapeHtml(r.name)}</option>${r.candidates.map((name, n) => option(String(n), `Usar ${name}`, "")).join("")}</select></label>` : ""}
+        <strong>${t("Fila")} ${r.row}: ${escapeHtml(labels[r.status])}</strong></label>
+        <p>${escapeHtml(r.date || t("Sin fecha válida"))} · ${escapeHtml(r.name)} · ${escapeHtml(t(r.type))}${r.topic ? ` · ${escapeHtml(r.topic)}` : ""}</p>
+        ${r.original ? `<p>${t("Existente:")} ${escapeHtml(r.original.date)} · ${escapeHtml(r.original.name)} · ${escapeHtml(t(r.original.type))} · ${escapeHtml(r.original.topic || t("Sin tema"))}</p>` : ""}
+        ${r.error ? `<p role="alert">${escapeHtml(t(r.error))}</p>` : ""}
+        ${r.candidates?.length ? `<label>${t("Nombre parecido:")} <select class="select" data-history-name="${i}"><option value="">${t("Elegí cómo interpretarlo")}</option><option value="keep">${t("Conservar")} ${escapeHtml(r.name)}</option>${r.candidates.map((name, n) => option(String(n), `${t("Usar")} ${name}`, "")).join("")}</select></label>` : ""}
       </article>`).join("")}</div><p id="history-save-error" role="alert"></p>`,
-    footer: `<button id="history-back" class="secondary-button" type="button">Volver a columnas</button><button class="secondary-button" data-action="cancel" type="button">Cancelar</button><button id="history-save" class="primary-button" type="button">Importar seleccionadas</button>`,
+    footer: `<button id="history-back" class="secondary-button" type="button">${t("Volver a columnas")}</button><button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button><button id="history-save" class="primary-button" type="button">${t("Importar seleccionadas")}</button>`,
     bind: dialog => {
       dialog.querySelector("#history-back").onclick = () => openHistoryMapping(table);
       dialog.querySelectorAll("[data-history-name]").forEach(select => {
@@ -2435,30 +2484,30 @@ function openHistoryPreview(rows, table) {
       dialog.querySelector("#history-save").onclick = async () => {
         const selected = [...dialog.querySelectorAll("[data-history-row]:checked")].map(check => preview[Number(check.dataset.historyRow)]);
         const errorNode = dialog.querySelector("#history-save-error");
-        if (!selected.length) { errorNode.textContent = "Seleccioná al menos una fila nueva o una corrección."; return; }
+        if (!selected.length) { errorNode.textContent = t("Seleccioná al menos una fila nueva o una corrección."); return; }
         const buttons = [...dialog.querySelectorAll("button")];
         buttons.forEach(button => button.disabled = true);
         const preventClose = event => event.preventDefault();
         dialog.addEventListener("cancel", preventClose);
         try {
-          if (!state.historyReady || state.unitNumber !== unit) throw new Error("Cambió la unidad o la conexión. Volvé a abrir la importación.");
-          if (JSON.stringify(exportableHistory()) !== JSON.stringify(existing)) throw new Error("El historial cambió desde la vista previa. Volvé a columnas y revisalo otra vez.");
+          if (!state.historyReady || state.unitNumber !== unit) throw new Error(t("Cambió la unidad o la conexión. Volvé a abrir la importación."));
+          if (JSON.stringify(exportableHistory()) !== JSON.stringify(existing)) throw new Error(t("El historial cambió desde la vista previa. Volvé a columnas y revisalo otra vez."));
           const changes = selected.map(r => ({ id: r.id || `${unit}:import:${crypto.randomUUID()}`, date: r.date, name: r.name, type: r.type, topic: r.topic || "" }));
           const ref = doc(db, "historialParticipaciones", unit);
           await runTransaction(db, async transaction => {
             const snapshot = await transaction.get(ref);
             const current = snapshot.data() || {};
-            if ((current.revision || 0) !== revision) throw new Error("Otra persona modificó el historial. Volvé a columnas y revisá la vista previa.");
+            if ((current.revision || 0) !== revision) throw new Error(t("Otra persona modificó el historial. Volvé a columnas y revisá la vista previa."));
             const byId = new Map((current.records || []).map(r => [r.id, r]));
             changes.forEach(r => byId.set(r.id, r));
             const records = [...byId.values()];
-            if (records.length > 5000) throw new Error('El historial admite hasta 5000 participaciones por unidad. No se guardó ningún cambio.');
-            if (new TextEncoder().encode(JSON.stringify(records)).length > 700000) throw new Error("El historial alcanzó el tamaño máximo de esta primera versión. No se guardó ningún cambio.");
+            if (records.length > 5000) throw new Error(t('El historial admite hasta 5000 participaciones por unidad. No se guardó ningún cambio.'));
+            if (new TextEncoder().encode(JSON.stringify(records)).length > 700000) throw new Error(t("El historial alcanzó el tamaño máximo de esta primera versión. No se guardó ningún cambio."));
             transaction.set(ref, { numeroUnidad: unit, revision: revision + 1, records, actualizadoEn: serverTimestamp(), actualizadoPor: userEmail() });
           });
           closeModal();
-          toastMessage(`Se guardaron ${changes.length} participaciones.`);
-        } catch (error) { errorNode.textContent = error.message; }
+          toastMessage(`${t("Se guardaron")} ${changes.length} participaciones.`);
+        } catch (error) { errorNode.textContent = t(error.message); }
         finally { dialog.removeEventListener("cancel", preventClose); buttons.forEach(button => button.disabled = false); }
       };
     }
@@ -2478,28 +2527,28 @@ function renderPlanning() {
     });
   screen.innerHTML = `
     <div class="planning-toolbar">
-      <div class="planning-tabs" role="tablist" aria-label="Vistas de planificación">
-        <button class="planning-tab ${tab === "talks" ? "active" : ""}" data-planning-tab="talks" type="button" role="tab" aria-selected="${tab === "talks"}">Discursos</button>
-        <button class="planning-tab ${tab === "prayers" ? "active" : ""}" data-planning-tab="prayers" type="button" role="tab" aria-selected="${tab === "prayers"}">Oraciones</button>
-        <button class="planning-tab ${tab === "topics" ? "active" : ""}" data-planning-tab="topics" type="button" role="tab" aria-selected="${tab === "topics"}">Temas</button>
+      <div class="planning-tabs" role="tablist" aria-label="${t("Vistas de planificación")}">
+        <button class="planning-tab ${tab === "talks" ? "active" : ""}" data-planning-tab="talks" type="button" role="tab" aria-selected="${tab === "talks"}">${t("Discursos")}</button>
+        <button class="planning-tab ${tab === "prayers" ? "active" : ""}" data-planning-tab="prayers" type="button" role="tab" aria-selected="${tab === "prayers"}">${t("Oraciones")}</button>
+        <button class="planning-tab ${tab === "topics" ? "active" : ""}" data-planning-tab="topics" type="button" role="tab" aria-selected="${tab === "topics"}">${t("Temas")}</button>
       </div>
       <div class="planning-tools">
         <div class="search-field planning-search-field">
           <span class="search-icon" aria-hidden="true">${icon("search")}</span>
-          <input id="planning-search" class="input" type="search" placeholder="${isTopics ? "Buscar tema o etiquetas..." : "Buscar hermano/a..."}" value="${escapeAttr(state.planningSearch)}">
+          <input id="planning-search" class="input" type="search" placeholder="${isTopics ? t("Buscar tema o etiquetas...") : t("Buscar hermano/a...")}" value="${escapeAttr(state.planningSearch)}">
         </div>
         <div class="planning-toolbar-actions">
-          <button id="history-transfer" class="secondary-button" type="button">Importar / exportar</button>
-          <button id="planning-config" class="icon-button" type="button" aria-label="Configuración" title="Configuración">${icon("settings")}</button>
+          <button id="history-transfer" class="secondary-button" type="button">${t("Importar / exportar")}</button>
+          <button id="planning-config" class="icon-button" type="button" aria-label="${t("Configuración")}" title="${t("Configuración")}">${icon("settings")}</button>
           ${isTopics
-            ? `<button id="topic-tags" class="icon-button" type="button" aria-label="Etiquetas de temas" title="Etiquetas de temas">${icon("tag")}</button>`
-            : `<button id="add-brother" class="primary-button planning-add-button" type="button">${buttonIcon("personAdd")}<span class="button-label">Agregar hermano</span></button>`}
+            ? `<button id="topic-tags" class="icon-button" type="button" aria-label="${t("Etiquetas de temas")}" title="${t("Etiquetas de temas")}">${icon("tag")}</button>`
+            : `<button id="add-brother" class="primary-button planning-add-button" type="button">${buttonIcon("personAdd")}<span class="button-label">${t("Agregar hermano")}</span></button>`}
         </div>
       </div>
     </div>
     ${isTopics ? renderTopicsPlanning(state.planningSearch) : `
       <section class="panel planning-panel">
-        ${sectionTitle(tab === "talks" ? "Discursos" : "Oraciones", "P", "")}
+        ${sectionTitle(tab === "talks" ? t("Discursos") : t("Oraciones"), "P", "")}
         <div id="brother-list" class="agenda-list planning-list">${renderBrotherList(list, tab, state.planningSearch)}</div>
       </section>
     `}
@@ -2553,15 +2602,15 @@ function renderTopicsPlanningContent(searchValue) {
 
   return `
     <section class="panel planning-topic-panel">
-      ${sectionTitle("Temas sugeridos", "T", "")}
+      ${sectionTitle(t("Temas sugeridos"), "T", "")}
       <div class="topic-grid">
-        ${filteredSuggestions.length ? filteredSuggestions.slice(0, 12).map(topicSuggestionCard).join("") : emptyState("No hay sugerencias que coincidan.")}
+        ${filteredSuggestions.length ? filteredSuggestions.slice(0, 12).map(topicSuggestionCard).join("") : emptyState(t("No hay sugerencias que coincidan."))}
       </div>
     </section>
     <section class="panel planning-topic-panel">
-      ${sectionTitle("Historial de temas", "H", "")}
+      ${sectionTitle(t("Historial de temas"), "H", "")}
       <div class="agenda-list">
-        ${filteredSummaries.length ? filteredSummaries.map(topicSummaryCard).join("") : emptyState("Todavia no hay temas guardados en discursos.")}
+        ${filteredSummaries.length ? filteredSummaries.map(topicSummaryCard).join("") : emptyState(t("Todavia no hay temas guardados en discursos."))}
       </div>
     </section>
   `;
@@ -2570,15 +2619,15 @@ function renderTopicsPlanningContent(searchValue) {
 function topicSuggestionCard(item) {
   const color = topicColor(item.resumen);
   const meta = item.resumen
-    ? `${topicDistanceText(item.resumen.ultimaFecha)} - ${item.resumen.veces180Dias} en 180 dias`
-    : "Sin registros en el historial.";
+    ? `${topicDistanceText(item.resumen.ultimaFecha)} - ${item.resumen.veces180Dias} ${t("en 180 dias")}`
+    : t("Sin registros en el historial.");
   return `
-    <button class="topic-card topic-card-button ${escapeAttr(color)}" data-topic-assign="${escapeAttr(item.etiqueta)}" type="button" aria-label="Asignar tema ${escapeAttr(item.etiqueta)}">
+    <button class="topic-card topic-card-button ${escapeAttr(color)}" data-topic-assign="${escapeAttr(item.etiqueta)}" type="button" aria-label="${t("Asignar tema")} ${escapeAttr(item.etiqueta)}">
       <div class="topic-card-copy">
         <p class="item-title"><span class="rank-dot ${escapeAttr(color)}"></span>${escapeHtml(item.etiqueta)}</p>
         <p class="item-meta">${escapeHtml(meta)}</p>
       </div>
-      <span class="planning-open-action"><span>Asignar</span>${icon("chevronRight")}</span>
+      <span class="planning-open-action"><span>${t("Asignar")}</span>${icon("chevronRight")}</span>
     </button>
   `;
 }
@@ -2589,9 +2638,9 @@ function topicSummaryCard(summary) {
     <article class="topic-card">
       <div>
         <p class="item-title"><span class="rank-dot ${escapeAttr(color)}"></span>${escapeHtml(summary.etiqueta)}</p>
-        <p class="item-meta">${escapeHtml(topicDistanceText(summary.ultimaFecha))} - ${summary.veces90Dias} en 90 dias</p>
+        <p class="item-meta">${escapeHtml(topicDistanceText(summary.ultimaFecha))} - ${summary.veces90Dias} ${t("en 90 dias")}</p>
         ${summary.ultimoTema ? `<p class="topic-detail">${escapeHtml(summary.ultimoTema)}</p>` : ""}
-        <p class="item-meta">Ultimo: ${escapeHtml(summary.ultimoDiscursante || "Sin datos")} - ${summary.veces180Dias} en 180 dias - ${summary.total} total</p>
+        <p class="item-meta">${t("Ultimo:")} ${escapeHtml(summary.ultimoDiscursante || t("Sin datos"))} - ${summary.veces180Dias} ${t("en 180 dias -")} ${summary.total} total</p>
       </div>
     </article>
   `;
@@ -2697,8 +2746,9 @@ function topicColor(summary) {
 
 function topicDistanceText(date) {
   const days = daysFromToday(date);
-  if (!Number.isFinite(days)) return "Sin registros";
-  if (days === 0) return "Hoy";
+  if (!Number.isFinite(days)) return t("Sin registros");
+  if (days === 0) return t("Hoy");
+  if (uiLanguage() === "en") return days > 0 ? `${days} days ago` : `In ${Math.abs(days)} days`;
   return days > 0 ? `Hace ${days} días` : `Dentro de ${Math.abs(days)} días`;
 }
 
@@ -2718,7 +2768,7 @@ function uniqueCleanList(items) {
 function renderBrotherList(items, tab, searchValue) {
   const q = normalizeText(searchValue);
   const filtered = items.filter((item) => !q || normalizeText(item.hermano.nombre).includes(q));
-  if (!filtered.length) return emptyState("No hay hermanos en esta categoría.");
+  if (!filtered.length) return emptyState(t("No hay hermanos en esta categoría."));
   return filtered.map((item) => brotherRow(item, tab)).join("");
 }
 
@@ -2729,23 +2779,23 @@ function brotherRow(item, tab) {
   const color = inactive ? "rank-muted" : rankColor(last, tab);
   const tone = planningRankTone(color, inactive);
   const topic = tab === "talks" ? (item.ultimaEtiquetaDiscurso || item.ultimoTemaDiscurso || "") : "";
-  const participation = `${inactive ? "Inactivo · " : ""}${last ? `Última participación: ${formatDateShort(last)} (${topicDistanceText(last)})` : "Sin registros"}${count ? ` · ${count} vez/veces en 90 días` : ""}`;
+  const participation = `${inactive ? `${t("Inactivo")} · ` : ""}${last ? `${t("Última participación:")} ${formatDateShort(last)} (${topicDistanceText(last)})` : t("Sin registros")}${count ? ` · ${count} ${t("vez/veces en 90 días")}` : ""}`;
   return `
     <article class="brother-item ${inactive ? "brother-inactive" : ""}">
-      <button class="brother-item-main" data-assign="${escapeAttr(item.key)}" type="button" aria-label="Asignar a ${escapeAttr(item.hermano.nombre)}">
+      <button class="brother-item-main" data-assign="${escapeAttr(item.key)}" type="button" aria-label="${t("Asignar a")} ${escapeAttr(item.hermano.nombre)}">
         <span class="rank-dot ${escapeAttr(color)}" aria-hidden="true"></span>
         <span class="brother-item-copy">
           <span class="item-title">${escapeHtml(item.hermano.nombre)}</span>
           <span class="item-meta">${escapeHtml(participation)}</span>
-          ${topic ? `<span class="brother-topic">Último tema: ${escapeHtml(topic)}</span>` : ""}
+          ${topic ? `<span class="brother-topic">${t("Último tema:")} ${escapeHtml(topic)}</span>` : ""}
         </span>
         <span class="rank-status tone-${escapeAttr(tone)}">${escapeHtml(planningRankLabel(color, inactive, last))}</span>
-        <span class="planning-open-action"><span>Asignar</span>${icon("chevronRight")}</span>
+        <span class="planning-open-action"><span>${t("Asignar")}</span>${icon("chevronRight")}</span>
       </button>
       <div class="item-actions">
-        <button class="secondary-button planning-action-button" data-edit-brother="${escapeAttr(item.key)}" type="button" aria-label="Editar ${escapeAttr(item.hermano.nombre)}" title="Editar">${buttonIcon("pencil")}<span>Editar</span></button>
-        <button class="secondary-button planning-action-button" data-toggle-inactive="${escapeAttr(item.key)}" type="button" aria-label="${inactive ? "Reactivar" : "Inactivar"} a ${escapeAttr(item.hermano.nombre)}" title="${inactive ? "Reactivar" : "Inactivar"}">${buttonIcon(inactive ? "eye" : "eyeOff")}<span>${inactive ? "Reactivar" : "Inactivar"}</span></button>
-        <button class="secondary-button planning-action-button danger-action" data-delete-brother="${escapeAttr(item.key)}" type="button" aria-label="Eliminar ${escapeAttr(item.hermano.nombre)}" title="Eliminar">${buttonIcon("trash")}<span>Eliminar</span></button>
+        <button class="secondary-button planning-action-button" data-edit-brother="${escapeAttr(item.key)}" type="button" aria-label="Editar ${escapeAttr(item.hermano.nombre)}" title="${t("Editar")}">${buttonIcon("pencil")}<span>${t("Editar")}</span></button>
+        <button class="secondary-button planning-action-button" data-toggle-inactive="${escapeAttr(item.key)}" type="button" aria-label="${inactive ? t("Reactivar") : t("Inactivar")} a ${escapeAttr(item.hermano.nombre)}" title="${inactive ? t("Reactivar") : t("Inactivar")}">${buttonIcon(inactive ? "eye" : "eyeOff")}<span>${inactive ? t("Reactivar") : t("Inactivar")}</span></button>
+        <button class="secondary-button planning-action-button danger-action" data-delete-brother="${escapeAttr(item.key)}" type="button" aria-label="Eliminar ${escapeAttr(item.hermano.nombre)}" title="${t("Eliminar")}">${buttonIcon("trash")}<span>${t("Eliminar")}</span></button>
       </div>
     </article>
   `;
@@ -2759,11 +2809,11 @@ function planningRankTone(color, inactive) {
 }
 
 function planningRankLabel(color, inactive, last) {
-  if (inactive) return "Inactivo";
-  if (!last) return "Sin registros";
-  if (color === "rank-red") return "Reciente";
-  if (color === "rank-yellow") return "Posible";
-  return "Sugerido";
+  if (inactive) return t("Inactivo");
+  if (!last) return t("Sin registros");
+  if (color === "rank-red") return t("Reciente");
+  if (color === "rank-yellow") return t("Posible");
+  return t("Sugerido");
 }
 
 function bindBrotherActions() {
@@ -2786,21 +2836,21 @@ function bindBrotherActions() {
 function openBrotherDialog(ranking = null) {
   const hermano = ranking?.hermano || {};
   openModal({
-    title: ranking ? "Editar hermano/a" : "Agregar hermano/a",
+    title: ranking ? t("Editar hermano/a") : t("Agregar hermano/a"),
     body: `
       <form id="brother-form" class="form-grid">
-        ${field("brother-name", "Nombre", `<input id="brother-name" class="input" value="${escapeAttr(hermano.nombre || "")}" required>`)}
+        ${field("brother-name", t("Nombre"), `<input id="brother-name" class="input" value="${escapeAttr(hermano.nombre || "")}" required>`)}
         <div class="inline-fields">
-          ${field("last-talk", "Último discurso conocido", `<input id="last-talk" class="input" type="date" value="${dateInputValue(ranking?.ultimaVezDiscurso || toDate(hermano.ultimaVezDiscursoManual))}">`)}
-          ${field("last-prayer", "Última oración conocida", `<input id="last-prayer" class="input" type="date" value="${dateInputValue(ranking?.ultimaVezOracion || toDate(hermano.ultimaVezOracionManual))}">`)}
+          ${field("last-talk", t("Último discurso conocido"), `<input id="last-talk" class="input" type="date" value="${dateInputValue(ranking?.ultimaVezDiscurso || toDate(hermano.ultimaVezDiscursoManual))}">`)}
+          ${field("last-prayer", t("Última oración conocida"), `<input id="last-prayer" class="input" type="date" value="${dateInputValue(ranking?.ultimaVezOracion || toDate(hermano.ultimaVezOracionManual))}">`)}
         </div>
-        ${ranking?.ultimaEtiquetaDiscurso ? field("last-topic-tags", "Etiquetas del último discurso", `<input id="last-topic-tags" class="input" value="${escapeAttr(ranking.ultimaEtiquetaDiscurso)}" readonly>`) : ""}
-        ${ranking?.ultimoTemaDiscurso ? field("last-topic", "Tema del último discurso", `<textarea id="last-topic" class="textarea" readonly>${escapeHtml(ranking.ultimoTemaDiscurso)}</textarea>`) : ""}
+        ${ranking?.ultimaEtiquetaDiscurso ? field("last-topic-tags", t("Etiquetas del último discurso"), `<input id="last-topic-tags" class="input" value="${escapeAttr(ranking.ultimaEtiquetaDiscurso)}" readonly>`) : ""}
+        ${ranking?.ultimoTemaDiscurso ? field("last-topic", t("Tema del último discurso"), `<textarea id="last-topic" class="textarea" readonly>${escapeHtml(ranking.ultimoTemaDiscurso)}</textarea>`) : ""}
       </form>
     `,
     footer: `
-      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
-      <button class="primary-button" form="brother-form" type="submit">Guardar</button>
+      <button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button>
+      <button class="primary-button" form="brother-form" type="submit">${t("Guardar")}</button>
     `,
     bind: (dialog) => {
       dialog.querySelector("#brother-form").addEventListener("submit", async (event) => {
@@ -2817,16 +2867,16 @@ function openBrotherDialog(ranking = null) {
             ultimaVezOracionManual: timestampOrNull(dialog.querySelector("#last-prayer").value),
             creadoEn: hermano.creadoEn || serverTimestamp()
           };
-          if (!data.nombre) throw new Error("Ingresa un nombre.");
+          if (!data.nombre) throw new Error(t("Ingresa un nombre."));
           const originalKey = ranking ? normalizeName(hermano.nombre) : "";
           const duplicateName = usedNames().find((name) =>
             normalizeName(name) === normalizeName(data.nombre) && normalizeName(name) !== originalKey
           );
-          if (duplicateName && !confirm(`Ya existe una ficha o participación para ${duplicateName}. ¿Guardar otra igualmente?`)) return;
+          if (duplicateName && !confirm(`${t("Ya existe una ficha o participación para")} ${duplicateName}${t(". ¿Guardar otra igualmente?")}`)) return;
           if (hermano.id) await setDoc(hermanoRef(hermano.id), data);
           else await addDoc(collection(db, "hermanos"), data);
           closeModal();
-          toastMessage("Hermano guardado");
+          toastMessage(t("Hermano guardado"));
         });
       });
     }
@@ -2839,34 +2889,34 @@ function openAssignDialog(ranking) {
     .filter((agenda) => agenda.estado !== "REALIZADA")
     .sort((a, b) => a.fecha - b.fecha);
   if (!candidateAgendas.length) {
-    toastMessage("No hay agendas borrador o confirmadas.");
+    toastMessage(t("No hay agendas borrador o confirmadas."));
     return;
   }
   const tab = state.planningTab;
   openModal({
-    title: `Asignar ${ranking.hermano.nombre}`,
+    title: `${t("Asignar")} ${ranking.hermano.nombre}`,
     body: `
       <form id="assign-form" class="form-grid">
         ${field("assign-agenda", "Agenda", `<select id="assign-agenda" class="select">${candidateAgendas.map((agenda) => option(agenda.id, formatDateLong(agenda.fecha), candidateAgendas[0].id)).join("")}</select>`)}
-        ${tab === "prayers" ? field("assign-field", "Tipo de oración", `<select id="assign-field" class="select"><option value="primeraOracion">Primera oración</option><option value="oracionFinal">Oración final</option></select>`) : `<input id="assign-field" type="hidden" value="NUEVO_DISCURSO">`}
+        ${tab === "prayers" ? field("assign-field", t("Tipo de oración"), `<select id="assign-field" class="select"><option value="primeraOracion">${t("Primera oración")}</option><option value="oracionFinal">${t("Oración final")}</option></select>`) : `<input id="assign-field" type="hidden" value="NUEVO_DISCURSO">`}
       </form>
     `,
     footer: `
-      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
-      <button class="primary-button" form="assign-form" type="submit">Asignar</button>
+      <button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button>
+      <button class="primary-button" form="assign-form" type="submit">${t("Asignar")}</button>
     `,
     bind: (dialog) => {
       dialog.querySelector("#assign-form").addEventListener("submit", async (event) => {
         event.preventDefault();
         await withToastError(async () => {
           const last = tab === "talks" ? ranking.ultimaVezDiscurso : ranking.ultimaVezOracion;
-          if (last && rankColor(last, tab) === "rank-red" && !confirm(`${ranking.hermano.nombre} participó hace solo ${daysSince(last)} días. ¿Asignar igual?`)) return;
+          if (last && rankColor(last, tab) === "rank-red" && !confirm(`${ranking.hermano.nombre} ${t("participó hace solo")} ${daysSince(last)} ${t("días. ¿Asignar igual?")}`)) return;
           const agendaId = dialog.querySelector("#assign-agenda").value;
           const fieldName = dialog.querySelector("#assign-field").value;
           const agenda = state.agendas.find((item) => item.id === agendaId);
           let previousName = "";
           let agendasAfterAssignment = state.agendas;
-          if (!agenda) throw new Error("No se encontró la agenda.");
+          if (!agenda) throw new Error(t("No se encontró la agenda."));
           if (fieldName === "NUEVO_DISCURSO") {
             const mensajesEvangelio = [
               ...agenda.mensajesEvangelio,
@@ -2896,7 +2946,7 @@ function openAssignDialog(ranking) {
             await rebuildHermanoParticipation(previousName, agenda.fecha, tab, agendasAfterAssignment);
           }
           closeModal();
-          toastMessage("Asignado");
+          toastMessage(t("Asignado"));
         });
       });
     }
@@ -2909,23 +2959,23 @@ function openAssignTopicDialog(suggestion) {
     .filter((agenda) => agenda.estado !== "REALIZADA")
     .sort((a, b) => a.fecha - b.fecha);
   if (!candidateAgendas.length) {
-    toastMessage("No hay agendas borrador o confirmadas.");
+    toastMessage(t("No hay agendas borrador o confirmadas."));
     return;
   }
 
   openModal({
-    title: `Asignar tema: ${suggestion.etiqueta}`,
+    title: `${t("Asignar tema:")} ${suggestion.etiqueta}`,
     body: `
       <form id="assign-topic-form" class="form-grid">
         ${field("topic-agenda", "Agenda", `<select id="topic-agenda" class="select">${candidateAgendas.map((agenda) => option(agenda.id, formatDateLong(agenda.fecha), candidateAgendas[0].id)).join("")}</select>`)}
-        ${field("topic-discourse", "Discurso asignado", `<select id="topic-discourse" class="select"></select>`)}
-        ${field("topic-exact", "Tema exacto", `<input id="topic-exact" class="input" value="${escapeAttr(suggestion.etiqueta)}">`)}
-        ${field("topic-tags-input", "Etiquetas", `<input id="topic-tags-input" class="input" value="${escapeAttr(suggestion.etiqueta)}">`, "Separá varias etiquetas con comas.")}
+        ${field("topic-discourse", t("Discurso asignado"), `<select id="topic-discourse" class="select"></select>`)}
+        ${field("topic-exact", t("Tema exacto"), `<input id="topic-exact" class="input" value="${escapeAttr(suggestion.etiqueta)}">`)}
+        ${field("topic-tags-input", t("Etiquetas"), `<input id="topic-tags-input" class="input" value="${escapeAttr(suggestion.etiqueta)}">`, t("Separá varias etiquetas con comas."))}
       </form>
     `,
     footer: `
-      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
-      <button class="primary-button" form="assign-topic-form" type="submit">Asignar</button>
+      <button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button>
+      <button class="primary-button" form="assign-topic-form" type="submit">${t("Asignar")}</button>
     `,
     bind: (dialog) => {
       const agendaSelect = dialog.querySelector("#topic-agenda");
@@ -2941,7 +2991,7 @@ function openAssignTopicDialog(suggestion) {
           || [];
         discourseSelect.innerHTML = discourses.length
           ? discourses.map((item) => option(String(item.index), discourseOptionLabel(item.message), discourseSelect.value)).join("")
-          : `<option value="">No hay discursos asignados</option>`;
+          : `<option value="">${t("No hay discursos asignados")}</option>`;
         discourseSelect.disabled = !discourses.length;
         const selected = discourses.find((item) => String(item.index) === discourseSelect.value) || discourses[0];
         if (selected?.message?.tema) topicInput.value = selected.message.tema;
@@ -2957,10 +3007,10 @@ function openAssignTopicDialog(suggestion) {
         await withToastError(async () => {
           const agenda = candidateAgendas.find((item) => item.id === agendaSelect.value);
           const index = Number(discourseSelect.value);
-          if (!agenda || !Number.isInteger(index)) throw new Error("Selecciona una agenda y un discurso.");
+          if (!agenda || !Number.isInteger(index)) throw new Error(t("Selecciona una agenda y un discurso."));
           const messages = [...agenda.mensajesEvangelio];
           const message = messages[index];
-          if (!message || message.tipo !== "DISCURSO") throw new Error("El mensaje seleccionado no es un discurso.");
+          if (!message || message.tipo !== "DISCURSO") throw new Error(t("El mensaje seleccionado no es un discurso."));
           const tema = topicInput.value.trim();
           const etiquetaTema = tagsInput.value.trim() || suggestion.etiqueta || tema;
           messages[index] = { ...message, tema, etiquetaTema };
@@ -2970,7 +3020,7 @@ function openAssignTopicDialog(suggestion) {
             ultimaEdicionEn: serverTimestamp()
           });
           closeModal();
-          toastMessage("Tema asignado");
+          toastMessage(t("Tema asignado"));
         });
       });
     }
@@ -2983,15 +3033,15 @@ function discourseOptionLabel(message) {
 
 function openTopicTagsDialog() {
   openModal({
-    title: "Etiquetas de temas",
+    title: t("Etiquetas de temas"),
     body: `
       <form id="topic-tags-form" class="form-grid">
-        ${field("topic-tags-list", "Etiquetas", `<textarea id="topic-tags-list" class="textarea">${escapeHtml(topicTagsAvailable().join("\n"))}</textarea>`, "Escribi una etiqueta por linea o separalas con comas.")}
+        ${field("topic-tags-list", t("Etiquetas"), `<textarea id="topic-tags-list" class="textarea">${escapeHtml(topicTagsAvailable().join("\n"))}</textarea>`, t("Escribi una etiqueta por linea o separalas con comas."))}
       </form>
     `,
     footer: `
-      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
-      <button class="primary-button" form="topic-tags-form" type="submit">Guardar</button>
+      <button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button>
+      <button class="primary-button" form="topic-tags-form" type="submit">${t("Guardar")}</button>
     `,
     bind: (dialog) => {
       dialog.querySelector("#topic-tags-form").addEventListener("submit", async (event) => {
@@ -2999,7 +3049,7 @@ function openTopicTagsDialog() {
         const tags = uniqueCleanList(dialog.querySelector("#topic-tags-list").value.split(/[\n,]/));
         await savePlanningConfig({ etiquetasTema: tags });
         closeModal();
-        toastMessage("Etiquetas guardadas");
+        toastMessage(t("Etiquetas guardadas"));
         renderPlanning();
       });
     }
@@ -3029,7 +3079,7 @@ async function toggleInactive(ranking) {
 }
 
 async function deleteBrother(ranking) {
-  if (!ranking || !confirm(`¿Eliminar a ${ranking.hermano.nombre} del planificador?`)) return;
+  if (!ranking || !confirm(`${t("¿Eliminar a")} ${ranking.hermano.nombre} ${t("del planificador?")}`)) return;
   await withToastError(async () => {
     const matches = state.hermanos.filter((item) => normalizeName(item.nombre) === normalizeName(ranking.hermano.nombre));
     if (matches.length) {
@@ -3043,32 +3093,32 @@ async function deleteBrother(ranking) {
         creadoEn: serverTimestamp()
       });
     }
-    toastMessage("Eliminado");
+    toastMessage(t("Eliminado"));
   });
 }
 
 function openPlanningConfigDialog() {
   openModal({
-    title: "Configuración de colores",
+    title: t("Configuración de colores"),
     body: `
       <form id="planning-config-form" class="form-grid">
         <div class="inline-fields">
-          ${configColorField("green-topic", "Temas: verde desde dias", "rank-green", state.config.diasVerdeTema || 180)}
-          ${configColorField("yellow-topic", "Temas: amarillo desde dias", "rank-yellow", state.config.diasAmarilloTema || 90)}
+          ${configColorField("green-topic", t("Temas: verde desde dias"), "rank-green", state.config.diasVerdeTema || 180)}
+          ${configColorField("yellow-topic", t("Temas: amarillo desde dias"), "rank-yellow", state.config.diasAmarilloTema || 90)}
         </div>
         <div class="inline-fields">
-          ${configColorField("green-talk", "Discursos: verde desde días", "rank-green", state.config.diasVerdeDiscurso)}
-          ${configColorField("yellow-talk", "Discursos: amarillo desde días", "rank-yellow", state.config.diasAmarilloDiscurso)}
+          ${configColorField("green-talk", t("Discursos: verde desde días"), "rank-green", state.config.diasVerdeDiscurso)}
+          ${configColorField("yellow-talk", t("Discursos: amarillo desde días"), "rank-yellow", state.config.diasAmarilloDiscurso)}
         </div>
         <div class="inline-fields">
-          ${configColorField("green-prayer", "Oraciones: verde desde días", "rank-green", state.config.diasVerdeOracion)}
-          ${configColorField("yellow-prayer", "Oraciones: amarillo desde días", "rank-yellow", state.config.diasAmarilloOracion)}
+          ${configColorField("green-prayer", t("Oraciones: verde desde días"), "rank-green", state.config.diasVerdeOracion)}
+          ${configColorField("yellow-prayer", t("Oraciones: amarillo desde días"), "rank-yellow", state.config.diasAmarilloOracion)}
         </div>
       </form>
     `,
     footer: `
-      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
-      <button class="primary-button" form="planning-config-form" type="submit">Guardar</button>
+      <button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button>
+      <button class="primary-button" form="planning-config-form" type="submit">${t("Guardar")}</button>
     `,
     bind: (dialog) => {
       dialog.querySelector("#planning-config-form").addEventListener("submit", async (event) => {
@@ -3083,7 +3133,7 @@ function openPlanningConfigDialog() {
             diasAmarilloTema: Number(dialog.querySelector("#yellow-topic").value || 90)
           });
           closeModal();
-          toastMessage("Configuración guardada");
+          toastMessage(t("Configuración guardada"));
         });
       });
     }
@@ -3210,11 +3260,11 @@ function rankColor(date, tab) {
 }
 
 function hymnCatalog() {
-  return (navigator.language || "es").toLowerCase().startsWith("en") ? HYMNS_EN : HYMNS_ES;
+  return uiLanguage() === "en" ? HYMNS_EN : HYMNS_ES;
 }
 
 function hymnLanguage() {
-  return (navigator.language || "es").toLowerCase().startsWith("en") ? "en" : "es";
+  return uiLanguage();
 }
 
 function renderHymnPlanner() {
@@ -3222,19 +3272,19 @@ function renderHymnPlanner() {
   screen.innerHTML = `
     <div class="module-hero hymn-hero">
       <div>
-        <p class="eyebrow">Música de la reunión</p>
-        <h2>Planificador de himnos</h2>
-        <p>Prepará cada domingo, consultá el historial y mantené una distribución equilibrada.</p>
+        <p class="eyebrow">${t("Música de la reunión")}</p>
+        <h2>${t("Planificador de himnos")}</h2>
+        <p>${t("Prepará cada domingo, consultá el historial y mantené una distribución equilibrada.")}</p>
       </div>
-      <div class="year-stepper" aria-label="Año del planificador">
-        <button class="icon-button" data-hymn-year="-1" type="button" aria-label="Año anterior">${icon("chevronLeft")}</button>
+      <div class="year-stepper" aria-label="${t("Año del planificador")}">
+        <button class="icon-button" data-hymn-year="-1" type="button" aria-label="${t("Año anterior")}">${icon("chevronLeft")}</button>
         <strong>${state.hymnPlannerYear}</strong>
-        <button class="icon-button" data-hymn-year="1" type="button" aria-label="Año siguiente">${icon("chevronRight")}</button>
+        <button class="icon-button" data-hymn-year="1" type="button" aria-label="${t("Año siguiente")}">${icon("chevronRight")}</button>
       </div>
     </div>
-    <div class="module-tabs" role="tablist" aria-label="Vistas del planificador">
-      <button class="module-tab ${tab === "dates" ? "active" : ""}" data-hymn-tab="dates" type="button" role="tab" aria-selected="${tab === "dates"}">Por fechas</button>
-      <button class="module-tab ${tab === "library" ? "active" : ""}" data-hymn-tab="library" type="button" role="tab" aria-selected="${tab === "library"}">Biblioteca</button>
+    <div class="module-tabs" role="tablist" aria-label="${t("Vistas del planificador")}">
+      <button class="module-tab ${tab === "dates" ? "active" : ""}" data-hymn-tab="dates" type="button" role="tab" aria-selected="${tab === "dates"}">${t("Por fechas")}</button>
+      <button class="module-tab ${tab === "library" ? "active" : ""}" data-hymn-tab="library" type="button" role="tab" aria-selected="${tab === "library"}">${t("Biblioteca")}</button>
     </div>
     <div id="hymn-planner-content">${tab === "dates" ? renderHymnDates() : renderHymnLibrary()}</div>
   `;
@@ -3277,10 +3327,10 @@ function renderHymnDates() {
   return `
     <div class="module-toolbar">
       <div>
-        <strong>${plannedCount} domingos planificados</strong>
-        <p class="item-meta">Las selecciones se guardan directamente en la agenda de cada fecha.</p>
+        <strong>${plannedCount} ${t("domingos planificados")}</strong>
+        <p class="item-meta">${t("Las selecciones se guardan directamente en la agenda de cada fecha.")}</p>
       </div>
-      <button id="generate-hymns" class="primary-button" type="button">${buttonIcon("sparkles")}Generar automáticamente</button>
+      <button id="generate-hymns" class="primary-button" type="button">${buttonIcon("sparkles")}${t("Generar automáticamente")}</button>
     </div>
     <div class="month-stack">
       ${orderedMonths.map(([month, items], index) => {
@@ -3289,7 +3339,7 @@ function renderHymnDates() {
         return `
           <details class="month-group ${isCurrentMonth ? "current-month" : ""}" ${open ? "open" : ""}>
             <summary>
-              <span class="month-title">${escapeHtml(new Intl.DateTimeFormat("es-UY", { month: "long" }).format(items[0].date))}${isCurrentMonth ? `<small>Mes actual</small>` : ""}</span>
+              <span class="month-title">${escapeHtml(new Intl.DateTimeFormat(uiLocale(), { month: "long" }).format(items[0].date))}${isCurrentMonth ? `<small>${t("Mes actual")}</small>` : ""}</span>
               <strong>${items.length}</strong>
             </summary>
             <div class="hymn-date-grid">${items.map((item) => hymnDateCard(item.date, item.agenda, Boolean(nextSunday && sameDay(item.date, nextSunday)))).join("")}</div>
@@ -3323,18 +3373,18 @@ function hymnDateCard(date, agenda, isNextSunday = false) {
   const plan = planFromAgenda(agenda);
   const selections = HYMN_POSITIONS.filter((position) => plan[position].number || plan[position].name);
   const topics = topicsFromAgenda(agenda);
-  const status = selections.length ? `${selections.length} de 4` : "Sin planificar";
+  const status = selections.length ? `${selections.length} ${t("de 4")}` : t("Sin planificar");
   return `
     <button class="hymn-date-card ${isNextSunday ? "hymn-date-card-next" : ""}" data-hymn-date="${escapeAttr(hymnDateKey(date))}" type="button">
       <span class="hymn-date-card-head">
-        <span><strong>${escapeHtml(new Intl.DateTimeFormat("es-UY", { weekday: "long", day: "numeric" }).format(date))}${isNextSunday ? `<em>Próximo domingo</em>` : ""}</strong><small>${agenda ? hymnMeetingType(agenda) : "Sin agenda creada"}</small></span>
+        <span><strong>${escapeHtml(new Intl.DateTimeFormat(uiLocale(), { weekday: "long", day: "numeric" }).format(date))}${isNextSunday ? `<em>${t("Próximo domingo")}</em>` : ""}</strong><small>${agenda ? hymnMeetingType(agenda) : t("Sin agenda creada")}</small></span>
         <span class="status-pill ${selections.length ? "status-CONFIRMADA" : "status-BORRADOR"}">${escapeHtml(status)}</span>
       </span>
       ${selections.length ? `
         <span class="hymn-slot-list">${selections.map((position) => `
           <span><small>${escapeHtml(HYMN_POSITION_LABELS[position])}</small><strong>${escapeHtml(hymnSelectionLabel(plan[position]))}</strong></span>
         `).join("")}</span>
-      ` : `<span class="hymn-empty-line">${icon("music")} Tocá para asignar himnos</span>`}
+      ` : `<span class="hymn-empty-line">${icon("music")} ${t("Tocá para asignar himnos")}</span>`}
       ${topics.length ? `<span class="topic-chips">${topics.slice(0, 3).map((topic) => `<span>${escapeHtml(topic)}</span>`).join("")}</span>` : ""}
     </button>
   `;
@@ -3342,8 +3392,8 @@ function hymnDateCard(date, agenda, isNextSunday = false) {
 
 function hymnMeetingType(agenda) {
   if (agenda.presentacionPrimaria) return meetingText("primary");
-  if (agenda.reunionTestimonios) return "Ayuno y testimonios";
-  return "Reunión sacramental";
+  if (agenda.reunionTestimonios) return t("Ayuno y testimonios");
+  return t("Reunión sacramental");
 }
 
 function bindHymnDateActions() {
@@ -3362,18 +3412,18 @@ function openHymnPlanDialog(date, agenda) {
   const original = planFromAgenda(agenda);
   const options = Object.entries(catalog).map(([number, name]) => `<option value="${escapeAttr(`${number} · ${name}`)}"></option>`).join("");
   openModal({
-    title: `Himnos · ${formatDateLong(date)}`,
+    title: `${t("Himnos ·")} ${formatDateLong(date)}`,
     body: `
       <form id="hymn-plan-form" class="form-grid">
-        <p class="muted">Buscá por número o nombre. Los cambios de esta ventana afectan únicamente este domingo.</p>
+        <p class="muted">${t("Buscá por número o nombre. Los cambios de esta ventana afectan únicamente este domingo.")}</p>
         ${HYMN_POSITIONS.map((position) => hymnPickerField(position, original[position])).join("")}
         <datalist id="hymn-catalog-options">${options}</datalist>
         <div id="hymn-plan-validation" class="inline-notice hidden" role="alert"></div>
       </form>
     `,
     footer: `
-      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
-      <button class="primary-button" form="hymn-plan-form" type="submit">Guardar planificación</button>
+      <button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button>
+      <button class="primary-button" form="hymn-plan-form" type="submit">${t("Guardar planificación")}</button>
     `,
     bind: (dialog) => {
       dialog.querySelector("#hymn-plan-form").addEventListener("submit", async (event) => {
@@ -3389,7 +3439,7 @@ function openHymnPlanDialog(date, agenda) {
           await persistHymnPlan(date, plan, agenda);
           closeModal();
           renderHymnPlanner();
-          toastMessage("Planificación guardada");
+          toastMessage(t("Planificación guardada"));
         });
       });
     }
@@ -3401,9 +3451,9 @@ function hymnPickerField(position, selected) {
     <div class="hymn-picker-field">
       <div>
         <label for="hymn-${escapeAttr(position)}">${escapeHtml(HYMN_POSITION_LABELS[position])}</label>
-        ${selected.origin ? `<small>${escapeHtml(HYMN_ORIGIN_LABELS[selected.origin] || "Selección guardada")}</small>` : `<small>Sin selección</small>`}
+        ${selected.origin ? `<small>${escapeHtml(HYMN_ORIGIN_LABELS[selected.origin] || t("Selección guardada"))}</small>` : `<small>${t("Sin selección")}</small>`}
       </div>
-      <input id="hymn-${escapeAttr(position)}" class="input" data-hymn-picker="${escapeAttr(position)}" list="hymn-catalog-options" value="${escapeAttr(hymnPickerValue(selected))}" placeholder="Número o nombre">
+      <input id="hymn-${escapeAttr(position)}" class="input" data-hymn-picker="${escapeAttr(position)}" list="hymn-catalog-options" value="${escapeAttr(hymnPickerValue(selected))}" placeholder="${t("Número o nombre")}">
     </div>
   `;
 }
@@ -3417,45 +3467,45 @@ function parseHymnPicker(value, catalog) {
   const clean = String(value || "").trim();
   if (!clean) return { number: 0, name: "" };
   const number = Number(clean.match(/^\s*(\d+)/)?.[1] || 0);
-  if (!number || !catalog[number]) throw new Error(`No se encontró el himno “${clean}” en la biblioteca.`);
+  if (!number || !catalog[number]) throw new Error(`${t("No se encontró el himno “")}${clean}${t("” en la biblioteca.")}`);
   return { number, name: catalog[number] };
 }
 
 function validateHymnPlan(plan) {
   const duplicates = duplicateHymnNumbers(plan);
-  if (duplicates.length) throw new Error(`Un himno no puede repetirse dentro de la misma reunión (${duplicates.join(", ")}).`);
+  if (duplicates.length) throw new Error(`${t("Un himno no puede repetirse dentro de la misma reunión (")}${duplicates.join(", ")}).`);
   const sacrament = plan.sacrament;
   if (sacrament.number && !hymnMetadata(sacrament.number, sacrament.name, hymnLanguage()).sacramental) {
-    throw new Error("El himno de Santa Cena debe estar clasificado como apto para esa ordenanza.");
+    throw new Error(t("El himno de Santa Cena debe estar clasificado como apto para esa ordenanza."));
   }
 }
 
 function hymnSelectionLabel(selection) {
-  if (!selection?.number && !selection?.name) return "Sin asignar";
+  if (!selection?.number && !selection?.name) return t("Sin asignar");
   return selection.number ? `${selection.number} · ${selection.name || hymnCatalog()[selection.number] || ""}` : selection.name;
 }
 
 function renderHymnLibrary() {
   const categories = Object.entries(HYMN_CATEGORY_LABELS).sort((a, b) => a[1].localeCompare(b[1]));
   return `
-    <div class="module-toolbar library-toolbar" aria-label="Buscar y filtrar biblioteca">
+    <div class="module-toolbar library-toolbar" aria-label="${t("Buscar y filtrar biblioteca")}">
       <div class="search-field">
         <span class="search-icon" aria-hidden="true">${icon("search")}</span>
-        <input id="hymn-library-search" class="input" type="search" placeholder="Buscar himno...">
+        <input id="hymn-library-search" class="input" type="search" placeholder="${t("Buscar himno...")}">
       </div>
-      <select id="hymn-category" class="select" aria-label="Filtrar por tema">
-        <option value="all">Todos los temas</option>
+      <select id="hymn-category" class="select" aria-label="${t("Filtrar por tema")}">
+        <option value="all">${t("Todos los temas")}</option>
         ${categories.map(([value, label]) => option(value, label, state.hymnLibraryCategory)).join("")}
       </select>
     </div>
-    <div class="filter-strip" aria-label="Filtros de biblioteca">
+    <div class="filter-strip" aria-label="${t("Filtros de biblioteca")}">
       ${[
         ["all", "Todos"],
         ["new", "Himnario nuevo"],
         ["unused", "No usados este año"],
         ["planned", "Planificados"],
         ["excluded", "Excluidos"]
-      ].map(([value, label]) => `<button class="filter-chip ${state.hymnLibraryFilter === value ? "active" : ""}" data-hymn-filter="${value}" type="button">${label}</button>`).join("")}
+      ].map(([value, label]) => `<button class="filter-chip ${state.hymnLibraryFilter === value ? "active" : ""}" data-hymn-filter="${value}" type="button">${t(label)}</button>`).join("")}
     </div>
     <div id="hymn-library-list" class="hymn-library-grid">${renderHymnLibraryList("")}</div>
   `;
@@ -3482,7 +3532,7 @@ function renderHymnLibraryList(searchValue) {
     if (state.hymnLibraryFilter === "excluded" && !item.excluded) return false;
     return true;
   });
-  if (!items.length) return emptyPanel("No hay himnos que coincidan con estos filtros.");
+  if (!items.length) return emptyPanel(t("No hay himnos que coincidan con estos filtros."));
   return items.map(hymnLibraryCard).join("");
 }
 
@@ -3492,15 +3542,15 @@ function hymnLibraryCard(item) {
     <article class="hymn-library-card ${item.excluded ? "is-excluded" : ""}">
       <div class="hymn-number">${item.number}</div>
       <div class="hymn-library-main">
-        <div class="hymn-library-title"><h3>${escapeHtml(item.name)}</h3>${item.metadata.newCollection ? `<span class="new-hymn-badge">Nuevo</span>` : ""}</div>
-        <div class="topic-chips">${categories || "<span>Sin categoría</span>"}</div>
+        <div class="hymn-library-title"><h3>${escapeHtml(item.name)}</h3>${item.metadata.newCollection ? `<span class="new-hymn-badge">${t("Nuevo")}</span>` : ""}</div>
+        <div class="topic-chips">${categories || `<span>${uiLanguage() === "en" ? "Uncategorized" : "Sin categoría"}</span>`}</div>
         <p class="item-meta">${hymnHistoryText(item)}</p>
-        ${item.nextPlanned ? `<p class="item-meta next-use">Próxima planificación: ${escapeHtml(formatDateShort(item.nextPlanned))}</p>` : ""}
-        ${item.excluded ? `<p class="item-meta warning-text">Excluido de la generación automática</p>` : ""}
+        ${item.nextPlanned ? `<p class="item-meta next-use">${t("Próxima planificación:")} ${escapeHtml(formatDateShort(item.nextPlanned))}</p>` : ""}
+        ${item.excluded ? `<p class="item-meta warning-text">${t("Excluido de la generación automática")}</p>` : ""}
       </div>
       <div class="hymn-library-actions">
-        <button class="secondary-button" data-assign-hymn="${item.number}" type="button">Asignar</button>
-        <button class="text-button" data-toggle-hymn="${item.number}" type="button">${item.excluded ? "Volver a incluir" : "Excluir"}</button>
+        <button class="secondary-button" data-assign-hymn="${item.number}" type="button">${t("Asignar")}</button>
+        <button class="text-button" data-toggle-hymn="${item.number}" type="button">${item.excluded ? t("Volver a incluir") : t("Excluir")}</button>
       </div>
     </article>
   `;
@@ -3508,7 +3558,7 @@ function hymnLibraryCard(item) {
 
 function hymnHistoryText(item) {
   const uses = `${item.usesInYear} ${item.usesInYear === 1 ? "uso" : "usos"} en ${state.hymnPlannerYear} · ${item.totalUses} total`;
-  return item.lastUsed ? `${uses} · Último: ${formatDateShort(item.lastUsed)}` : `${uses} · Nunca utilizado`;
+  return item.lastUsed ? `${uses} ${t("· Último:")} ${formatDateShort(item.lastUsed)}` : `${uses} ${t("· Nunca utilizado")}`;
 }
 
 function bindHymnLibraryActions() {
@@ -3545,7 +3595,7 @@ function bindHymnLibraryCardActions() {
         if (excluded.has(number)) excluded.delete(number); else excluded.add(number);
         await savePlanningConfig({ himnosExcluidos: [...excluded].sort((a, b) => a - b) });
         renderHymnPlanner();
-        toastMessage("Preferencia actualizada");
+        toastMessage(t("Preferencia actualizada"));
       });
     });
   });
@@ -3556,22 +3606,22 @@ function openAssignHymnDialog(item) {
   const today = startOfDay(new Date());
   const dates = sundaysOfYear(state.hymnPlannerYear).filter((date) => date >= today);
   if (!dates.length) {
-    toastMessage("No hay domingos futuros disponibles en este año.");
+    toastMessage(t("No hay domingos futuros disponibles en este año."));
     return;
   }
   openModal({
-    title: `Asignar ${item.number} · ${item.name}`,
+    title: `${t("Asignar")} ${item.number} · ${item.name}`,
     body: `
       <form id="assign-hymn-form" class="form-grid">
-        <p class="muted">Elegí el domingo y la posición dentro de la reunión.</p>
-        ${field("assign-hymn-date", "Domingo", `<select id="assign-hymn-date" class="select">${dates.map((date) => option(hymnDateKey(date), formatDateLong(date), hymnDateKey(dates[0]))).join("")}</select>`)}
-        ${field("assign-hymn-position", "Posición", `<select id="assign-hymn-position" class="select">${HYMN_POSITIONS.map((position) => option(position, HYMN_POSITION_LABELS[position], "opening")).join("")}</select>`)}
+        <p class="muted">${t("Elegí el domingo y la posición dentro de la reunión.")}</p>
+        ${field("assign-hymn-date", t("Domingo"), `<select id="assign-hymn-date" class="select">${dates.map((date) => option(hymnDateKey(date), formatDateLong(date), hymnDateKey(dates[0]))).join("")}</select>`)}
+        ${field("assign-hymn-position", t("Posición"), `<select id="assign-hymn-position" class="select">${HYMN_POSITIONS.map((position) => option(position, HYMN_POSITION_LABELS[position], "opening")).join("")}</select>`)}
         <div id="assign-hymn-note" class="inline-notice hidden"></div>
       </form>
     `,
     footer: `
-      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
-      <button class="primary-button" form="assign-hymn-form" type="submit">Asignar himno</button>
+      <button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button>
+      <button class="primary-button" form="assign-hymn-form" type="submit">${t("Asignar himno")}</button>
     `,
     bind: (dialog) => {
       dialog.querySelector("#assign-hymn-form").addEventListener("submit", async (event) => {
@@ -3579,18 +3629,18 @@ function openAssignHymnDialog(item) {
         await withToastError(async () => {
           const dateKey = dialog.querySelector("#assign-hymn-date").value;
           const position = dialog.querySelector("#assign-hymn-position").value;
-          if (position === "sacrament" && !item.metadata.sacramental) throw new Error("Este himno no está clasificado como apto para la Santa Cena.");
+          if (position === "sacrament" && !item.metadata.sacramental) throw new Error(t("Este himno no está clasificado como apto para la Santa Cena."));
           const agenda = state.agendas.find((candidate) => hymnDateKey(candidate.fecha) === dateKey) || null;
           const plan = planFromAgenda(agenda);
           const duplicatePosition = HYMN_POSITIONS.find((candidate) => candidate !== position && plan[candidate].number === item.number);
-          if (duplicatePosition) throw new Error(`Este himno ya está asignado como ${HYMN_POSITION_LABELS[duplicatePosition]} en esa reunión.`);
-          if ((plan[position].number || plan[position].name) && !confirm(`${HYMN_POSITION_LABELS[position]} ya tiene ${hymnSelectionLabel(plan[position])}. ¿Reemplazarlo?`)) return;
+          if (duplicatePosition) throw new Error(`${t("Este himno ya está asignado como")} ${HYMN_POSITION_LABELS[duplicatePosition]} ${t("en esa reunión.")}`);
+          if ((plan[position].number || plan[position].name) && !confirm(`${HYMN_POSITION_LABELS[position]} ${t("ya tiene")} ${hymnSelectionLabel(plan[position])}${t(". ¿Reemplazarlo?")}`)) return;
           plan[position] = { number: item.number, name: item.name, origin: "PLANIFICADOR_MANUAL" };
           validateHymnPlan(plan);
           await persistHymnPlan(dateFromInput(dateKey), plan, agenda);
           closeModal();
           renderHymnPlanner();
-          toastMessage("Himno asignado correctamente");
+          toastMessage(t("Himno asignado correctamente"));
         });
       });
     }
@@ -3601,32 +3651,32 @@ function openHymnGeneratorDialog() {
   const today = startOfDay(new Date());
   const available = sundaysOfYear(state.hymnPlannerYear).filter((date) => date >= today);
   if (!available.length) {
-    toastMessage("No hay domingos futuros disponibles en este año.");
+    toastMessage(t("No hay domingos futuros disponibles en este año."));
     return;
   }
   openModal({
-    title: "Generar planificación",
+    title: t("Generar planificación"),
     body: `
       <form id="hymn-generator-form" class="form-grid">
-        <p class="muted">Elegí el período y las reglas. Vas a revisar todos los cambios antes de guardarlos.</p>
+        <p class="muted">${t("Elegí el período y las reglas. Vas a revisar todos los cambios antes de guardarlos.")}</p>
         <div class="inline-fields">
-          ${field("hymn-start", "Desde", `<input id="hymn-start" class="input" type="date" min="${dateInputValue(available[0])}" max="${dateInputValue(available.at(-1))}" value="${dateInputValue(available[0])}" required>`)}
-          ${field("hymn-end", "Hasta", `<input id="hymn-end" class="input" type="date" min="${dateInputValue(available[0])}" max="${dateInputValue(available.at(-1))}" value="${dateInputValue(available.at(-1))}" required>`)}
+          ${field("hymn-start", t("Desde"), `<input id="hymn-start" class="input" type="date" min="${dateInputValue(available[0])}" max="${dateInputValue(available.at(-1))}" value="${dateInputValue(available[0])}" required>`)}
+          ${field("hymn-end", t("Hasta"), `<input id="hymn-end" class="input" type="date" min="${dateInputValue(available[0])}" max="${dateInputValue(available.at(-1))}" value="${dateInputValue(available.at(-1))}" required>`)}
         </div>
-        ${field("hymn-interval", "Intervalo mínimo entre usos (días)", `<input id="hymn-interval" class="input" type="number" min="0" max="730" value="${Number(state.config.intervaloMinimoHimnosDias || 180)}">`, "Si no hay alternativas, se relajará el intervalo y aparecerá una advertencia.")}
+        ${field("hymn-interval", t("Intervalo mínimo entre usos (días)"), `<input id="hymn-interval" class="input" type="number" min="0" max="730" value="${Number(state.config.intervaloMinimoHimnosDias || 180)}">`, t("Si no hay alternativas, se relajará el intervalo y aparecerá una advertencia."))}
         <div class="option-stack">
-          ${generatorCheckbox("only-empty-hymns", "Solo reuniones sin himnos planificados", state.config.soloFechasSinHimnos !== false)}
-          ${generatorCheckbox("replace-auto-hymns", "Actualizar selecciones automáticas anteriores", state.config.reemplazarHimnosAutomaticos !== false)}
-          ${generatorCheckbox("force-new-hymn", "Incluir al menos un himno del himnario nuevo", Boolean(state.config.forzarHimnoNuevo))}
-          ${generatorCheckbox("prioritize-topic-hymns", "Priorizar los temas de los discursos", state.config.priorizarTemasHimnos !== false)}
-          ${generatorCheckbox("include-intermediate-hymn", "Generar también un himno intermedio", Boolean(state.config.generarHimnoIntermedio))}
+          ${generatorCheckbox("only-empty-hymns", t("Solo reuniones sin himnos planificados"), state.config.soloFechasSinHimnos !== false)}
+          ${generatorCheckbox("replace-auto-hymns", t("Actualizar selecciones automáticas anteriores"), state.config.reemplazarHimnosAutomaticos !== false)}
+          ${generatorCheckbox("force-new-hymn", t("Incluir al menos un himno del himnario nuevo"), Boolean(state.config.forzarHimnoNuevo))}
+          ${generatorCheckbox("prioritize-topic-hymns", t("Priorizar los temas de los discursos"), state.config.priorizarTemasHimnos !== false)}
+          ${generatorCheckbox("include-intermediate-hymn", t("Generar también un himno intermedio"), Boolean(state.config.generarHimnoIntermedio))}
         </div>
-        <p class="inline-notice">Las selecciones manuales siempre se conservan.</p>
+        <p class="inline-notice">${t("Las selecciones manuales siempre se conservan.")}</p>
       </form>
     `,
     footer: `
-      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
-      <button class="primary-button" form="hymn-generator-form" type="submit">Generar vista previa</button>
+      <button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button>
+      <button class="primary-button" form="hymn-generator-form" type="submit">${t("Generar vista previa")}</button>
     `,
     bind: (dialog) => {
       dialog.querySelector("#hymn-generator-form").addEventListener("submit", async (event) => {
@@ -3634,7 +3684,7 @@ function openHymnGeneratorDialog() {
         await withToastError(async () => {
           const start = dateFromInput(dialog.querySelector("#hymn-start").value);
           const end = dateFromInput(dialog.querySelector("#hymn-end").value);
-          if (end < start) throw new Error("La fecha final debe ser posterior a la inicial.");
+          if (end < start) throw new Error(t("La fecha final debe ser posterior a la inicial."));
           const dates = available.filter((date) => date >= start && date <= end);
           const config = {
             intervaloMinimoHimnosDias: Number(dialog.querySelector("#hymn-interval").value || 0),
@@ -3675,39 +3725,39 @@ function generatorCheckbox(id, label, checked) {
 
 function openHymnPreviewDialog(result) {
   openModal({
-    title: "Vista previa",
+    title: t("Vista previa"),
     body: `
-      <div class="preview-summary"><strong>${result.evaluatedDates} reuniones evaluadas</strong><span>${result.proposals.length} con cambios · ${result.unchangedDates} sin cambios</span></div>
+      <div class="preview-summary"><strong>${result.evaluatedDates} ${t("reuniones evaluadas")}</strong><span>${result.proposals.length} ${t("con cambios ·")} ${result.unchangedDates} ${t("sin cambios")}</span></div>
       <div class="hymn-preview-list">
         ${result.proposals.length ? result.proposals.map((proposal) => `
           <article class="hymn-preview-card">
-            <div><h3>${escapeHtml(formatDateLong(proposal.date))}</h3>${proposal.topics.length ? `<p class="item-meta">Temas: ${escapeHtml(proposal.topics.join(", "))}</p>` : ""}</div>
+            <div><h3>${escapeHtml(formatDateLong(proposal.date))}</h3>${proposal.topics.length ? `<p class="item-meta">${t("Temas:")} ${escapeHtml(proposal.topics.join(", "))}</p>` : ""}</div>
             <div class="hymn-preview-slots">${HYMN_POSITIONS.filter((position) => proposal.proposal[position].number || proposal.proposal[position].name).map((position) => `<span><small>${HYMN_POSITION_LABELS[position]}</small><strong>${escapeHtml(hymnSelectionLabel(proposal.proposal[position]))}</strong></span>`).join("")}</div>
-            ${proposal.preservedManualSelections ? `<p class="item-meta">${proposal.preservedManualSelections} selecciones manuales preservadas</p>` : ""}
+            ${proposal.preservedManualSelections ? `<p class="item-meta">${proposal.preservedManualSelections} ${t("selecciones manuales preservadas")}</p>` : ""}
             ${proposal.warnings.length ? `<div class="warning-list">${proposal.warnings.map((warning) => `<span>${escapeHtml(hymnWarningText(warning))}</span>`).join("")}</div>` : ""}
           </article>
-        `).join("") : emptyPanel("No se encontraron cambios para aplicar con estas opciones.")}
+        `).join("") : emptyPanel(t("No se encontraron cambios para aplicar con estas opciones."))}
       </div>
     `,
     footer: `
-      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
-      <button class="primary-button" id="apply-hymn-preview" type="button" ${result.proposals.length ? "" : "disabled"}>Aplicar planificación</button>
+      <button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button>
+      <button class="primary-button" id="apply-hymn-preview" type="button" ${result.proposals.length ? "" : "disabled"}>${t("Aplicar planificación")}</button>
     `,
     bind: (dialog) => {
       dialog.classList.add("wide");
       dialog.querySelector("#apply-hymn-preview")?.addEventListener("click", async (event) => {
         const button = event.currentTarget;
         button.disabled = true;
-        button.textContent = "Guardando...";
+        button.textContent = t("Guardando...");
         await withToastError(async () => {
           await persistHymnPlans(result.proposals);
           closeModal();
           renderHymnPlanner();
-          toastMessage(`Se aplicó la planificación a ${result.proposals.length} reuniones.`);
+          toastMessage(`${t("Se aplicó la planificación a")} ${result.proposals.length} reuniones.`);
         });
         if (modal.open) {
           button.disabled = false;
-          button.textContent = "Aplicar planificación";
+          button.textContent = t("Aplicar planificación");
         }
       });
     }
@@ -3716,10 +3766,10 @@ function openHymnPreviewDialog(result) {
 
 function hymnWarningText(warning) {
   const position = warning.position ? HYMN_POSITION_LABELS[warning.position] : "";
-  if (warning.code === "INTERVAL_RELAXED") return `No había alternativas para ${position} dentro del intervalo elegido.`;
-  if (warning.code === "NO_CANDIDATE") return `No se encontró un himno adecuado para ${position}.`;
-  if (warning.code === "NO_NEW_COLLECTION") return "No se pudo incluir un himno del himnario nuevo.";
-  return "No se pudo cumplir una de las reglas.";
+  if (warning.code === "INTERVAL_RELAXED") return `${t("No había alternativas para")} ${position} ${t("dentro del intervalo elegido.")}`;
+  if (warning.code === "NO_CANDIDATE") return `${t("No se encontró un himno adecuado para")} ${position}.`;
+  if (warning.code === "NO_NEW_COLLECTION") return t("No se pudo incluir un himno del himnario nuevo.");
+  return t("No se pudo cumplir una de las reglas.");
 }
 
 function hymnPlanPatch(agenda, plan) {
@@ -3789,26 +3839,27 @@ function renderSettings() {
   const standalone = window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true;
   screen.innerHTML = `
     <div class="screen-grid settings-grid">
+      <section class="panel">${languageSelector()}</section>
       <section class="panel">
-        ${sectionTitle("Unidad", "U", "")}
-        <p class="muted">Unidad activa: <strong>${escapeHtml(state.unitNumber)}</strong></p>
+        ${sectionTitle(t("Unidad"), "U", "")}
+        <p class="muted">${t("Unidad activa:")} <strong>${escapeHtml(state.unitNumber)}</strong></p>
         <form id="password-form" class="form-grid">
-          ${field("new-password", "Nueva contraseña", `<input id="new-password" class="input" type="password" minlength="4" required>`)}
-          <button class="primary-button" type="submit">Cambiar contraseña</button>
+          ${field("new-password", t("Nueva contraseña"), `<input id="new-password" class="input" type="password" minlength="4" required>`)}
+          <button class="primary-button" type="submit">${t("Cambiar contraseña")}</button>
         </form>
       </section>
       <section class="panel">
-        ${sectionTitle("Apariencia", "T", "")}
+        ${sectionTitle(t("Apariencia"), "T", "")}
         <div class="segmented">
-          <button class="filter-chip ${state.theme === "system" ? "active" : ""}" data-theme="system" type="button">Sistema</button>
-          <button class="filter-chip ${state.theme === "light" ? "active" : ""}" data-theme="light" type="button">Claro</button>
-          <button class="filter-chip ${state.theme === "dark" ? "active" : ""}" data-theme="dark" type="button">Oscuro</button>
+          <button class="filter-chip ${state.theme === "system" ? "active" : ""}" data-theme="system" type="button">${t("Sistema")}</button>
+          <button class="filter-chip ${state.theme === "light" ? "active" : ""}" data-theme="light" type="button">${t("Claro")}</button>
+          <button class="filter-chip ${state.theme === "dark" ? "active" : ""}" data-theme="dark" type="button">${t("Oscuro")}</button>
         </div>
       </section>
       <section class="panel install-panel">
-        ${sectionTitle("Web app", "", standalone ? `<span class="status-pill status-CONFIRMADA">Instalada</span>` : "")}
-        <p class="muted">Abrila desde la pantalla de inicio, en una ventana propia y con acceso rápido a la última versión cargada.</p>
-        ${standalone ? `<p class="inline-notice">Ya estás usando Agenda Sacramental como aplicación.</p>` : state.deferredInstallPrompt ? `<button id="install-web-app" class="primary-button" type="button">Instalar en este dispositivo</button>` : `<p class="field-hint">En iPhone: Compartir → Agregar a pantalla de inicio. En otros navegadores, buscá “Instalar aplicación” en el menú.</p>`}
+        ${sectionTitle("Web app", "", standalone ? `<span class="status-pill status-CONFIRMADA">${t("Instalada")}</span>` : "")}
+        <p class="muted">${t("Abrila desde la pantalla de inicio, en una ventana propia y con acceso rápido a la última versión cargada.")}</p>
+        ${standalone ? `<p class="inline-notice">${t("Ya estás usando Agenda Sacramental como aplicación.")}</p>` : state.deferredInstallPrompt ? `<button id="install-web-app" class="primary-button" type="button">${t("Instalar en este dispositivo")}</button>` : `<p class="field-hint">${t("En iPhone: Compartir → Agregar a pantalla de inicio. En otros navegadores, buscá “Instalar aplicación” en el menú.")}</p>`}
       </section>
     </div>
   `;
@@ -3816,9 +3867,9 @@ function renderSettings() {
     event.preventDefault();
     await withToastError(async () => {
       const password = screen.querySelector("#new-password").value;
-      if (password.length < 4) throw new Error("La contraseña debe tener al menos 4 caracteres.");
+      if (password.length < 4) throw new Error(t("La contraseña debe tener al menos 4 caracteres."));
       await updateDoc(unitRef(state.unitNumber), { passwordHash: await hashPassword(password) });
-      toastMessage("Contraseña actualizada");
+      toastMessage(t("Contraseña actualizada"));
       event.target.reset();
     });
   });
@@ -3842,15 +3893,15 @@ function renderSettings() {
 
 function openCreateSundaysDialog() {
   openModal({
-    title: "Crear domingos en blanco",
+    title: t("Crear domingos en blanco"),
     body: `
       <form id="sundays-form" class="form-grid">
-        ${field("until-date", "Hasta el domingo", `<input id="until-date" class="input" type="date" value="${dateInputValue(addDays(nextSunday(), 28))}" required>`)}
+        ${field("until-date", t("Hasta el domingo"), `<input id="until-date" class="input" type="date" value="${dateInputValue(addDays(nextSunday(), 28))}" required>`)}
       </form>
     `,
     footer: `
-      <button class="secondary-button" data-action="cancel" type="button">Cancelar</button>
-      <button class="primary-button" form="sundays-form" type="submit">Crear</button>
+      <button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button>
+      <button class="primary-button" form="sundays-form" type="submit">${t("Crear")}</button>
     `,
     bind: (dialog) => {
       dialog.querySelector("#sundays-form").addEventListener("submit", async (event) => {
@@ -3859,7 +3910,7 @@ function openCreateSundaysDialog() {
           const until = dateFromInput(dialog.querySelector("#until-date").value);
           const created = await createSundaysUntil(until);
           closeModal();
-          toastMessage(`${created} agenda(s) creada(s)`);
+          toastMessage(`${created} ${t("agenda(s) creada(s)")}`);
         });
       });
     }
@@ -3887,10 +3938,10 @@ function openModal({ title, body, footer, bind }) {
     <div class="modal-content">
       <div class="modal-header">
         <div>
-          <p class="eyebrow">Agenda Sacramental</p>
+          <p class="eyebrow">${t("Agenda Sacramental")}</p>
           <h2>${escapeHtml(title)}</h2>
         </div>
-        <button class="icon-button" data-action="cancel" type="button" title="Cerrar">X</button>
+        <button class="icon-button" data-action="cancel" type="button" title="${t("Cerrar")}">X</button>
       </div>
       ${body}
       <div class="button-row">${footer}</div>
@@ -3939,12 +3990,12 @@ function loadingPanel(text) {
 }
 
 function renderFatalError(error) {
-  const message = formatErrorMessage(error) || "Revisa Firebase y los permisos de Firestore.";
+  const message = formatErrorMessage(error) || t("Revisa Firebase y los permisos de Firestore.");
   appShell.classList.add("setup-mode");
   screen.innerHTML = `
     <div class="setup-wrap">
       <section class="setup-panel">
-        <h2>No se pudo conectar</h2>
+        <h2>${t("No se pudo conectar")}</h2>
         <p class="muted">${escapeHtml(message)}</p>
       </section>
     </div>
@@ -3956,17 +4007,17 @@ async function withToastError(task) {
     await task();
   } catch (error) {
     console.error(error);
-    toastMessage(formatErrorMessage(error) || "No se pudo completar la acción.", 7000);
+    toastMessage(formatErrorMessage(error) || t("No se pudo completar la acción."), 7000);
   }
 }
 
 function formatErrorMessage(error) {
   if (error?.code === "auth/unauthorized-domain") {
-    return `Este dominio no está autorizado en Firebase. Agrega ${GITHUB_PAGES_DOMAIN} en Authentication > Settings > Authorized domains.`;
+    return `${t("Este dominio no está autorizado en Firebase. Agrega")} ${GITHUB_PAGES_DOMAIN} ${t("en Authentication > Settings > Authorized domains.")}`;
   }
-  if (error?.code === "auth/popup-closed-by-user") return "Inicio de sesión cancelado.";
-  if (error?.code === "permission-denied") return "Firebase rechazó la operación. Revisa las reglas de Firestore.";
-  return error?.message || "";
+  if (error?.code === "auth/popup-closed-by-user") return t("Inicio de sesión cancelado.");
+  if (error?.code === "permission-denied") return t("Firebase rechazó la operación. Revisa las reglas de Firestore.");
+  return t(error?.message || "");
 }
 
 function toastMessage(message, duration = 2800) {
@@ -4067,28 +4118,28 @@ function agendaStats() {
 
 function labelState(value) {
   return {
-    BORRADOR: "Borrador",
-    CONFIRMADA: "Confirmada",
-    REALIZADA: "Realizada"
+    BORRADOR: t("Borrador"),
+    CONFIRMADA: t("Confirmada"),
+    REALIZADA: t("Realizada")
   }[value] || value;
 }
 
 function labelBusiness(value) {
   return {
-    RELEVO: "Relevo",
-    SOSTENIMIENTO: "Sostenimiento",
-    SOSTENIMIENTO_OFICIALES: "Sostenimiento de Oficiales",
-    ESTACA: "Estaca",
-    ORDENACION_AARONICA: "Ordenacion",
-    OTROS: "Otros"
+    RELEVO: t("Relevo"),
+    SOSTENIMIENTO: t("Sostenimiento"),
+    SOSTENIMIENTO_OFICIALES: t("Sostenimiento de Oficiales"),
+    ESTACA: t("Estaca"),
+    ORDENACION_AARONICA: t("Ordenacion"),
+    OTROS: t("Otros")
   }[value] || value;
 }
 
 function labelMessage(value) {
   return {
-    DISCURSO: "Discurso",
-    TESTIMONIO: "Testimonio",
-    HIMNO_INTERMEDIO: "Himno intermedio"
+    DISCURSO: t("Discurso"),
+    TESTIMONIO: t("Testimonio"),
+    HIMNO_INTERMEDIO: t("Himno intermedio")
   }[value] || value;
 }
 
@@ -4121,12 +4172,12 @@ function businessBlocksInOrder(items, allowedTypes = null) {
 
 function businessFormulaLabel(type) {
   return {
-    RELEVO: "RELEVOS",
-    SOSTENIMIENTO: "SOSTENIMIENTOS",
-    SOSTENIMIENTO_OFICIALES: "SOSTENIMIENTO DE OFICIALES",
-    ESTACA: "ESTACA",
-    ORDENACION_AARONICA: "ORDENACIÓN AL SACERDOCIO AARÓNICO",
-    OTROS: "OTROS"
+    RELEVO: t("RELEVOS"),
+    SOSTENIMIENTO: t("SOSTENIMIENTOS"),
+    SOSTENIMIENTO_OFICIALES: t("SOSTENIMIENTO DE OFICIALES"),
+    ESTACA: t("ESTACA"),
+    ORDENACION_AARONICA: t("ORDENACIÓN AL SACERDOCIO AARÓNICO"),
+    OTROS: t("OTROS")
   }[type] || labelBusiness(type);
 }
 
@@ -4145,21 +4196,21 @@ function liturgicalBusinessText(type, items) {
 function releaseFormula(items) {
   if (items.length === 1) {
     const item = items[0];
-    return `"${businessName(item)} ha sido relevado como ${businessRole(item)}. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano."`;
+    return `"${businessName(item)} ${t("ha sido relevado como")} ${businessRole(item)}${t(". Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano.\"")}`;
   }
-  return `Los siguientes hermanos/as han sido relevados de sus llamamientos: "${businessList(items)}. Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano."`;
+  return `${t("Los siguientes hermanos/as han sido relevados de sus llamamientos: \"")}${businessList(items)}${t(". Quienes deseen expresar agradecimiento por su servicio, sírvanse hacerlo levantando la mano.\"")}`;
 }
 
 function sustainingFormula(items) {
   if (items.length === 1) {
     const item = items[0];
-    return `Pedirle al hermano que se ponga de pie.\n"${businessName(item)} ha sido llamado como ${businessRole(item)}. Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa]."`;
+    return `${t("Pedirle al hermano que se ponga de pie.\n\"")}${businessName(item)} ${t("ha sido llamado como")} ${businessRole(item)}${t(". Los que estén a favor de sostenerlo, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\"")}`;
   }
-  return `Pedirles a los hermanos que se pongan de pie.\nLos siguientes hermanos/as han sido llamados a los siguientes llamamientos: "${businessList(items)}. Los que estén a favor de sostenerlos, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa]."`;
+  return `${t("Pedirles a los hermanos que se pongan de pie.\nLos siguientes hermanos/as han sido llamados a los siguientes llamamientos: \"")}${businessList(items)}${t(". Los que estén a favor de sostenerlos, sírvanse hacerlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa].\"")}`;
 }
 
 function aaronicOrdinationFormula(item) {
-  return `Pedirle al hermano que se ponga de pie.\n"Proponemos que ${businessName(item)} reciba el Sacerdocio de Aarón y que sea ordenado ${oficioParaFormula(item.columna3)}. Los que estén a favor, sírvanse indicarlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa]"`;
+  return `${t("Pedirle al hermano que se ponga de pie.\n\"Proponemos que")} ${businessName(item)} ${t("reciba el Sacerdocio de Aarón y que sea ordenado")} ${oficioParaFormula(item.columna3)}${t(". Los que estén a favor, sírvanse indicarlo levantando la mano. [Breve pausa]. Opuestos, si los hay, también pueden manifestarlo. [Breve pausa]\"")}`;
 }
 
 function businessList(items) {
@@ -4183,16 +4234,16 @@ function businessList(items) {
   });
   return groups.map((group) => {
     const role = group.names.length > 1 ? pluralizeCallingRole(group.role) : group.role;
-    return `${joinFormulaNames(group.names)} como ${role}`;
+    return `${joinFormulaNames(group.names)} ${t("como")} ${role}`;
   }).join("; ");
 }
 
 function businessName(item) {
-  return item?.columna2?.trim() || "[Nombre]";
+  return item?.columna2?.trim() || t("[Nombre]");
 }
 
 function businessRole(item) {
-  return item?.columna3?.trim() || "[Llamamiento]";
+  return item?.columna3?.trim() || t("[Llamamiento]");
 }
 
 function comparableText(value) {
@@ -4205,10 +4256,10 @@ function comparableText(value) {
 }
 
 function joinFormulaNames(names) {
-  if (!names.length) return "[Nombre]";
+  if (!names.length) return t("[Nombre]");
   if (names.length === 1) return names[0];
-  if (names.length === 2) return `${names[0]} y ${names[1]}`;
-  return `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
+  if (names.length === 2) return `${names[0]} ${t("y")} ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")} ${t("y")} ${names[names.length - 1]}`;
 }
 
 function pluralizeCallingRole(role) {
@@ -4229,23 +4280,23 @@ function applyCapitalization(value, reference) {
 }
 
 function descripcionAsuntoEstaca(item) {
-  const nombre = item?.columna2?.trim() || "[nombre]";
-  return `El ${nombre} tomará tiempo para asuntos de la estaca.`;
+  const nombre = item?.columna2?.trim() || t("[nombre]");
+  return `${t("El")} ${nombre} ${t("tomará tiempo para asuntos de la estaca.")}`;
 }
 
 function descripcionSostenimientoOficiales(item) {
-  const nombre = item?.columna2?.trim() || "[Nombre del líder]";
-  return `${nombre} tomará un tiempo para el sostenimiento de oficiales.`;
+  const nombre = item?.columna2?.trim() || t("[Nombre del líder]");
+  return `${nombre} ${t("tomará un tiempo para el sostenimiento de oficiales.")}`;
 }
 
 function oficioParaFormula(oficio) {
   const clean = oficio?.trim();
   const labels = {
-    Diacono: "diácono",
-    Maestro: "maestro",
-    Presbitero: "presbítero"
+    Diacono: t("diácono"),
+    Maestro: t("maestro"),
+    Presbitero: t("presbítero")
   };
-  return labels[clean] || (clean ? clean.charAt(0).toLowerCase() + clean.slice(1) : "[Oficio]");
+  return labels[clean] || (clean ? clean.charAt(0).toLowerCase() + clean.slice(1) : t("[Oficio]"));
 }
 
 function businessDescription(item) {
@@ -4258,50 +4309,50 @@ function businessDescription(item) {
 }
 
 function messageText(item) {
-  if (item.tipo === "HIMNO_INTERMEDIO") return `Himno intermedio - ${hymnLabel(item.himnoNumero, item.himnoNombre)}`;
+  if (item.tipo === "HIMNO_INTERMEDIO") return `${t("Himno intermedio -")} ${hymnLabel(item.himnoNumero, item.himnoNombre)}`;
   if (item.tipo === "DISCURSO") {
     const details = [
       item.nombre,
-      item.tema ? `Tema: ${item.tema}` : "",
-      item.etiquetaTema ? `Etiquetas: ${item.etiquetaTema}` : ""
+      item.tema ? `${t("Tema:")} ${item.tema}` : "",
+      item.etiquetaTema ? `${t("Etiquetas:")} ${item.etiquetaTema}` : ""
     ].filter(Boolean).join(" - ");
-    return `${labelMessage(item.tipo)} - ${details || "Sin datos"}`;
+    return `${labelMessage(item.tipo)} - ${details || t("Sin datos")}`;
   }
-  return `${labelMessage(item.tipo)} - ${item.nombre || "Sin datos"}`;
+  return `${labelMessage(item.tipo)} - ${item.nombre || t("Sin datos")}`;
 }
 
 function agendaText(agenda) {
   const lines = [
-    `Agenda Reunión Sacramental - ${formatDateLong(agenda.fecha)}`,
-    `Preside: ${agenda.preside || "Sin datos"}`,
-    `Dirige: ${agenda.dirige || "Sin datos"}`,
-    agenda.reconocimientos ? `Reconocimientos: ${agenda.reconocimientos}` : "",
+    `${t("Agenda Reunión Sacramental -")} ${formatDateLong(agenda.fecha)}`,
+    `${t("Preside:")} ${agenda.preside || t("Sin datos")}`,
+    `${t("Dirige:")} ${agenda.dirige || t("Sin datos")}`,
+    agenda.reconocimientos ? `${t("Reconocimientos:")} ${agenda.reconocimientos}` : "",
     agenda.anuncios ? `${meetingText("announcements")}: ${agenda.anuncios}` : "",
-    `Himno de apertura: ${hymnLabel(agenda.primerHimnoNumero, agenda.primerHimnoNombre)}`,
-    `Primera oración: ${agenda.primeraOracion || "Sin datos"}`,
+    `${t("Himno de apertura:")} ${hymnLabel(agenda.primerHimnoNumero, agenda.primerHimnoNombre)}`,
+    `${t("Primera oración:")} ${agenda.primeraOracion || t("Sin datos")}`,
     agenda.asuntosEstacaBarrio?.length
-      ? `Asuntos: ${agenda.asuntosEstacaBarrio.map((item) => `${labelBusiness(item.tipo)} - ${businessDescription(item)}`).join("; ")}`
+      ? `${t("Asuntos:")} ${agenda.asuntosEstacaBarrio.map((item) => `${labelBusiness(item.tipo)} - ${businessDescription(item)}`).join("; ")}`
       : "",
-    `Himno Sacramental: ${hymnLabel(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre)}`,
+    `${t("Himno Sacramental:")} ${hymnLabel(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre)}`,
     agenda.presentacionPrimaria
       ? meetingText("announcement")
       : agenda.reunionTestimonios
-      ? `Testimonios: ${(agenda.testimonios || []).join(", ") || "Sin datos"}`
-      : `Mensajes: ${agenda.mensajesEvangelio.map((item) => messageText(item)).join("; ") || "Sin datos"}`,
-    `Himno final: ${hymnLabel(agenda.himnoFinalNumero, agenda.himnoFinalNombre)}`,
-    `Oración final: ${agenda.oracionFinal || "Sin datos"}`
+      ? `${t("Testimonios:")} ${(agenda.testimonios || []).join(", ") || t("Sin datos")}`
+      : `${t("Mensajes:")} ${agenda.mensajesEvangelio.map((item) => messageText(item)).join("; ") || t("Sin datos")}`,
+    `${t("Himno final:")} ${hymnLabel(agenda.himnoFinalNumero, agenda.himnoFinalNombre)}`,
+    `${t("Oración final:")} ${agenda.oracionFinal || t("Sin datos")}`
   ].filter(Boolean);
   return lines.join("\n");
 }
 
 function hymnLabel(number, name) {
-  if (!number && !name) return "Sin datos";
+  if (!number && !name) return t("Sin datos");
   return `${number ? `${number} - ` : ""}${name || hymnName(number) || ""}`.trim();
 }
 
 function hymnName(number) {
   const key = Number(number || 0);
-  return HYMNS_ES[key] || HYMNS_EN[key] || "";
+  return hymnCatalog()[key] || "";
 }
 
 function unitRef(unitNumber) {
@@ -4388,15 +4439,15 @@ function dateInputValue(date) {
 }
 
 function formatDateLong(date) {
-  return new Intl.DateTimeFormat("es-UY", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(toDate(date));
+  return new Intl.DateTimeFormat(uiLocale(), { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(toDate(date));
 }
 
 function formatDateShort(date) {
-  return new Intl.DateTimeFormat("es-UY", { day: "2-digit", month: "2-digit", year: "numeric" }).format(toDate(date));
+  return new Intl.DateTimeFormat(uiLocale(), { day: "2-digit", month: "2-digit", year: "numeric" }).format(toDate(date));
 }
 
 function formatAgendaDateCompact(date) {
-  return new Intl.DateTimeFormat("es-UY", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+  return new Intl.DateTimeFormat(uiLocale(), { weekday: "short", day: "numeric", month: "short", year: "numeric" })
     .format(toDate(date))
     .replaceAll(".", "");
 }

@@ -30,7 +30,31 @@ La web usa las mismas colecciones que Android:
 
 La planificación de himnos utiliza los campos de la agenda como única fuente de verdad. Por eso, una selección realizada en la web aparece también en Android y viceversa.
 
-## Pruebas
+## Idiomas
+
+La interfaz admite español e inglés, incluidos lectura, impresión, planificación
+y exportación de historial. El selector está en el acceso, la barra lateral y
+Ajustes. La elección se guarda en este navegador; también se puede abrir con
+`?lang=en` o `?lang=es`. Sin una elección previa se usa inglés para navegadores
+en inglés y español para los demás. Cambiar de idioma recarga la página y avisa
+si hay una agenda o un diálogo abierto con posibles cambios sin guardar.
+
+Los textos se centralizan en `i18n-en.mjs`. Las claves, estados y tipos guardados
+en Firebase conservan el formato compartido con Android. Los nombres, anuncios,
+temas y nombres de himnos ya guardados no se traducen. El catálogo para nuevas
+selecciones de himnos sigue el idioma elegido. CSV y Excel exportan encabezados
+y tipos de participación en ese idioma y se reimportan al formato compartido.
+
+## Pruebas de idiomas
+
+`node --test tests/web-i18n.test.mjs`
+
+Con Playwright disponible en `NODE_PATH` y Chrome instalado:
+`node tests/web-i18n-ui.cjs`. Usa Firebase simulado, sin escribir datos reales,
+y comprueba ambos idiomas en móvil y escritorio, formularios, impresión,
+importación, persistencia del idioma y protección de cambios sin guardar.
+
+## Pruebas generales
 
 Desde la raíz del repositorio:
 
