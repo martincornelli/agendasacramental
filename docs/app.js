@@ -1,3 +1,5 @@
+import { googleIdentity, isUnitAdmin, adminTransition, reviewMessage, REVIEW_EMAIL } from "./unit-admin.mjs";
+import { ADMIN_TEXT } from "./unit-admin-text.mjs";
 import { currentLanguage, translate, LANGUAGE_STORAGE_KEY } from "./i18n.mjs";
 import { HISTORY_FIELDS, parseCSV, guessColumns, mapRows, previewRows, exportCSV } from "./participation-history.mjs";
 import { workbookTable } from "./history-workbook.mjs";
@@ -530,11 +532,21 @@ function cleanupSubscriptions() {
   state.historyError = "";
   state.config = { ...defaultConfig };
   state.configId = "";
+  state.unitAdmin = null;
 }
 
 function subscribeUnitData(unitNumber) {
   cleanupSubscriptions();
   state.isReady = false;
+  state.unsubscribers.push(onSnapshot(unitRef(unitNumber), snapshot => {
+    state.unitAdmin = snapshot.data() || null;
+    if (state.route === "settings") renderSettings();
+  }, handleFatal));
+  loadUnitAdministration(unitNumber).then(unit => {
+    if (state.unitNumber !== unitNumber) return;
+    state.unitAdmin = unit;
+    if (unit.invitacionesAdmin?.includes(googleIdentity(state.user).email)) openUnitAdministrators(unitNumber);
+  }).catch(error => toastMessage(adminErrorMessage(error)));
   const agendasQuery = query(
     collection(db, "agendas"),
     where("numeroUnidad", "==", unitNumber),
@@ -733,7 +745,7 @@ function renderUnitAccess() {
         ${languageSelector()}
         <p class="eyebrow">${escapeHtml(userEmail())}</p>
         <h2>${t("Acceso a unidad")}</h2>
-        <p class="muted">${t("Ingresa el número de unidad y su contraseña. Si la unidad no existe, podrás crearla con esa contraseña.")}</p>
+        <p class="muted">${adminText("admin_intro")}</p>
       </section>
       <section class="setup-panel auth-card">
         <form id="unit-form" class="form-grid">
@@ -747,12 +759,20 @@ function renderUnitAccess() {
           </div>
           <div class="auth-actions">
             <button class="primary-button" type="submit">${t("Ingresar")}</button>
+            <button id="create-unit" class="secondary-button" type="button">${adminText("admin_create")}</button>
+            <button id="admin-access" class="secondary-button" type="button">${adminText("admin_access")}</button>
             <button id="logout-setup" class="secondary-button" type="button">${t("Salir")}</button>
           </div>
         </form>
       </section>
     </div>
   `;
+  screen.querySelector("#create-unit").addEventListener("click", () => withAdminError(async () => {
+    const unit = accessUnitNumber();
+    if ((await getDoc(unitRef(unit))).exists()) { openUnitReview(unit, true); return; }
+    openUnitCreate(unit);
+  }));
+  screen.querySelector("#admin-access").addEventListener("click", () => withAdminError(() => openUnitAdministrators(accessUnitNumber())));
   screen.querySelector("#logout-setup").addEventListener("click", () => signOut(auth));
   screen.querySelector("#unit-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -780,18 +800,9 @@ function authMark() {
 async function ensureUnitAccess(unitNumber, password) {
   if (!unitNumber || !password) throw new Error(t("Ingresa unidad y contraseña."));
   const unitDoc = await getDoc(unitRef(unitNumber));
-  const passwordHash = await hashPassword(password);
-  if (!unitDoc.exists()) {
-    if (!confirm(`${t("La unidad")} ${unitNumber} ${t("no existe. ¿Deseas crearla?")}`)) return false;
-    await setDoc(unitRef(unitNumber), {
-      numeroUnidad: unitNumber,
-      passwordHash,
-      creadoPor: userEmail(),
-      creadoEn: serverTimestamp()
-    });
-  } else if (unitDoc.data().passwordHash !== passwordHash) {
-    throw new Error(t("Contraseña incorrecta."));
-  }
+  if (!unitDoc.exists()) throw new Error(adminText("admin_missing"));
+  if (unitDoc.data().passwordHash !== await hashPassword(password)) throw new Error(t("Contraseña incorrecta."));
+  await loadUnitAdministration(unitNumber);
   return true;
 }
 
@@ -1923,23 +1934,24 @@ async function rebuildHermanoParticipation(name, removedDate, tab, agendasAfter 
   const beforeSyncFieldName = tab === "talks" ? "ultimaVezDiscursoAntesAutoSync" : "ultimaVezOracionAntesAutoSync";
   const currentDate = toDate(existing[fieldName]);
   const syncDate = toDate(existing[syncFieldName]);
-  if (!sameMoment(currentDate, removedDate) && !(sameMoment(syncDate, removedDate) && sameMoment(currentDate, syncDate))) return;
+  if (!sameParticipationDay(currentDate, removedDate) && !(sameParticipationDay(syncDate, removedDate) && sameMoment(currentDate, syncDate))) return;
 
   const latest = latestParticipationDate(cleanName, tab, agendasAfter);
-  const previousDate = toDate(existing[beforeSyncFieldName]);
+  const savedPreviousDate = toDate(existing[beforeSyncFieldName]);
+  const previousDate = sameParticipationDay(savedPreviousDate, removedDate) ? null : savedPreviousDate;
   const restored = latestDate([latest, previousDate]);
   const timestamp = restored ? Timestamp.fromDate(restored) : null;
   const syncTimestamp = sameMoment(restored, latest) ? timestamp : null;
   await updateDoc(hermanoRef(existing.id), {
     [fieldName]: timestamp,
     [syncFieldName]: syncTimestamp,
-    [beforeSyncFieldName]: null
+    [beforeSyncFieldName]: syncTimestamp && previousDate ? Timestamp.fromDate(previousDate) : null
   });
   cache.set(key, {
     ...existing,
     [fieldName]: timestamp,
     [syncFieldName]: syncTimestamp,
-    [beforeSyncFieldName]: null
+    [beforeSyncFieldName]: syncTimestamp && previousDate ? Timestamp.fromDate(previousDate) : null
   });
 }
 
@@ -3205,8 +3217,10 @@ function planningRankings() {
         }
       } else prayerDates.push(date);
     });
-    if (hermano.ultimaVezDiscursoManual) talkDates.push(toDate(hermano.ultimaVezDiscursoManual));
-    if (hermano.ultimaVezOracionManual) prayerDates.push(toDate(hermano.ultimaVezOracionManual));
+    const manualDiscurso = manualParticipationDate(hermano.ultimaVezDiscursoManual, hermano.ultimaVezDiscursoAutoSync, hermano.ultimaVezDiscursoAntesAutoSync);
+    if (manualDiscurso) talkDates.push(manualDiscurso);
+    const manualOracion = manualParticipationDate(hermano.ultimaVezOracionManual, hermano.ultimaVezOracionAutoSync, hermano.ultimaVezOracionAntesAutoSync);
+    if (manualOracion) prayerDates.push(manualOracion);
     return {
       key,
       hermano,
@@ -3843,10 +3857,7 @@ function renderSettings() {
       <section class="panel">
         ${sectionTitle(t("Unidad"), "U", "")}
         <p class="muted">${t("Unidad activa:")} <strong>${escapeHtml(state.unitNumber)}</strong></p>
-        <form id="password-form" class="form-grid">
-          ${field("new-password", t("Nueva contraseña"), `<input id="new-password" class="input" type="password" minlength="4" required>`)}
-          <button class="primary-button" type="submit">${t("Cambiar contraseña")}</button>
-        </form>
+        ${canAdministerUnit() ? `<button id="unit-admins" class="secondary-button" type="button">${adminText("admin_title")}</button>` : `<p>${adminText("admin_only")}</p>`}
       </section>
       <section class="panel">
         ${sectionTitle(t("Apariencia"), "T", "")}
@@ -3863,16 +3874,7 @@ function renderSettings() {
       </section>
     </div>
   `;
-  screen.querySelector("#password-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    await withToastError(async () => {
-      const password = screen.querySelector("#new-password").value;
-      if (password.length < 4) throw new Error(t("La contraseña debe tener al menos 4 caracteres."));
-      await updateDoc(unitRef(state.unitNumber), { passwordHash: await hashPassword(password) });
-      toastMessage(t("Contraseña actualizada"));
-      event.target.reset();
-    });
-  });
+  screen.querySelector("#unit-admins")?.addEventListener("click", () => withAdminError(() => openUnitAdministrators(state.unitNumber)));
   screen.querySelectorAll("[data-theme]").forEach((button) => {
     button.addEventListener("click", () => {
       state.theme = button.dataset.theme;
@@ -4512,4 +4514,176 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value);
+}
+
+// Automatic dates come from current agendas; preserve only the manual baseline.
+function manualParticipationDate(current, synced, previous) {
+  return toDate(sameMoment(current, synced) ? previous : current);
+}
+
+function sameParticipationDay(a, b) {
+  return Boolean(toDate(a) && toDate(b) && sameDay(a, b));
+}
+
+function adminText(key) { return ADMIN_TEXT[uiLanguage()][key]; }
+
+function adminErrorMessage(error) {
+  const keys = { ADMIN_FORBIDDEN: 'admin_only', ADMIN_IDENTITY: 'admin_identity', ADMIN_LAST: 'admin_last', ADMIN_EMAIL: 'admin_invalid_email', ADMIN_ALREADY: 'admin_already', ADMIN_LIMIT: 'admin_limit', ADMIN_EXISTS: 'admin_exists', ADMIN_MISSING: 'admin_missing', ADMIN_PASSWORD: 'admin_password_mismatch' };
+  return adminText(keys[error.message] || 'admin_error');
+}
+
+async function withAdminError(action) {
+  try { await action(); } catch (error) { toastMessage(adminErrorMessage(error)); }
+}
+
+function canAdministerUnit() {
+  try { return isUnitAdmin(state.unitAdmin, googleIdentity(state.user)); } catch { return false; }
+}
+
+function accessUnitNumber() {
+  const unit = screen.querySelector('#unit-number').value.trim();
+  if (!/^\d+$/.test(unit)) throw Error('ADMIN_MISSING');
+  return unit;
+}
+
+async function loadUnitAdministration(unitNumber) {
+  const identity = googleIdentity(state.user);
+  return runTransaction(db, async transaction => {
+    const ref = unitRef(unitNumber);
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists()) throw Error('ADMIN_MISSING');
+    const unit = snapshot.data();
+    if (unit.administradores === undefined && String(unit.creadoPor || '').toLowerCase() === identity.email) {
+      const patch = adminTransition(unit, identity, 'claim');
+      transaction.update(ref, patch);
+      return { ...unit, ...patch };
+    }
+    return unit;
+  });
+}
+
+async function changeUnitAdministration(unitNumber, action, value = '') {
+  await loadUnitAdministration(unitNumber);
+  const identity = googleIdentity(state.user);
+  const passwordHash = action === 'password' ? await hashPassword(value) : null;
+  await runTransaction(db, async transaction => {
+    const ref = unitRef(unitNumber);
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists()) throw Error('ADMIN_MISSING');
+    if (action === 'password') {
+      if (!isUnitAdmin(snapshot.data(), identity)) throw Error('ADMIN_FORBIDDEN');
+      if (value.length < 4) throw Error('ADMIN_PASSWORD');
+      transaction.update(ref, { passwordHash });
+    } else transaction.update(ref, adminTransition(snapshot.data(), identity, action, value));
+  });
+}
+
+function openUnitCreate(unitNumber) {
+  openModal({ title: adminText('admin_create'), body: `
+    <p>${escapeHtml(unitNumber)}</p><p>${adminText('admin_creator')}</p>
+    <form id="create-unit-form" class="form-grid">
+      ${field('create-password', adminText('admin_password'), '<input id="create-password" class="input" type="password" minlength="4" required autocomplete="new-password">')}
+      ${field('create-confirm', adminText('admin_password_confirm'), '<input id="create-confirm" class="input" type="password" minlength="4" required autocomplete="new-password">')}
+    </form>`, footer: `<button class="secondary-button" data-action="cancel">${adminText('admin_cancel')}</button><button class="primary-button" type="submit" form="create-unit-form">${adminText('admin_create')}</button>`,
+    bind: dialog => dialog.querySelector('form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = dialog.querySelector('[type="submit"]');
+      button.disabled = true;
+      try {
+        const password = dialog.querySelector('#create-password').value;
+        if (password.length < 4 || password !== dialog.querySelector('#create-confirm').value) throw Error('ADMIN_PASSWORD');
+        const identity = googleIdentity(state.user);
+        const passwordHash = await hashPassword(password);
+        await runTransaction(db, async transaction => {
+          const ref = unitRef(unitNumber);
+          if ((await transaction.get(ref)).exists()) throw Error('ADMIN_EXISTS');
+          transaction.set(ref, { numeroUnidad: unitNumber, passwordHash, creadoPor: state.user.email, creadoEn: serverTimestamp(), administradores: { [identity.uid]: identity.email }, invitacionesAdmin: [] });
+        });
+        closeModal(); activateUnit(unitNumber);
+      } catch (error) {
+        if (error.message === 'ADMIN_EXISTS') openUnitReview(unitNumber, true);
+        else toastMessage(adminErrorMessage(error));
+      } finally { button.disabled = false; }
+    })
+  });
+}
+
+async function openUnitAdministrators(unitNumber) {
+  const unit = await loadUnitAdministration(unitNumber);
+  const identity = googleIdentity(state.user);
+  const admin = isUnitAdmin(unit, identity);
+  const invited = unit.invitacionesAdmin?.includes(identity.email);
+  const admins = Object.entries(unit.administradores || {});
+  openModal({ title: adminText('admin_title'), body: `
+    <p>${escapeHtml(unitNumber)}</p>
+    ${admin ? `${admins.map(([uid, email]) => `<div class="toolbar"><span>${escapeHtml(email)}</span><button class="secondary-button" data-remove="${escapeAttr(uid)}" ${admins.length <= 1 ? 'disabled' : ''}>${adminText(uid === identity.uid ? 'admin_leave' : 'admin_remove')}</button></div>`).join('')}
+      ${admins.length === 1 ? `<p class="muted">${adminText('admin_last')}</p>` : ''}
+      <form id="invite-admin" class="form-grid">${field('admin-email', adminText('admin_emails'), '<textarea id="admin-email" class="input" rows="3" required></textarea>')}<p class="muted">${adminText('admin_emails_hint')}</p><button class="primary-button" type="submit">${adminText('admin_invite_many')}</button></form>
+      <p class="muted">${adminText('admin_invite_help')}</p>
+      ${(unit.invitacionesAdmin || []).length ? `<h3>${adminText('admin_pending')}</h3>` : ''}
+      ${(unit.invitacionesAdmin || []).map(email => `<div class="toolbar"><span>${escapeHtml(email)}</span><button class="secondary-button" data-cancel-invite="${escapeAttr(email)}">${adminText('admin_cancel_invite')}</button></div>`).join('')}
+      <form id="admin-reset-password" class="form-grid">
+        ${field('admin-password', adminText('admin_password'), '<input id="admin-password" class="input" type="password" minlength="4" required autocomplete="new-password">')}
+        ${field('admin-password-confirm', adminText('admin_password_confirm'), '<input id="admin-password-confirm" class="input" type="password" minlength="4" required autocomplete="new-password">')}
+        <button class="primary-button" type="submit">${adminText('admin_password_change')}</button>
+      </form>` : invited ? `<p>${adminText('admin_invitation')}</p><button class="primary-button" id="accept-admin">${adminText('admin_accept')}</button><button class="secondary-button" id="decline-admin">${adminText('admin_decline')}</button>` : `<p>${adminText('admin_only')}</p><button class="secondary-button" id="review-unit">${adminText('admin_review')}</button>`}
+    `, footer: `<button class="secondary-button" data-action="cancel">${adminText('admin_close')}</button>`,
+    bind: dialog => {
+      let busy = false;
+      const change = async (action, value) => {
+        if (busy) return;
+        busy = true;
+        dialog.querySelectorAll('button').forEach(button => button.disabled = true);
+        try {
+          await changeUnitAdministration(unitNumber, action, value);
+          if (action === 'password' || action === 'decline') {
+            closeModal();
+            toastMessage(adminText(action === 'password' ? 'admin_password_success' : 'admin_declined'));
+          } else {
+            await openUnitAdministrators(unitNumber);
+            toastMessage(adminText('admin_saved'));
+          }
+        } catch (error) {
+          toastMessage(adminErrorMessage(error));
+          dialog.querySelectorAll('button').forEach(button => button.disabled = Boolean(button.dataset.remove && admins.length <= 1));
+        } finally { busy = false; }
+      };
+      dialog.querySelector('#invite-admin')?.addEventListener('submit', event => { event.preventDefault(); change('invite', dialog.querySelector('#admin-email').value); });
+      dialog.querySelector('#accept-admin')?.addEventListener('click', () => change('accept'));
+      dialog.querySelector('#decline-admin')?.addEventListener('click', () => change('decline'));
+      dialog.querySelector('#review-unit')?.addEventListener('click', () => openUnitReview(unitNumber));
+      dialog.querySelectorAll('[data-remove]').forEach(button => button.addEventListener('click', () => { if (confirm(adminText('admin_remove_confirm'))) change('remove', button.dataset.remove); }));
+      dialog.querySelectorAll('[data-cancel-invite]').forEach(button => button.addEventListener('click', () => change('cancel', button.dataset.cancelInvite)));
+      dialog.querySelector('#admin-reset-password')?.addEventListener('submit', event => {
+        event.preventDefault();
+        const password = dialog.querySelector('#admin-password').value;
+        if (password !== dialog.querySelector('#admin-password-confirm').value) { toastMessage(adminText('admin_password_mismatch')); return; }
+        change('password', password);
+      });
+    }
+  });
+}
+
+function openUnitReview(unitNumber, alreadyExists = false) {
+  const message = reviewMessage(unitNumber, state.user.email, uiLanguage());
+  openModal({ title: adminText(alreadyExists ? 'admin_exists' : 'admin_review'),
+    body: alreadyExists ? `<p>${adminText('admin_exists_help')}</p><button class="primary-button" id="review-unit">${adminText('admin_review')}</button>` : `
+      <p>${adminText('admin_review_help')}</p><p>${REVIEW_EMAIL}</p>
+      <textarea class="input" rows="9" readonly aria-label="${adminText('admin_review')}">${escapeHtml(message.subject + '\n\n' + message.body)}</textarea>
+      <div class="auth-actions"><a class="primary-button" data-review-mail href="${escapeAttr(message.gmail)}" target="_blank" rel="noopener noreferrer">${adminText('admin_gmail')}</a>
+      <a class="secondary-button" data-review-mail href="${escapeAttr(message.mailto)}">${adminText('admin_mail')}</a>
+      <button class="secondary-button" id="copy-review">${adminText('admin_copy')}</button></div>`,
+    footer: `<button class="secondary-button" data-action="cancel">${adminText('admin_back')}</button>`,
+    bind: dialog => {
+      dialog.querySelector('#review-unit')?.addEventListener('click', () => openUnitReview(unitNumber));
+      dialog.querySelectorAll('[data-review-mail]').forEach(link => link.addEventListener('click', () => {
+        // Allow the browser to follow the link before removing the dialog. No delivery receipt is available.
+        setTimeout(() => { closeModal(); toastMessage(adminText('admin_mail_ready'), 7000); }, 0);
+      }));
+      dialog.querySelector('#copy-review')?.addEventListener('click', () => withToastError(async () => {
+        await navigator.clipboard.writeText(`${REVIEW_EMAIL}\n${message.subject}\n\n${message.body}`);
+        toastMessage(t('Texto copiado'));
+      }));
+    }
+  });
 }

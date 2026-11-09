@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync('docs/app.js', 'utf8');
 function load(names, globals = {}) {
+  names = [...new Set([...names, 'manualParticipationDate', 'sameMoment', 'toDate'])];
   const context = vm.createContext(globals);
   const translations = source.slice(source.indexOf('const MEETING_TEXT'), source.indexOf('const UNIT_STORAGE_KEY'));
   const functions = names.map(name => {
@@ -23,6 +24,36 @@ class Element {
   setAttribute(key, value) { this.attrs[key] = value; }
   getAttribute(key) { return this.attrs[key]; }
 }
+
+test('removed talks restore the previous day despite different stored hours, preserving the manual baseline', async () => {
+  for (const messages of [[], [{ tipo: 'HIMNO_INTERMEDIO', nombre: 'Ana' }], [{ tipo: 'DISCURSO', nombre: 'Juan' }]]) {
+    const date = day => new Date(`2026-11-${day}T12:00:00`);
+    const brother = { id: 'ana', nombre: 'Ana', ultimaVezDiscursoManual: date('08'), ultimaVezDiscursoAutoSync: date('08'), ultimaVezDiscursoAntesAutoSync: date('01') };
+    const agenda = (id, fecha, mensajesEvangelio) => ({ id, fecha, mensajesEvangelio, testimonios: [] });
+    const old = agenda('recent', new Date('2026-11-08T09:00:00'), [{ tipo: 'DISCURSO', nombre: 'Ana' }]);
+    const earlier = agenda('earlier', date('04'), [{ tipo: 'DISCURSO', nombre: 'Ana' }]);
+    const changed = { ...old, mensajesEvangelio: messages };
+    const state = { hermanos: [brother], agendas: [earlier, changed], importedHistory: [] };
+    const c = load(['syncRemovedAgendaParticipants', 'agendaTalkParticipants', 'agendaPrayerParticipants', 'addParticipantName', 'hermanoCache', 'rebuildHermanoParticipation', 'latestParticipationDate', 'sameParticipationDay', 'sameDay', 'dateInputValue', 'latestDate', 'normalizeName', 'normalizeText', 'planningRankings', 'collectHistoryNames'], {
+      state, Timestamp: { fromDate: value => value }, hermanoRef: id => id,
+      updateDoc: async (_, data) => Object.assign(brother, data), countWithinDays: () => 0, topicLabelsFromText: () => []
+    });
+    assert.equal(c.planningRankings().find(r => r.hermano.id === 'ana').ultimaVezDiscurso.getTime(), date('04').getTime());
+    await c.syncRemovedAgendaParticipants(old, changed, state.agendas);
+    assert.equal(brother.ultimaVezDiscursoManual.getTime(), date('04').getTime());
+    assert.equal(brother.ultimaVezDiscursoAntesAutoSync.getTime(), date('01').getTime());
+    state.agendas = [changed];
+    await c.syncRemovedAgendaParticipants(earlier, null, state.agendas);
+    assert.equal(brother.ultimaVezDiscursoManual.getTime(), date('01').getTime());
+  }
+});
+
+test('manual participation dates survive and automatic dates without history disappear', () => {
+  const c = load([]);
+  const day = new Date('2026-11-08T12:00:00');
+  assert.equal(c.manualParticipationDate(day, day, null), null);
+  assert.equal(c.manualParticipationDate(day, null, null).getTime(), day.getTime());
+});
 
 test('imported history feeds planning dates, frequency and topics without creating agendas or people', () => {
   const state = {

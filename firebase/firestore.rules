@@ -1,0 +1,116 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Solo usuarios autenticados con Google pueden acceder
+    function estaAutenticado() {
+      return request.auth != null;
+    }
+    
+// Replace the existing /unidades match; never add this alongside an allow-write match.
+function identidadGoogle() {
+  return request.auth != null
+    && request.auth.token.email_verified == true
+    && request.auth.token.firebase.sign_in_provider == 'google.com';
+}
+function correoAdmin() { return request.auth.token.email.lower(); }
+function esAdminUnidad(data) {
+  return identidadGoogle() && request.auth.uid in data.get('administradores', {}).keys();
+}
+function adminsValidos(data) {
+  return data.administradores is map && data.administradores.size() > 0
+    && data.administradores.size() <= 30
+    && data.invitacionesAdmin is list && data.invitacionesAdmin.size() <= 30
+    && data.invitacionesAdmin.toSet().size() == data.invitacionesAdmin.size();
+}
+match /unidades/{unidadId} {
+  allow get: if request.auth != null;
+  allow list, delete: if false;
+  allow create: if identidadGoogle()
+    && request.resource.data.keys().hasOnly(['numeroUnidad', 'passwordHash', 'creadoPor', 'creadoEn', 'administradores', 'invitacionesAdmin'])
+    && request.resource.data.numeroUnidad == unidadId
+    && request.resource.data.passwordHash is string && request.resource.data.passwordHash.size() == 64
+    && request.resource.data.creadoPor == request.auth.token.email
+    && request.resource.data.creadoEn == request.time
+    && request.resource.data.administradores == {request.auth.uid: correoAdmin()}
+    && request.resource.data.invitacionesAdmin == [];
+  allow update: if identidadGoogle() && (
+    // One-time legacy claim. A UID, not an editable client email, owns the role thereafter.
+    (!('administradores' in resource.data)
+      && resource.data.creadoPor.lower() == correoAdmin()
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['administradores', 'invitacionesAdmin'])
+      && request.resource.data.administradores == {request.auth.uid: correoAdmin()}
+      && request.resource.data.invitacionesAdmin == [])
+    || (esAdminUnidad(resource.data) && adminsValidos(request.resource.data)
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['administradores', 'invitacionesAdmin', 'passwordHash'])
+      && request.resource.data.passwordHash is string && request.resource.data.passwordHash.size() == 64
+      // Administrators can remove roles, but new administrators must accept an invitation.
+      && request.resource.data.administradores.diff(resource.data.administradores).addedKeys().size() == 0
+      && request.resource.data.administradores.diff(resource.data.administradores).changedKeys().size() == 0)
+    || (correoAdmin() in resource.data.get('invitacionesAdmin', [])
+      && adminsValidos(request.resource.data)
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['administradores', 'invitacionesAdmin'])
+      && request.resource.data.administradores.diff(resource.data.administradores).affectedKeys().hasOnly([request.auth.uid])
+      && request.resource.data.administradores.keys().hasAll(resource.data.administradores.keys())
+      && request.resource.data.administradores[request.auth.uid] == correoAdmin()
+      && request.resource.data.invitacionesAdmin == resource.data.invitacionesAdmin.removeAll([correoAdmin()]))
+    || (correoAdmin() in resource.data.get('invitacionesAdmin', [])
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['invitacionesAdmin'])
+      && request.resource.data.invitacionesAdmin == resource.data.invitacionesAdmin.removeAll([correoAdmin()]))
+  );
+}
+
+    // Agendas: solo usuarios autenticados
+    match /agendas/{agendaId} {
+      allow read, write: if estaAutenticado();
+    }
+    
+    // Hermanos: solo usuarios autenticados
+    match /hermanos/{hermanoId} {
+      allow read, write: if estaAutenticado();
+    }
+    
+    // Configuración: solo usuarios autenticados
+    match /configuracion/{configId} {
+      allow read, write: if estaAutenticado();
+    }
+  
+// Current compatibility policy. Insert inside match /databases/{database}/documents.
+// Not a full replacement for the deployed rules. Do not deploy this fragment as-is.
+// Same authentication boundary as the existing app. Unit authorization is a separate migration.
+function puedeLeerHistorial(unidad) {
+  return request.auth != null;
+}
+
+function puedeEditarHistorial(unidad) {
+  return puedeLeerHistorial(unidad);
+}
+
+function historialValido(unidad) {
+  let data = request.resource.data;
+  return data.keys().hasAll(['numeroUnidad', 'revision', 'records', 'actualizadoEn', 'actualizadoPor'])
+    && data.keys().hasOnly(['numeroUnidad', 'revision', 'records', 'actualizadoEn', 'actualizadoPor'])
+    && data.numeroUnidad == unidad
+    && data.revision is int
+    && data.records is list
+    && data.records.size() <= 5000
+    && data.actualizadoEn == request.time
+    && data.actualizadoPor is string;
+}
+
+match /historialParticipaciones/{unidad} {
+  allow get: if puedeLeerHistorial(unidad);
+  allow list, delete: if false;
+  allow create: if puedeEditarHistorial(unidad)
+    && historialValido(unidad) && request.resource.data.revision == 1;
+  allow update: if puedeEditarHistorial(unidad)
+    && historialValido(unidad)
+    && request.resource.data.revision == resource.data.revision + 1;
+}
+
+match /historialAccesos/{unidad}/miembros/{uid} {
+  allow read, write: if false;
+}
+
+  }
+}
