@@ -14,6 +14,35 @@ class AgendaRepository {
     private val agendasRef = db.collection("agendas")
     private val hermanosRef = db.collection("hermanos")
 
+    // Every agenda mutation derives status and clears obsolete acceptances in the same transaction.
+    private fun patchConfirmacion(actual: Agenda, patch: Map<String, Any>): Map<String, Any> {
+        fun text(key: String, fallback: String) = patch[key] as? String ?: fallback
+        fun number(key: String, fallback: Int) = (patch[key] as? Number)?.toInt() ?: fallback
+        @Suppress("UNCHECKED_CAST")
+        val messages = (patch["mensajesEvangelio"] as? List<Map<String, Any>>)?.mapIndexed { i, m ->
+            MensajeEvangelio(id = m["id"] as? String ?: "legacy-$i", tipo = TipoMensaje.valueOf(m["tipo"] as? String ?: "DISCURSO"), nombre = m["nombre"] as? String ?: "", tema = m["tema"] as? String ?: "", etiquetaTema = m["etiquetaTema"] as? String ?: "", himnoNumero = (m["himnoNumero"] as? Number)?.toInt() ?: 0, himnoNombre = m["himnoNombre"] as? String ?: "")
+        } ?: actual.mensajesEvangelio
+        val next = reconciliarConfirmacion(actual.copy(
+            estado = EstadoAgenda.valueOf(text("estado", actual.estado.name)),
+            preside = text("preside", actual.preside), dirige = text("dirige", actual.dirige),
+            primeraOracion = text("primeraOracion", actual.primeraOracion), oracionFinal = text("oracionFinal", actual.oracionFinal),
+            pianista = text("pianista", actual.pianista), directorMusica = text("directorMusica", actual.directorMusica),
+            primerHimnoNumero = number("primerHimnoNumero", actual.primerHimnoNumero), primerHimnoNombre = text("primerHimnoNombre", actual.primerHimnoNombre),
+            himnoSacramentalNumero = number("himnoSacramentalNumero", actual.himnoSacramentalNumero), himnoSacramentalNombre = text("himnoSacramentalNombre", actual.himnoSacramentalNombre),
+            himnoFinalNumero = number("himnoFinalNumero", actual.himnoFinalNumero), himnoFinalNombre = text("himnoFinalNombre", actual.himnoFinalNombre), mensajesEvangelio = messages
+        ))
+        return patch + mapOf("estado" to next.estado.name, "aceptaciones" to next.aceptaciones, "revision" to actual.revision + 1, "ultimaEdicionEn" to Timestamp.now(), "mensajesEvangelio" to next.mensajesEvangelio.map { mensajeToMap(it) })
+    }
+
+    private suspend fun actualizarAgenda(id: String, patch: Map<String, Any>, esperado: Agenda? = null) {
+        db.runTransaction { tx ->
+            val ref = agendasRef.document(id)
+            val actual = tx.get(ref).toObject(Agenda::class.java) ?: error("AGENDA_CONFLICT")
+            if (esperado != null) check(actual.revision == esperado.revision && actual.ultimaEdicionEn == esperado.ultimaEdicionEn) { "AGENDA_CONFLICT" }
+            tx.update(ref, patchConfirmacion(actual, patch))
+        }.await()
+    }
+
     private fun hashPassword(password: String): String {
         val bytes = MessageDigest.getInstance("SHA-256").digest(password.toByteArray())
         return bytes.joinToString("") { "%02x".format(it) }
@@ -24,19 +53,8 @@ class AgendaRepository {
         return result.exists()
     }
 
-    suspend fun crearUnidad(numeroUnidad: String, password: String, creadoPor: String): Result<Unit> {
-        return try {
-            val unidad = mapOf(
-                "numeroUnidad" to numeroUnidad,
-                "passwordHash" to hashPassword(password),
-                "creadoPor" to creadoPor,
-                "creadoEn" to Timestamp.now()
-            )
-            unidadesRef.document(numeroUnidad).set(unidad).await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    suspend fun crearUnidad(numeroUnidad: String, password: String, creadoPor: String): Result<Unit> = runCatching {
+        UnitAdministrationRepository().create(numeroUnidad, password)
     }
 
     suspend fun verificarPassword(numeroUnidad: String, password: String): Boolean {
@@ -56,7 +74,7 @@ class AgendaRepository {
                 .orderBy("fecha", Query.Direction.DESCENDING)
                 .get().await()
             val agendas = snapshot.documents.mapNotNull { doc ->
-                doc.toObject(Agenda::class.java)?.copy(id = doc.id)
+                doc.toObject(Agenda::class.java)?.copy(id = doc.id)?.let(::reconciliarConfirmacion)
             }
             Result.success(agendas)
         } catch (e: Exception) {
@@ -67,7 +85,7 @@ class AgendaRepository {
     suspend fun getAgenda(agendaId: String): Result<Agenda> {
         return try {
             val doc = agendasRef.document(agendaId).get().await()
-            val agenda = doc.toObject(Agenda::class.java)?.copy(id = doc.id)
+            val agenda = doc.toObject(Agenda::class.java)?.copy(id = doc.id)?.let(::reconciliarConfirmacion)
                 ?: return Result.failure(Exception("Agenda no encontrada"))
             Result.success(agenda)
         } catch (e: Exception) {
@@ -89,7 +107,7 @@ class AgendaRepository {
                 .limit(1)
                 .get().await()
             val prefs = context.getSharedPreferences(NotifPrefs.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-            val agenda = snapshot.documents.firstOrNull()?.toObject(Agenda::class.java)
+            val agenda = snapshot.documents.firstOrNull()?.toObject(Agenda::class.java)?.let(::reconciliarConfirmacion)
             if (agenda != null && agenda.estado != EstadoAgenda.REALIZADA) {
                 android.util.Log.d("AgendaRepo", "guardarProximaAgenda: ${agenda.fecha.toDate()} estado=${agenda.estado}")
                 prefs.edit()
@@ -132,8 +150,10 @@ class AgendaRepository {
         }
     }
 
-    suspend fun guardarAgenda(agenda: Agenda, userEmail: String): Result<String> {
+    suspend fun guardarAgenda(agendaOriginal: Agenda, userEmail: String): Result<String> {
+        val agenda = reconciliarConfirmacion(agendaOriginal)
         return try {
+            validateAgendaUnit(agenda.numeroUnidad)
             // Validar fecha duplicada
             val duplicada = existeAgendaMismaFecha(agenda.numeroUnidad, agenda.fecha, agenda.id)
             if (duplicada) {
@@ -160,7 +180,16 @@ class AgendaRepository {
                 val ref = agendasRef.add(data).await()
                 ref.id
             } else {
-                agendasRef.document(agenda.id).set(data).await()
+                db.runTransaction { tx ->
+                    val ref = agendasRef.document(agenda.id)
+                    val actual = tx.get(ref).toObject(Agenda::class.java) ?: error("AGENDA_CONFLICT")
+                    validateAgendaUnit(agenda.numeroUnidad, actual.numeroUnidad)
+                    check(actual.revision == agendaOriginal.revision && actual.ultimaEdicionEn == agendaOriginal.ultimaEdicionEn) { "AGENDA_CONFLICT" }
+                    data["revision"] = actual.revision + 1
+                    data["creadoPor"] = actual.creadoPor
+                    data["creadoEn"] = actual.creadoEn
+                    tx.update(ref, data)
+                }.await()
                 agenda.id
             }
             val agendaGuardada = agenda.copy(id = id)
@@ -175,7 +204,7 @@ class AgendaRepository {
     suspend fun eliminarAgenda(agendaId: String): Result<Unit> {
         return try {
             val doc = agendasRef.document(agendaId).get().await()
-            val agendaAnterior = doc.toObject(Agenda::class.java)?.copy(id = doc.id)
+            val agendaAnterior = doc.toObject(Agenda::class.java)?.copy(id = doc.id)?.let(::reconciliarConfirmacion)
             agendasRef.document(agendaId).delete().await()
             sincronizarParticipantesQuitados(agendaAnterior, null)
             Result.success(Unit)
@@ -225,6 +254,7 @@ class AgendaRepository {
 
     private fun mensajeToMap(mensaje: MensajeEvangelio): Map<String, Any> {
         return mapOf(
+            "id" to mensaje.id,
             "tipo" to mensaje.tipo.name,
             "nombre" to mensaje.nombre,
             "himnoNumero" to mensaje.himnoNumero,
@@ -239,6 +269,10 @@ class AgendaRepository {
             "numeroUnidad" to agenda.numeroUnidad,
             "fecha" to agenda.fecha,
             "estado" to agenda.estado.name,
+            "confirmacionVersion" to agenda.confirmacionVersion,
+            "aceptaciones" to agenda.aceptaciones,
+            "responsablePrimaria" to agenda.responsablePrimaria,
+            "revision" to agenda.revision,
             "asistencia" to agenda.asistencia,
             "preside" to agenda.preside,
             "dirige" to agenda.dirige,
@@ -326,12 +360,13 @@ class AgendaRepository {
             val documento = snapshot.documents.firstOrNull { doc ->
                 doc.getTimestamp("fecha")?.let { mismoDia(it, Timestamp(fecha)) } == true
             }
-            val anterior = documento?.toObject(Agenda::class.java)?.copy(id = documento.id)
+            val anterior = documento?.toObject(Agenda::class.java)?.copy(id = documento.id)?.let(::reconciliarConfirmacion)
             val mensajes = anterior?.mensajesEvangelio.orEmpty().toMutableList()
             val indiceIntermedio = mensajes.indexOfFirst { it.tipo == TipoMensaje.HIMNO_INTERMEDIO }
             val intermedio = planificacion.intermedio
             if (intermedio.numero > 0 || intermedio.nombre.isNotBlank()) {
                 val mensaje = MensajeEvangelio(
+                    id = mensajes.getOrNull(indiceIntermedio)?.id ?: java.util.UUID.randomUUID().toString(),
                     tipo = TipoMensaje.HIMNO_INTERMEDIO,
                     himnoNumero = intermedio.numero,
                     himnoNombre = intermedio.nombre
@@ -356,7 +391,7 @@ class AgendaRepository {
             val origenFinal = origenPlanner(planificacion.final, planAnterior.final)
 
             if (documento != null) {
-                documento.reference.update(
+                actualizarAgenda(documento.id,
                     mapOf(
                         "primerHimnoNumero" to planificacion.apertura.numero,
                         "primerHimnoNombre" to planificacion.apertura.nombre,
@@ -371,8 +406,8 @@ class AgendaRepository {
                         "himnoFinalOrigen" to origenFinal,
                         "ultimaEdicionPor" to userEmail,
                         "ultimaEdicionEn" to ahora
-                    )
-                ).await()
+                    ), anterior
+                )
                 Result.success(documento.id)
             } else {
                 val agenda = Agenda(
@@ -419,19 +454,20 @@ class AgendaRepository {
             val documentosPorFecha = snapshot.documents.mapNotNull { documento ->
                 documento.getTimestamp("fecha")?.toDate()?.let { claveFecha(it) to documento }
             }.toMap()
-            val batch = db.batch()
+            val cambios = mutableListOf<Triple<com.google.firebase.firestore.DocumentReference, Map<String, Any>, Agenda?>>()
             val ahora = Timestamp.now()
 
             planificaciones.distinctBy { claveFecha(it.first) }.forEach { (fecha, planificacion) ->
                 val documento = documentosPorFecha[claveFecha(fecha)]
-                val anterior = documento?.toObject(Agenda::class.java)?.copy(id = documento.id)
+                val anterior = documento?.toObject(Agenda::class.java)?.copy(id = documento.id)?.let(::reconciliarConfirmacion)
                 val planAnterior = planificacionDesdeAgenda(anterior)
                 val mensajes = anterior?.mensajesEvangelio.orEmpty().toMutableList()
                 val indiceIntermedio = mensajes.indexOfFirst { it.tipo == TipoMensaje.HIMNO_INTERMEDIO }
                 val intermedio = planificacion.intermedio
                 if (intermedio.numero > 0 || intermedio.nombre.isNotBlank()) {
                     val mensaje = MensajeEvangelio(
-                        tipo = TipoMensaje.HIMNO_INTERMEDIO,
+                        id = mensajes.getOrNull(indiceIntermedio)?.id ?: java.util.UUID.randomUUID().toString(),
+                    tipo = TipoMensaje.HIMNO_INTERMEDIO,
                         himnoNumero = intermedio.numero,
                         himnoNombre = intermedio.nombre
                     )
@@ -453,7 +489,7 @@ class AgendaRepository {
                 val origenFinal = resolverOrigen(planificacion.final, planAnterior.final)
 
                 if (documento != null) {
-                    batch.update(
+                    cambios += Triple(
                         documento.reference,
                         mapOf(
                             "primerHimnoNumero" to planificacion.apertura.numero,
@@ -469,7 +505,7 @@ class AgendaRepository {
                             "himnoFinalOrigen" to origenFinal,
                             "ultimaEdicionPor" to userEmail,
                             "ultimaEdicionEn" to ahora
-                        )
+                        ), anterior
                     )
                 } else {
                     val nuevaAgenda = Agenda(
@@ -493,11 +529,21 @@ class AgendaRepository {
                         ultimaEdicionPor = userEmail,
                         ultimaEdicionEn = ahora
                     )
-                    batch.set(agendasRef.document(), agendaToMap(nuevaAgenda))
+                    cambios += Triple(agendasRef.document(), agendaToMap(nuevaAgenda.copy(confirmacionVersion = 1)), null)
                 }
             }
 
-            batch.commit().await()
+            db.runTransaction { tx ->
+                val actuales = cambios.map { (ref, _, _) -> tx.get(ref).toObject(Agenda::class.java) }
+                cambios.forEachIndexed { i, (ref, patch, esperado) ->
+                    val actual = actuales[i]
+                    if (esperado == null) { check(actual == null); tx.set(ref, patch) }
+                    else {
+                        check(actual != null && actual.revision == esperado.revision && actual.ultimaEdicionEn == esperado.ultimaEdicionEn) { "AGENDA_CONFLICT" }
+                        tx.update(ref, patchConfirmacion(actual, patch))
+                    }
+                }
+            }.await()
             Result.success(planificaciones.distinctBy { claveFecha(it.first) }.size)
         } catch (e: Exception) {
             Result.failure(e)
@@ -529,15 +575,8 @@ class AgendaRepository {
         }
     }
 
-    suspend fun cambiarPassword(numeroUnidad: String, newPassword: String): Result<Unit> {
-        return try {
-            unidadesRef.document(numeroUnidad)
-                .update("passwordHash", hashPassword(newPassword))
-                .await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    suspend fun cambiarPassword(numeroUnidad: String, newPassword: String): Result<Unit> = runCatching {
+        UnitAdministrationRepository().change(numeroUnidad, "password", newPassword)
     }
 
     suspend fun getHermanos(numeroUnidad: String, importedRecords: List<Map<String, Any>>? = null): List<Hermano> {
@@ -593,6 +632,7 @@ class AgendaRepository {
             val data = mutableMapOf<String, Any?>(
                 "numeroUnidad" to hermano.numeroUnidad,
                 "nombre" to hermano.nombre,
+                "organizacion" to hermano.organizacion,
                 "agregadoManualmente" to hermano.agregadoManualmente,
                 "excluido" to false,
                 "inactivoDiscurso" to hermano.inactivoDiscurso,
@@ -606,6 +646,11 @@ class AgendaRepository {
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    suspend fun guardarOrganizacion(hermanoId: String, organizacion: String): Result<Unit> = runCatching {
+        require(organizacion.isEmpty() || organizacion in organizaciones)
+        hermanosRef.document(hermanoId).update("organizacion", organizacion).await()
     }
 
     suspend fun getConfiguracion(numeroUnidad: String): ConfiguracionPlanificacion? {
@@ -657,12 +702,12 @@ class AgendaRepository {
     suspend fun asignarHermanoAAgenda(agendaId: String, campo: String, nombre: String): Result<Unit> {
         return try {
             val doc = agendasRef.document(agendaId).get().await()
-            val agenda = doc.toObject(Agenda::class.java)?.copy(id = doc.id)
+            val agenda = doc.toObject(Agenda::class.java)?.copy(id = doc.id)?.let(::reconciliarConfirmacion)
                 ?: return Result.failure(Exception("Agenda no encontrada"))
             when (normalizarNombre(campo)) {
                 "primera oracion", "opening prayer" -> {
                     val nombreAnterior = agenda.primeraOracion
-                    agendasRef.document(agendaId).update("primeraOracion", nombre).await()
+                    actualizarAgenda(agendaId, mapOf("primeraOracion" to nombre), agenda)
                     actualizarFechaParticipacionManual(agenda.numeroUnidad, nombre, agenda.fecha, esDiscurso = false)
                     if (normalizarNombre(nombreAnterior) != normalizarNombre(nombre)) {
                         recalcularFechaParticipacionDesdeAgendas(
@@ -675,7 +720,7 @@ class AgendaRepository {
                 }
                 "oracion final", "closing prayer" -> {
                     val nombreAnterior = agenda.oracionFinal
-                    agendasRef.document(agendaId).update("oracionFinal", nombre).await()
+                    actualizarAgenda(agendaId, mapOf("oracionFinal" to nombre), agenda)
                     actualizarFechaParticipacionManual(agenda.numeroUnidad, nombre, agenda.fecha, esDiscurso = false)
                     if (normalizarNombre(nombreAnterior) != normalizarNombre(nombre)) {
                         recalcularFechaParticipacionDesdeAgendas(
@@ -688,9 +733,9 @@ class AgendaRepository {
                 }
                 "nuevo_discurso" -> {
                     val mensajes = agenda.mensajesEvangelio.toMutableList()
-                    mensajes.add(MensajeEvangelio(tipo = TipoMensaje.DISCURSO, nombre = nombre))
+                    mensajes.add(MensajeEvangelio(id = java.util.UUID.randomUUID().toString(), tipo = TipoMensaje.DISCURSO, nombre = nombre))
                     val mensajesData = mensajes.map { mensajeToMap(it) }
-                    agendasRef.document(agendaId).update("mensajesEvangelio", mensajesData).await()
+                    actualizarAgenda(agendaId, mapOf("mensajesEvangelio" to mensajesData), agenda)
                     actualizarFechaParticipacionManual(agenda.numeroUnidad, nombre, agenda.fecha, esDiscurso = true)
                 }
                 else -> return Result.failure(Exception("Campo no reconocido"))
@@ -709,7 +754,7 @@ class AgendaRepository {
     ): Result<Unit> {
         return try {
             val doc = agendasRef.document(agendaId).get().await()
-            val agenda = doc.toObject(Agenda::class.java)?.copy(id = doc.id)
+            val agenda = doc.toObject(Agenda::class.java)?.copy(id = doc.id)?.let(::reconciliarConfirmacion)
                 ?: return Result.failure(Exception("Agenda no encontrada"))
             val mensajes = agenda.mensajesEvangelio.toMutableList()
             val mensaje = mensajes.getOrNull(mensajeIndex)
@@ -721,9 +766,7 @@ class AgendaRepository {
                 tema = tema.trim(),
                 etiquetaTema = etiquetaTema.trim().ifBlank { tema.trim() }
             )
-            agendasRef.document(agendaId)
-                .update("mensajesEvangelio", mensajes.map { mensajeToMap(it) })
-                .await()
+            actualizarAgenda(agendaId, mapOf("mensajesEvangelio" to mensajes.map { mensajeToMap(it) }), agenda)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -896,9 +939,10 @@ class AgendaRepository {
                 val fechaActual = hermano.getTimestamp(campoFecha)
                 val fechaAutoSync = hermano.getTimestamp(campoAutoSync)
                 val fechaAnteriorAutoSync = hermano.getTimestamp(campoFechaAnterior)
+                    ?.takeUnless { mismoDiaParticipacion(it, fechaQuitada) }
                 val debeActualizar =
-                    mismaMarcaDeTiempo(fechaActual, fechaQuitada) ||
-                            (mismaMarcaDeTiempo(fechaAutoSync, fechaQuitada) &&
+                    mismoDiaParticipacion(fechaActual, fechaQuitada) ||
+                            (mismoDiaParticipacion(fechaAutoSync, fechaQuitada) &&
                                     mismaMarcaDeTiempo(fechaActual, fechaAutoSync))
                 if (debeActualizar) {
                     val fechaRestaurada = fechaMasReciente(ultimaFecha, fechaAnteriorAutoSync)
@@ -911,7 +955,7 @@ class AgendaRepository {
                         mapOf<String, Any?>(
                             campoFecha to fechaRestaurada,
                             campoAutoSync to autoSyncRestaurado,
-                            campoFechaAnterior to null
+                            campoFechaAnterior to if (autoSyncRestaurado != null) fechaAnteriorAutoSync else null
                         )
                     ).await()
                 }
@@ -1193,7 +1237,7 @@ class AgendaRepository {
                     updates["mensajesEvangelio"] = mensajesActualizados
 
                 if (updates.isNotEmpty()) {
-                    doc.reference.update(updates).await()
+                    actualizarAgenda(doc.id, updates, doc.toObject(Agenda::class.java))
                     actualizadas++
                 }
             }
@@ -1219,7 +1263,7 @@ class AgendaRepository {
             snapshot.documents.forEach { doc ->
                 val fecha = doc.getTimestamp("fecha")?.toDate()
                 if (fecha != null && fecha.before(hoy)) {
-                    doc.reference.update("estado", EstadoAgenda.REALIZADA.name).await()
+                    actualizarAgenda(doc.id, mapOf("estado" to EstadoAgenda.REALIZADA.name))
                 }
             }
             Result.success(Unit)

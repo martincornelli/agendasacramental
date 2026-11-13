@@ -54,6 +54,8 @@ fun PlanificacionScreen(
     var isLoading by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf(false) }
     var showAgregarHermano by remember { mutableStateOf(false) }
+    var organizacionFiltro by remember { mutableStateOf("ALL") }
+    var errorGuardadoHermano by remember { mutableStateOf("") }
     var showConfiguracion by remember { mutableStateOf(false) }
     var hermanoParaAsignar by remember { mutableStateOf<HermanoRanking?>(null) }
     var hermanoAEliminar by remember { mutableStateOf<HermanoRanking?>(null) }
@@ -165,13 +167,15 @@ fun PlanificacionScreen(
 
     hermanoAEditar?.let { ranking ->
         EditarHermanoDialog(
+            errorGuardado = errorGuardadoHermano,
             nombreActual = ranking.hermano.nombre,
+            organizacionActual = ranking.hermano.organizacion,
             fechaDiscursoActual = ranking.ultimaVezDiscurso ?: ranking.hermano.ultimaVezDiscursoManual,
             fechaOracionActual = ranking.ultimaVezOracion ?: ranking.hermano.ultimaVezOracionManual,
             ultimoTemaDiscurso = ranking.ultimoTemaDiscurso,
             ultimaEtiquetaDiscurso = ranking.ultimaEtiquetaDiscurso,
             nombresExistentes = rankings.map { it.hermano.nombre }.filter { it != ranking.hermano.nombre },
-            onConfirm = { nuevoNombre, fechaDiscurso, fechaOracion, actualizarAgendas ->
+            onConfirm = { nuevoNombre, fechaDiscurso, fechaOracion, actualizarAgendas, organizacion ->
                 scope.launch {
                     val nombreAnterior = ranking.hermano.nombre
                     if (nuevoNombre != nombreAnterior) {
@@ -181,31 +185,42 @@ fun PlanificacionScreen(
                         }
                     }
                     repository.actualizarFechasManual(ranking.hermano.id, fechaDiscurso, fechaOracion)
+                    repository.guardarOrganizacion(ranking.hermano.id, organizacion).onFailure {
+                        errorGuardadoHermano = context.getString(R.string.editar_error_guardar)
+                        return@launch
+                    }
+                    errorGuardadoHermano = ""
                     recargar()
                     hermanoAEditar = null
                 }
             },
-            onDismiss = { hermanoAEditar = null }
+            onDismiss = { hermanoAEditar = null; errorGuardadoHermano = "" }
         )
     }
 
     if (showAgregarHermano) {
         AgregarHermanoDialog(
+            errorGuardado = errorGuardadoHermano,
             nombresExistentes = rankings.map { it.hermano.nombre },
-            onConfirm = { nombre, fechaDiscurso, fechaOracion ->
+            onConfirm = { nombre, fechaDiscurso, fechaOracion, organizacion ->
                 scope.launch {
                     repository.agregarHermano(Hermano(
                         numeroUnidad = numeroUnidad,
                         nombre = nombre,
+                        organizacion = organizacion,
                         agregadoManualmente = true,
                         ultimaVezDiscursoManual = fechaDiscurso,
                         ultimaVezOracionManual = fechaOracion
-                    ))
+                    )).onFailure {
+                        errorGuardadoHermano = context.getString(R.string.editar_error_guardar)
+                        return@launch
+                    }
+                    errorGuardadoHermano = ""
                     recargar()
                     showAgregarHermano = false
                 }
             },
-            onDismiss = { showAgregarHermano = false }
+            onDismiss = { showAgregarHermano = false; errorGuardadoHermano = "" }
         )
     }
 
@@ -397,6 +412,7 @@ fun PlanificacionScreen(
                     onSugeridoClick = { temaParaAsignar = it }
                 )
             } else {
+                OrganizacionSelector(organizacionFiltro, { organizacionFiltro = it }, incluirTodas = true, modifier = Modifier.padding(horizontal = 16.dp))
                 val filtrosActivos = if (selectedTab == 0) filtrosDiscurso else filtrosOracion
 
                 @OptIn(ExperimentalLayoutApi::class)
@@ -433,6 +449,7 @@ fun PlanificacionScreen(
                 }
 
                 val listaFiltrada = rankings
+                    .filter { organizacionFiltro == "ALL" || it.hermano.organizacion == organizacionFiltro }
                     .filter { ranking ->
                         // Si hay búsqueda activa, ignorar filtros de color y mostrar todos los que coincidan
                         if (searchQuery.isNotBlank()) {
@@ -629,6 +646,7 @@ fun HermanoRankingCard(
                             }
                         }
                     }
+                    Text(stringResource(organizaciones[ranking.hermano.organizacion] ?: R.string.org_unspecified), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         when {
                             ultimaVez == null -> LocalContext.current.getString(R.string.plan_sin_registros)
@@ -695,12 +713,12 @@ fun HermanoRankingCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Default.Edit, LocalContext.current.getString(R.string.btn_agregar),
+                    IconButton(onClick = onEdit, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.Edit, LocalContext.current.getString(R.string.check_edit),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp))
                     }
-                    IconButton(onClick = onToggleInactivo, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = onToggleInactivo, modifier = Modifier.size(48.dp)) {
                         Icon(
                             if (inactivo) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                             contentDescription = if (inactivo) LocalContext.current.getString(R.string.plan_reactivar) else LocalContext.current.getString(R.string.plan_desactivar),
@@ -708,7 +726,7 @@ fun HermanoRankingCard(
                             modifier = Modifier.size(18.dp)
                         )
                     }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Default.Close, LocalContext.current.getString(R.string.btn_eliminar),
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(18.dp))
@@ -1394,12 +1412,14 @@ fun AsignarTemaDialog(
 
 @Composable
 fun AgregarHermanoDialog(
+    errorGuardado: String = "",
     nombresExistentes: List<String>,
-    onConfirm: (String, Timestamp?, Timestamp?) -> Unit,
+    onConfirm: (String, Timestamp?, Timestamp?, String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     var nombre by remember { mutableStateOf("") }
+    var organizacion by remember { mutableStateOf("") }
     var showDuplicadoWarning by remember { mutableStateOf(false) }
     var nombreDuplicado by remember { mutableStateOf("") }
     var fechaDiscurso by remember { mutableStateOf<Timestamp?>(null) }
@@ -1432,7 +1452,7 @@ fun AgregarHermanoDialog(
             title = { Text(LocalContext.current.getString(R.string.editar_nombre_duplicado)) },
             text = { Text(context.getString(R.string.plan_nombre_similar, nombreDuplicado)) },
             confirmButton = {
-                TextButton(onClick = { onConfirm(nombre.trim(), fechaDiscurso, fechaOracion); showDuplicadoWarning = false }) { Text(LocalContext.current.getString(R.string.btn_agregar_igual)) }
+                TextButton(onClick = { onConfirm(nombre.trim(), fechaDiscurso, fechaOracion, organizacion); showDuplicadoWarning = false }) { Text(LocalContext.current.getString(R.string.btn_agregar_igual)) }
             },
             dismissButton = {
                 TextButton(onClick = { showDuplicadoWarning = false }) { Text(LocalContext.current.getString(R.string.btn_cancelar)) }
@@ -1446,6 +1466,8 @@ fun AgregarHermanoDialog(
             title = { Text(LocalContext.current.getString(R.string.plan_agregar_hermano_titulo)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (errorGuardado.isNotBlank()) Text(errorGuardado, color = MaterialTheme.colorScheme.error)
+                    OrganizacionSelector(organizacion, { organizacion = it })
                     OutlinedTextField(
                         value = nombre, onValueChange = { nombre = it },
                         label = { Text(LocalContext.current.getString(R.string.editar_nombre_completo)) },
@@ -1503,7 +1525,7 @@ fun AgregarHermanoDialog(
                     onClick = {
                         if (nombre.isNotBlank()) {
                             if (duplicado != null) { nombreDuplicado = duplicado; showDuplicadoWarning = true }
-                            else onConfirm(nombre.trim(), fechaDiscurso, fechaOracion)
+                            else onConfirm(nombre.trim(), fechaDiscurso, fechaOracion, organizacion)
                         }
                     },
                     enabled = nombre.isNotBlank()
@@ -1669,17 +1691,20 @@ fun AsignarAgendaDialog(
 
 @Composable
 fun EditarHermanoDialog(
+    errorGuardado: String = "",
     nombreActual: String,
+    organizacionActual: String,
     fechaDiscursoActual: Timestamp?,
     fechaOracionActual: Timestamp?,
     ultimoTemaDiscurso: String,
     ultimaEtiquetaDiscurso: String,
     nombresExistentes: List<String>,
-    onConfirm: (String, Timestamp?, Timestamp?, Boolean) -> Unit,
+    onConfirm: (String, Timestamp?, Timestamp?, Boolean, String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     var nombre by remember { mutableStateOf(nombreActual) }
+    var organizacion by remember { mutableStateOf(organizacionActual) }
     var showDuplicadoWarning by remember { mutableStateOf(false) }
     var actualizarAgendas by remember { mutableStateOf(false) }
     var nombreDuplicado by remember { mutableStateOf("") }
@@ -1712,7 +1737,7 @@ fun EditarHermanoDialog(
             title = { Text(LocalContext.current.getString(R.string.editar_nombre_duplicado)) },
             text = { Text(context.getString(R.string.plan_nombre_similar, nombreDuplicado)) },
             confirmButton = {
-                TextButton(onClick = { onConfirm(nombre.trim(), fechaDiscurso, fechaOracion, actualizarAgendas); showDuplicadoWarning = false }) { Text(LocalContext.current.getString(R.string.btn_guardar_igual)) }
+                TextButton(onClick = { onConfirm(nombre.trim(), fechaDiscurso, fechaOracion, actualizarAgendas, organizacion); showDuplicadoWarning = false }) { Text(LocalContext.current.getString(R.string.btn_guardar_igual)) }
             },
             dismissButton = { TextButton(onClick = { showDuplicadoWarning = false }) { Text(LocalContext.current.getString(R.string.btn_cancelar)) } }
         )
@@ -1724,6 +1749,8 @@ fun EditarHermanoDialog(
             title = { Text(LocalContext.current.getString(R.string.plan_editar_hermano_titulo)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (errorGuardado.isNotBlank()) Text(errorGuardado, color = MaterialTheme.colorScheme.error)
+                    OrganizacionSelector(organizacion, { organizacion = it })
                     OutlinedTextField(
                         value = nombre, onValueChange = { nombre = it },
                         label = { Text(LocalContext.current.getString(R.string.editar_nombre_completo)) },
@@ -1818,7 +1845,7 @@ fun EditarHermanoDialog(
                             if (nombre.trim() != nombreActual && duplicado != null) {
                                 nombreDuplicado = duplicado; showDuplicadoWarning = true
                             } else {
-                                onConfirm(nombre.trim(), fechaDiscurso, fechaOracion, actualizarAgendas)
+                                onConfirm(nombre.trim(), fechaDiscurso, fechaOracion, actualizarAgendas, organizacion)
                             }
                         }
                     },
@@ -1931,7 +1958,8 @@ fun calcularRankings(
             }
         }
         // Usar fecha manual solo si es más reciente que la de agendas (o si no hay dato de agendas)
-        hermano.ultimaVezDiscursoManual?.let { manual ->
+        fechaManualParticipacion(hermano.ultimaVezDiscursoManual, hermano.ultimaVezDiscursoAutoSync,
+            hermano.ultimaVezDiscursoAntesAutoSync)?.let { manual ->
             if (ultimaVezDiscurso == null || manual.toDate().after(ultimaVezDiscurso!!.toDate())) {
                 ultimaVezDiscurso = manual
             }
@@ -1950,7 +1978,8 @@ fun calcularRankings(
             }
         }
         // Usar fecha manual solo si es más reciente que la de agendas (o si no hay dato de agendas)
-        hermano.ultimaVezOracionManual?.let { manual ->
+        fechaManualParticipacion(hermano.ultimaVezOracionManual, hermano.ultimaVezOracionAutoSync,
+            hermano.ultimaVezOracionAntesAutoSync)?.let { manual ->
             if (ultimaVezOracion == null || manual.toDate().after(ultimaVezOracion!!.toDate())) {
                 ultimaVezOracion = manual
             }

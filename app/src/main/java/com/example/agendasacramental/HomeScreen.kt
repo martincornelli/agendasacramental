@@ -41,6 +41,24 @@ fun HomeScreen(
 ) {
     var showTemaMenu by remember { mutableStateOf(false) }
     var showIdiomaDialog by remember { mutableStateOf(false) }
+    var showAdminDialog by remember { mutableStateOf(false) }
+    var canManage by remember(numeroUnidad) { mutableStateOf(false) }
+    val adminRepo = remember { UnitAdministrationRepository() }
+    DisposableEffect(numeroUnidad) {
+        val listener = com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("unidades").document(numeroUnidad)
+            .addSnapshotListener { snapshot, _ ->
+                val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                canManage = (snapshot?.get("administradores") as? Map<*, *>)?.containsKey(uid) == true
+            }
+        onDispose { listener.remove() }
+    }
+    LaunchedEffect(numeroUnidad) {
+        runCatching { adminRepo.load(numeroUnidad) }.onSuccess { data ->
+            canManage = adminRepo.isAdmin(data)
+            if (adminRepo.isInvited(data)) showAdminDialog = true
+        }
+    }
+    if (showAdminDialog) UnitAdministrationDialog(numeroUnidad) { showAdminDialog = false }
 
     if (showIdiomaDialog) {
         AlertDialog(
@@ -151,6 +169,11 @@ fun HomeScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 },
                                 onClick = { showIdiomaDialog = true; showTemaMenu = false }
+                            )
+                            if (canManage) DropdownMenuItem(
+                                text = { Text(stringResource(R.string.admin_title)) },
+                                onClick = { showAdminDialog = true; showTemaMenu = false },
+                                leadingIcon = { Icon(Icons.Default.Groups, null) }
                             )
                             Divider()
                             DropdownMenuItem(

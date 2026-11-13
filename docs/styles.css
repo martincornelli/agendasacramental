@@ -4021,3 +4021,33 @@ summary:focus-visible {
   max-width: 100%;
   min-width: 7rem;
 }
+
+/* Acceptances: text accompanies each state, with a full-row tap target. */
+.confirmation-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 8px; }
+.confirmation-row { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; min-height: 56px; cursor: pointer; }
+.confirmation-row input { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--primary); }
+.confirmation-row > span { display: grid; gap: 4px; overflow-wrap: anywhere; }
+.confirmation-row:has(input:checked) { background: var(--surface-alt, #edf5f0); }
+.planning-tools { flex-wrap: wrap; }
+.planning-tools > .field { min-width: 0; flex: 1 1 200px; }
+.planning-search-field { min-width: 0; }
+@media (max-width: 760px) {
+  .planning-tools > .field { flex-basis: 100%; order: 3; }
+}
+
+/* Acceptance controls stay beside the assignment they describe. */
+.confirmation-summary { grid-column: 1 / -1; }
+.acceptance-summary-line { display:flex; align-items:center; flex-wrap:wrap; gap:8px 16px; }
+.acceptance-summary-line .text-button { min-height:44px; border:0; background:transparent; color:var(--primary-dark); padding:8px; }
+#acceptance-feedback:empty { display:none; }
+.acceptance-field { display:flex; align-items:center; gap:8px; min-width:0; }
+.acceptance-field > .field, .acceptance-field > .input { flex:1; min-width:0; }
+.acceptance-inline { display:flex; align-items:center; gap:8px; min-height:44px; padding:4px; cursor:pointer; font-size:.85rem; color:var(--muted); }
+.acceptance-inline input { width:20px; height:20px; flex-shrink:0; accent-color:var(--primary); }
+.acceptance-inline small { display:block; }
+.acceptance-inline:has(:checked) { color:var(--primary-dark); }
+.acceptance-inline:has(:disabled) { cursor:default; }
+.hymn-acceptances { display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:4px; grid-column:1 / -1; }
+.acceptance-field > .acceptance-mount { max-width:9rem; }
+.acceptance-mount:empty { display:none; }
+@media(max-width:600px) { .acceptance-field { flex-wrap:wrap; } .acceptance-field > .field, .acceptance-field > .input { flex-basis:11rem; } }

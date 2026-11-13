@@ -16,6 +16,13 @@ import {
   topicsFromAgenda
 } from "./hymn-planner.mjs";
 
+import { ORGANIZATIONS, assignmentChecks, reconcileConfirmation, changeAgendaStatus } from "./agenda-confirmation.mjs";
+
+let editorAcceptances = {};
+let editorAcceptanceUndo = null;
+let editorBaseAgenda = null;
+let organizationFilter = "ALL";
+
 const firebaseConfig = {
   apiKey: "AIzaSyDHm4h7REdvYQ0PgKv168wZ82MJaLqGrko",
   authDomain: "agendasacramental-333f2.firebaseapp.com",
@@ -625,7 +632,7 @@ async function autoCompletePastAgendas(agendas) {
   if (!updates.length) return;
   updates.forEach((agenda) => autoCompletingAgendaIds.add(agenda.id));
   try {
-    await Promise.all(updates.map((agenda) => updateDoc(agendaRef(agenda.id), {
+    await Promise.all(updates.map((agenda) => updateAgendaChecked(agenda, {
       estado: "REALIZADA",
       ultimaEdicionPor: userEmail(),
       ultimaEdicionEn: serverTimestamp()
@@ -659,6 +666,9 @@ function render() {
   }
 
   appShell.classList.remove("setup-mode");
+  // A live snapshot must not overwrite the form or its concurrency baseline.
+  if (state.route === "edit" && screen.querySelector("#agenda-form") &&
+      (editorBaseAgenda?.id || null) === (state.activeAgendaId || null)) return;
   const routes = {
     agendas: renderAgendas,
     planning: renderPlanning,
@@ -1106,6 +1116,7 @@ function agendaCard(agenda, highlighted = false) {
             <span class="status-pill status-${escapeAttr(agenda.estado)}">${escapeHtml(labelState(agenda.estado))}</span>
           </div>
           <p class="item-meta agenda-meeting-type">${escapeHtml(meetingType)}</p>
+          ${agenda.confirmacionVersion ? `<p class="item-meta">${Object.keys(agenda.aceptaciones || {}).length} / ${assignmentChecks(agenda).length} · ${t("Aceptaciones")}</p>` : ""}
           ${agenda.preside ? `<p class="agenda-person-line"><span>${t("Preside")}</span><strong>${escapeHtml(agenda.preside)}</strong></p>` : `<p class="agenda-person-line is-empty">${t("Presidencia aún sin asignar")}</p>`}
         </div>
         <span class="agenda-card-chevron" aria-hidden="true">${icon("chevronRight")}</span>
@@ -1172,6 +1183,11 @@ function openReading(agendaId) {
   openChildRoute("reading", agendaId);
 }
 
+function organizationSelect(id, value, all = false) {
+  const values = { ...(all ? { ALL: "Todas las organizaciones" } : {}), "": "Sin especificar", ...ORGANIZATIONS };
+  return field(id, t("Organización"), `<select id="${id}" class="select">${Object.entries(values).map(([key,label]) => option(key,t(label),value)).join("")}</select>`);
+}
+
 function renderAgendaEditor() {
   const agenda = state.activeAgendaId
     ? state.agendas.find((item) => item.id === state.activeAgendaId)
@@ -1180,6 +1196,9 @@ function renderAgendaEditor() {
       screen.innerHTML = emptyPanel(t("No se encontró la agenda."));
     return;
   }
+  editorAcceptanceUndo = null;
+  editorBaseAgenda = agenda;
+  editorAcceptances = { ...(agenda.aceptaciones || {}) };
   screen.innerHTML = `
     <form id="agenda-form" class="screen-grid">
       <section class="panel">
@@ -1194,9 +1213,10 @@ function renderAgendaEditor() {
         <div class="form-grid">
           <div class="inline-fields">
             ${field("fecha", t("Fecha"), `<input id="fecha" class="input" type="date" value="${escapeAttr(dateInputValue(agenda.fecha))}" required>`)}
-            ${field("estado", t("Estado"), `<select id="estado" class="select">${AGENDA_STATES.map((item) => option(item, labelState(item), agenda.estado)).join("")}</select>`)}
+            ${field("estado", t("Estado"), `<select id="estado" class="select">${AGENDA_STATES.map(value => option(value, labelState(value), agenda.estado)).join("")}</select>`)}
             ${field("asistencia", t("Asist."), `<input id="asistencia" class="input" type="number" min="0" value="${Number(agenda.asistencia || 0)}">`)}
           </div>
+          <div id="confirmation-panel" class="confirmation-summary"></div>
           <div class="inline-fields">
             ${field("preside", t("Preside"), textInput("preside", agenda.preside, "names-list"))}
             ${field("dirige", t("Dirige"), textInput("dirige", agenda.dirige, "names-list"))}
@@ -1241,6 +1261,7 @@ function renderAgendaEditor() {
           ${meetingText("primary")}
         </label>
         <p data-primary-announcement class="hidden">${meetingText("announcement")}</p>
+        ${field("primary-representative", t("Responsable de Primaria"), textInput("primary-representative", agenda.responsablePrimaria || "", "names-list"))}
         <h3 data-messages-heading>${t("Mensajes del Evangelio")}</h3>
         <div id="message-list" class="dynamic-list">${agenda.mensajesEvangelio.map(messageRow).join("")}</div>
         <div class="field ${agenda.reunionTestimonios ? "" : "hidden"}" data-testimonies-field>
@@ -1248,6 +1269,7 @@ function renderAgendaEditor() {
           <textarea id="testimonios" class="textarea">${escapeHtml((agenda.testimonios || []).join("\n"))}</textarea>
         </div>
       </section>
+
 
       <datalist id="names-list">${usedNames().map((name) => `<option value="${escapeAttr(name)}"></option>`).join("")}</datalist>
     </form>
@@ -1273,6 +1295,117 @@ function renderAgendaEditor() {
   bindHymnAutoFill();
   bindBusinessRows();
   bindMessageRows();
+  screen.querySelector("#estado").addEventListener("change", event => {
+    event.stopPropagation();
+    const requested = event.target.value;
+    const previous = event.target.dataset.currentState;
+    event.target.value = previous;
+    changeEditorStatus(agenda, requested);
+  });
+  const refreshChecks = event => {
+    if (!event?.target?.matches?.("[data-acceptance], #estado")) {
+      if (event?.type === "input" || event?.type === "change") editorAcceptanceUndo = null;
+      renderConfirmationPanel(agenda);
+    }
+  };
+  screen.querySelector("#agenda-form").addEventListener("input", refreshChecks);
+  screen.querySelector("#agenda-form").addEventListener("change", refreshChecks);
+  screen.querySelector("#agenda-form").addEventListener("click", event => {
+    if (!event.target.closest(".acceptance-inline, #accept-all, #undo-acceptances"))
+      queueMicrotask(() => refreshChecks());
+  });
+  refreshChecks();
+}
+
+function changeEditorStatus(base, requested) {
+  const before = readAgendaForm(base);
+  try {
+    const updated = changeAgendaStatus(before, requested, userEmail(), Timestamp.now());
+    editorAcceptanceUndo = requested === "CONFIRMADA" ? {aceptaciones:{...before.aceptaciones},estado:before.estado} : null;
+    editorAcceptances = updated.aceptaciones;
+    screen.querySelector("#estado").value = updated.estado;
+    renderConfirmationPanel(base);
+    if (requested === "BORRADOR" && updated.estado === "CONFIRMADA")
+      screen.querySelector("#acceptance-feedback").textContent = t("Todas las asignaciones están aceptadas. La agenda sigue Confirmada.");
+  } catch {
+    renderConfirmationPanel(base);
+    screen.querySelector("#acceptance-feedback").textContent = t("Completa las asignaciones pendientes antes de confirmar la agenda.");
+    const first = assignmentChecks(before).find(row => !row.complete);
+    const control = screen.querySelector(`[data-acceptance="${CSS.escape(first?.id || "")}"]`);
+    control?.closest(".acceptance-field, .acceptance-mount")?.scrollIntoView({block:"center"});
+  }
+}
+
+function renderConfirmationPanel(base) {
+  const focusedId = document.activeElement?.dataset?.acceptance;
+  const agenda = readAgendaForm(base);
+  editorAcceptances = agenda.aceptaciones;
+  const checks = assignmentChecks(agenda);
+  screen.querySelector("#estado").value = agenda.estado;
+  screen.querySelector("#estado").dataset.currentState = agenda.estado;
+  screen.querySelector("#primary-representative").closest(".field").hidden = !agenda.presentacionPrimaria;
+  screen.querySelector("#confirmation-panel").innerHTML = `
+    <div class="acceptance-summary-line">
+      <span role="status">${Object.keys(editorAcceptances).length} / ${checks.length} · ${t("Aceptaciones")}</span>
+      <button id="accept-all" class="text-button" type="button" ${agenda.estado === "REALIZADA" || Object.keys(editorAcceptances).length === checks.length ? "disabled" : ""}>${t("Aceptar todas")}</button>
+      ${editorAcceptanceUndo ? `<button id="undo-acceptances" class="text-button" type="button">${t("Deshacer")}</button>` : ""}
+    </div>
+    <small class="muted">${t("Los cambios se aplican al guardar.")}</small>
+    <p id="acceptance-feedback" role="status"></p>
+    ${base.id && !base.confirmacionVersion ? `<small>${t("Esta agenda usa el estado anterior. Al guardar se activarán las aceptaciones individuales.")}</small>` : ""}`;
+  // Keep the editable controls in place; only update their adjacent acceptance mounts.
+  screen.querySelectorAll(".acceptance-mount").forEach(el => el.replaceChildren());
+  for (const row of checks) {
+    let target, musician = false;
+    if (row.id.startsWith("mensaje_")) {
+      const message = [...screen.querySelectorAll("[data-message-row]")].find(el =>
+        row.id === "mensaje_"+el.dataset.messageId || row.id === "mensaje_"+el.dataset.messageId+"_pianista" || row.id === "mensaje_"+el.dataset.messageId+"_directorMusica");
+      if (!message) continue;
+      musician = row.id.endsWith("_pianista") || row.id.endsWith("_directorMusica");
+      target = musician ? message.querySelector(".dynamic-row-fields") : message.querySelector("[data-message-name]");
+    } else if (row.id.endsWith("_pianista") || row.id.endsWith("_directorMusica")) {
+      musician = true;
+      target = screen.querySelector("#"+row.id.replace(/_(pianista|directorMusica)$/, "")+"Nombre")?.closest(".inline-fields");
+    } else {
+      target = screen.querySelector("#"+(row.id === "responsablePrimaria" ? "primary-representative" : row.id))?.closest(".field");
+    }
+    if (!target) continue;
+    let mount;
+    if (musician) {
+      mount = target.nextElementSibling;
+      if (!mount?.classList.contains("acceptance-mount")) {
+        mount = document.createElement("div");mount.className="acceptance-mount hymn-acceptances";target.after(mount);
+      }
+    } else {
+      let wrap = target.parentElement;
+      if (!wrap.classList.contains("acceptance-field")) {
+        wrap = document.createElement("div");wrap.className="acceptance-field";target.before(wrap);wrap.append(target);
+      }
+      mount = wrap.querySelector(":scope > .acceptance-mount");
+      if (!mount) { mount=document.createElement("div");mount.className="acceptance-mount";wrap.append(mount); }
+    }
+    const accepted = Boolean(editorAcceptances[row.id]);
+    const status = t(!row.complete ? "Sin completar" : accepted ? "Aceptada" : "Pendiente");
+    const role = row.id.endsWith("_pianista") ? t("Pianista") : t("Director/a de música");
+    const label = musician ? role : status;
+    const description = [t(row.label),row.person,musician?role:"",status].filter(Boolean).join(" · ");
+    mount.insertAdjacentHTML("beforeend",`<label class="acceptance-inline"><input type="checkbox" data-acceptance="${escapeAttr(row.id)}" aria-label="${escapeAttr(description)}" ${accepted ? "checked" : ""} ${!row.complete || agenda.estado === "REALIZADA" ? "disabled" : ""}><span>${escapeHtml(label)}${musician && !row.complete ? `<small>${escapeHtml(status)}</small>` : ""}</span></label>`);
+  }
+  screen.querySelector("#accept-all").onclick = () => changeEditorStatus(base, "CONFIRMADA");
+  screen.querySelector("#undo-acceptances")?.addEventListener("click", () => {
+    editorAcceptances = editorAcceptanceUndo.aceptaciones;
+    screen.querySelector("#estado").value = editorAcceptanceUndo.estado;
+    editorAcceptanceUndo = null;renderConfirmationPanel(base);
+  });
+  screen.querySelectorAll("[data-acceptance]").forEach(input => input.addEventListener("change", event => {
+    event.stopPropagation();
+    editorAcceptanceUndo = null;
+    const row = checks.find(r => r.id === input.dataset.acceptance);
+    if (input.checked) editorAcceptances[row.id] = { firma: row.fingerprint, registradoPor: userEmail(), registradoEn: Timestamp.now() };
+    else delete editorAcceptances[row.id];
+    renderConfirmationPanel(base);
+  }));
+  if (focusedId) screen.querySelector(`[data-acceptance="${CSS.escape(focusedId)}"]`)?.focus({preventScroll:true});
 }
 
 function syncTestimoniesFieldVisibility(event) {
@@ -1423,7 +1556,7 @@ function messageRow(item = {}) {
   const type = item.tipo || "DISCURSO";
   const personLabel = type === "TESTIMONIO" ? t("Nombre") : t("Discursante");
   return `
-    <div class="dynamic-row message-row" data-message-row>
+    <div class="dynamic-row message-row" data-message-row data-message-id="${escapeAttr(item.id || crypto.randomUUID())}">
       <select class="select" data-message-type>${MESSAGE_TYPES.map((value) => option(value, labelMessage(value), type)).join("")}</select>
       <div class="dynamic-row-fields">
         ${type === "HIMNO_INTERMEDIO" ? `
@@ -1584,7 +1717,7 @@ function fillHymnName(number, target) {
 async function saveAgendaFromForm(event) {
   event.preventDefault();
   await withToastError(async () => {
-    const oldAgenda = state.activeAgendaId ? state.agendas.find((item) => item.id === state.activeAgendaId) : null;
+    const oldAgenda = editorBaseAgenda?.id ? editorBaseAgenda : null;
     const agenda = applyAgendaHymnOrigins(
       readAgendaForm(oldAgenda || createBlankAgenda(nextSunday())),
       oldAgenda
@@ -1597,7 +1730,13 @@ async function saveAgendaFromForm(event) {
     let savedAgenda = agenda;
     let message = t("Agenda guardada");
     if (agenda.id) {
-      await setDoc(agendaRef(agenda.id), data);
+      await runTransaction(db, async tx => {
+        const ref = agendaRef(agenda.id);
+        const snapshot = await tx.get(ref);
+        assertAgendaRevision(snapshot.data(), oldAgenda);
+        data.revision = (snapshot.data().revision || 0) + 1;
+        tx.update(ref, data);
+      });
     } else {
       const ref = await addDoc(collection(db, "agendas"), data);
       state.activeAgendaId = ref.id;
@@ -1606,9 +1745,15 @@ async function saveAgendaFromForm(event) {
     }
     await syncAgendaParticipants(savedAgenda);
     await syncRemovedAgendaParticipants(oldAgenda, savedAgenda, agendasAfterSave(savedAgenda));
+    const savedSnapshot = await getDoc(agendaRef(savedAgenda.id));
+    savedAgenda = normalizeAgenda(savedAgenda.id, savedSnapshot.data());
+    editorAcceptanceUndo = null;
+    editorBaseAgenda = savedAgenda;
+    editorAcceptances = { ...savedAgenda.aceptaciones };
     upsertLocalAgenda(savedAgenda);
     state.activeAgendaId = savedAgenda.id;
     replaceNavigation("edit", savedAgenda.id);
+    renderAgendaEditor();
     toastMessage(message);
   });
 }
@@ -1628,12 +1773,15 @@ function readAgendaForm(baseAgenda) {
       .map((item) => item.trim())
       .filter(Boolean)
     : [];
-  return {
+  return reconcileConfirmation({
     ...baseAgenda,
     id: baseAgenda.id || "",
     numeroUnidad: state.unitNumber,
     fecha: dateFromInput(screen.querySelector("#fecha").value),
     estado: screen.querySelector("#estado").value,
+    confirmacionVersion: 1,
+    aceptaciones: editorAcceptances,
+    responsablePrimaria: valueOf("#primary-representative"),
     asistencia: numberValue("#asistencia"),
     preside: valueOf("#preside"),
     dirige: valueOf("#dirige"),
@@ -1653,12 +1801,11 @@ function readAgendaForm(baseAgenda) {
       .map(readBusinessRow)
       .filter((item) => item.columna2 || item.columna3),
     mensajesEvangelio: isPrimary || isTestimonyMeeting ? [] : [...screen.querySelectorAll("[data-message-row]")]
-      .map(readMessageRow)
-      .filter((item) => item.nombre || item.himnoNumero || item.himnoNombre || item.tema || item.etiquetaTema),
+      .map(readMessageRow),
     reunionTestimonios: isTestimonyMeeting,
     presentacionPrimaria: isPrimary,
     testimonios
-  };
+  });
 }
 
 function readBusinessRow(row) {
@@ -1682,6 +1829,7 @@ function normalizeBusinessForType(item, nextType = item.tipo) {
 
 function readMessageRow(row) {
   return normalizeMessageForType({
+    id: row.dataset.messageId,
     tipo: row.querySelector("[data-message-type]")?.value || "DISCURSO",
     nombre: row.querySelector("[data-message-name]")?.value.trim() || "",
     himnoNumero: Number(row.querySelector("[data-message-hymn-number]")?.value || 0),
@@ -1695,6 +1843,7 @@ function normalizeMessageForType(item, nextType = item.tipo) {
   const type = nextType || "DISCURSO";
   if (type === "HIMNO_INTERMEDIO") {
     return {
+      id: item.id || crypto.randomUUID(),
       tipo: type,
       nombre: "",
       himnoNumero: Number(item.himnoNumero || 0),
@@ -1705,6 +1854,7 @@ function normalizeMessageForType(item, nextType = item.tipo) {
   }
   if (type === "TESTIMONIO") {
     return {
+      id: item.id || crypto.randomUUID(),
       tipo: type,
       nombre: item.nombre || "",
       himnoNumero: 0,
@@ -1714,7 +1864,8 @@ function normalizeMessageForType(item, nextType = item.tipo) {
     };
   }
   return {
-    tipo: type,
+    id: item.id || crypto.randomUUID(),
+      tipo: type,
     nombre: item.nombre || "",
     himnoNumero: 0,
     himnoNombre: "",
@@ -1731,13 +1882,40 @@ function numberValue(selector) {
   return Number(screen.querySelector(selector)?.value || 0);
 }
 
+function assertAgendaRevision(actual, expected) {
+  if (!actual || Number(actual.revision || 0) !== Number(expected?.revision || 0) || (toDate(actual.ultimaEdicionEn)?.getTime() || 0) !== (toDate(expected?.ultimaEdicionEn)?.getTime() || 0)) {
+    throw new Error(t("La agenda cambió en otro dispositivo. Vuelve a abrirla antes de guardar."));
+  }
+}
+
+function confirmationPatch(actual, patch) {
+  const next = reconcileConfirmation({ ...actual, ...patch });
+  return { ...patch, estado: next.estado, aceptaciones: next.aceptaciones || {}, mensajesEvangelio: next.mensajesEvangelio, revision: (actual.revision || 0) + 1, ultimaEdicionEn: serverTimestamp() };
+}
+
+async function updateAgendaChecked(expected, patch) {
+  await runTransaction(db, async tx => {
+    const ref = agendaRef(expected.id);
+    const snapshot = await tx.get(ref);
+    assertAgendaRevision(snapshot.data(), expected);
+    tx.update(ref, confirmationPatch(snapshot.data(), patch));
+  });
+  const saved = await getDoc(agendaRef(expected.id));
+  return normalizeAgenda(expected.id, saved.data());
+}
+
 function agendaToFirestore(agenda, oldAgenda = null) {
+  agenda = reconcileConfirmation(agenda);
   const createdBy = oldAgenda?.creadoPor || agenda.creadoPor || userEmail();
   const createdAt = oldAgenda?.creadoEn || agenda.creadoEn || serverTimestamp();
   return {
     numeroUnidad: agenda.numeroUnidad,
     fecha: Timestamp.fromDate(agenda.fecha),
     estado: agenda.estado,
+    confirmacionVersion: agenda.confirmacionVersion || 0,
+    aceptaciones: agenda.aceptaciones || {},
+    responsablePrimaria: agenda.responsablePrimaria || "",
+    revision: agenda.revision || 0,
     asistencia: Number(agenda.asistencia || 0),
     preside: agenda.preside || "",
     dirige: agenda.dirige || "",
@@ -2043,7 +2221,7 @@ function readingHtml(agenda) {
     ${readingLine(t("Primera oración"), agenda.primeraOracion)}
     ${agenda.asuntosEstacaBarrio.length ? `<section class="reading-section"><strong>${t("Asuntos Estaca/Barrio")}</strong><ul>${agenda.asuntosEstacaBarrio.map((item) => `<li>${escapeHtml(labelBusiness(item.tipo))}: ${escapeHtml(businessDescription(item) || t("Sin datos"))}</li>`).join("")}</ul></section>` : ""}
     ${readingLine(t("Himno Sacramental"), hymnLabel(agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre))}
-    <section class="reading-section"><strong>${agenda.presentacionPrimaria ? meetingText("primary") : agenda.reunionTestimonios ? t("Reunión de testimonios") : t("Mensajes del Evangelio")}</strong>${messages ? `<ul>${messages}</ul>` : "<p>Sin datos</p>"}</section>
+    <section class="reading-section"><strong>${agenda.presentacionPrimaria ? meetingText("primary") : agenda.reunionTestimonios ? t("Reunión de testimonios") : t("Mensajes del Evangelio")}</strong>${messages ? `<ul>${messages}</ul>` : `<p>${t("Sin datos")}</p>`}</section>
     ${readingLine(t("Himno final"), hymnLabel(agenda.himnoFinalNumero, agenda.himnoFinalNombre))}
     ${readingLine(t("Oración final"), agenda.oracionFinal)}
   `;
@@ -2530,7 +2708,7 @@ function renderPlanning() {
   const rankings = planningRankings();
   const tab = state.planningTab;
   const isTopics = tab === "topics";
-  const list = isTopics ? [] : rankings
+  const list = isTopics ? [] : rankings.filter(r => organizationFilter === "ALL" || (r.hermano.organizacion || "") === organizationFilter)
     .sort((a, b) => {
       const inactiveA = isInactiveForTab(a, tab);
       const inactiveB = isInactiveForTab(b, tab);
@@ -2549,6 +2727,7 @@ function renderPlanning() {
           <span class="search-icon" aria-hidden="true">${icon("search")}</span>
           <input id="planning-search" class="input" type="search" placeholder="${isTopics ? t("Buscar tema o etiquetas...") : t("Buscar hermano/a...")}" value="${escapeAttr(state.planningSearch)}">
         </div>
+        ${!isTopics ? organizationSelect("planning-organization", organizationFilter, true) : ""}
         <div class="planning-toolbar-actions">
           <button id="history-transfer" class="secondary-button" type="button">${t("Importar / exportar")}</button>
           <button id="planning-config" class="icon-button" type="button" aria-label="${t("Configuración")}" title="${t("Configuración")}">${icon("settings")}</button>
@@ -2582,6 +2761,7 @@ function renderPlanning() {
       bindBrotherActions();
     }
   });
+  screen.querySelector("#planning-organization")?.addEventListener("change", event => { organizationFilter = event.target.value; renderPlanning(); });
   screen.querySelector("#history-transfer").addEventListener("click", openHistoryTransfer);
   screen.querySelector("#planning-config").addEventListener("click", openPlanningConfigDialog);
   if (isTopics) {
@@ -2798,6 +2978,7 @@ function brotherRow(item, tab) {
         <span class="rank-dot ${escapeAttr(color)}" aria-hidden="true"></span>
         <span class="brother-item-copy">
           <span class="item-title">${escapeHtml(item.hermano.nombre)}</span>
+          <span class="item-meta">${escapeHtml(t(ORGANIZATIONS[item.hermano.organizacion] || "Sin especificar"))}</span>
           <span class="item-meta">${escapeHtml(participation)}</span>
           ${topic ? `<span class="brother-topic">${t("Último tema:")} ${escapeHtml(topic)}</span>` : ""}
         </span>
@@ -2852,6 +3033,7 @@ function openBrotherDialog(ranking = null) {
     body: `
       <form id="brother-form" class="form-grid">
         ${field("brother-name", t("Nombre"), `<input id="brother-name" class="input" value="${escapeAttr(hermano.nombre || "")}" required>`)}
+        ${organizationSelect("brother-organization", hermano.organizacion || "")}
         <div class="inline-fields">
           ${field("last-talk", t("Último discurso conocido"), `<input id="last-talk" class="input" type="date" value="${dateInputValue(ranking?.ultimaVezDiscurso || toDate(hermano.ultimaVezDiscursoManual))}">`)}
           ${field("last-prayer", t("Última oración conocida"), `<input id="last-prayer" class="input" type="date" value="${dateInputValue(ranking?.ultimaVezOracion || toDate(hermano.ultimaVezOracionManual))}">`)}
@@ -2871,6 +3053,7 @@ function openBrotherDialog(ranking = null) {
           const data = {
             numeroUnidad: state.unitNumber,
             nombre: dialog.querySelector("#brother-name").value.trim(),
+            organizacion: dialog.querySelector("#brother-organization").value,
             agregadoManualmente: true,
             excluido: false,
             inactivoDiscurso: Boolean(hermano.inactivoDiscurso),
@@ -2885,7 +3068,7 @@ function openBrotherDialog(ranking = null) {
             normalizeName(name) === normalizeName(data.nombre) && normalizeName(name) !== originalKey
           );
           if (duplicateName && !confirm(`${t("Ya existe una ficha o participación para")} ${duplicateName}${t(". ¿Guardar otra igualmente?")}`)) return;
-          if (hermano.id) await setDoc(hermanoRef(hermano.id), data);
+          if (hermano.id) await setDoc(hermanoRef(hermano.id), data, { merge: true });
           else await addDoc(collection(db, "hermanos"), data);
           closeModal();
           toastMessage(t("Hermano guardado"));
@@ -2932,9 +3115,9 @@ function openAssignDialog(ranking) {
           if (fieldName === "NUEVO_DISCURSO") {
             const mensajesEvangelio = [
               ...agenda.mensajesEvangelio,
-              { tipo: "DISCURSO", nombre: ranking.hermano.nombre, himnoNumero: 0, himnoNombre: "" }
+              { id: crypto.randomUUID(), tipo: "DISCURSO", nombre: ranking.hermano.nombre, himnoNumero: 0, himnoNombre: "" }
             ];
-            await updateDoc(agendaRef(agendaId), {
+            await updateAgendaChecked(agenda, {
               mensajesEvangelio,
               ultimaEdicionPor: userEmail(),
               ultimaEdicionEn: serverTimestamp()
@@ -2944,7 +3127,7 @@ function openAssignDialog(ranking) {
             );
           } else {
             previousName = agenda[fieldName] || "";
-            await updateDoc(agendaRef(agendaId), {
+            await updateAgendaChecked(agenda, {
               [fieldName]: ranking.hermano.nombre,
               ultimaEdicionPor: userEmail(),
               ultimaEdicionEn: serverTimestamp()
@@ -3026,7 +3209,7 @@ function openAssignTopicDialog(suggestion) {
           const tema = topicInput.value.trim();
           const etiquetaTema = tagsInput.value.trim() || suggestion.etiqueta || tema;
           messages[index] = { ...message, tema, etiquetaTema };
-          await updateDoc(agendaRef(agenda.id), {
+          await updateAgendaChecked(agenda, {
             mensajesEvangelio: messages,
             ultimaEdicionPor: userEmail(),
             ultimaEdicionEn: serverTimestamp()
@@ -3790,7 +3973,7 @@ function hymnPlanPatch(agenda, plan) {
   const messages = [...(agenda?.mensajesEvangelio || [])];
   const index = messages.findIndex((message) => message.tipo === "HIMNO_INTERMEDIO");
   if (plan.intermediate.number || plan.intermediate.name) {
-    const message = { tipo: "HIMNO_INTERMEDIO", nombre: "", himnoNumero: plan.intermediate.number, himnoNombre: plan.intermediate.name, tema: "", etiquetaTema: "" };
+    const message = { id: messages[index]?.id || crypto.randomUUID(), tipo: "HIMNO_INTERMEDIO", nombre: "", himnoNumero: plan.intermediate.number, himnoNombre: plan.intermediate.name, tema: "", etiquetaTema: "" };
     if (index >= 0) messages[index] = message; else messages.push(message);
   } else if (index >= 0) messages.splice(index, 1);
   return {
@@ -3812,41 +3995,49 @@ function hymnPlanPatch(agenda, plan) {
 
 function agendaWithHymnPlan(agenda, date, plan, id = agenda?.id || "") {
   const base = agenda ? { ...agenda } : createBlankAgenda(date);
-  return { ...base, id, ...hymnPlanPatch(base, plan), ultimaEdicionEn: new Date() };
+  return reconcileConfirmation({ ...base, id, ...hymnPlanPatch(base, plan), ultimaEdicionEn: new Date() });
 }
 
 async function persistHymnPlan(date, plan, agenda = null) {
   validateHymnPlan(plan);
   if (agenda?.id) {
-    await updateDoc(agendaRef(agenda.id), hymnPlanPatch(agenda, plan));
-    upsertLocalAgenda(agendaWithHymnPlan(agenda, date, plan));
+    const saved = await updateAgendaChecked(agenda, hymnPlanPatch(agenda, plan));
+    upsertLocalAgenda(saved);
     return agenda.id;
   }
   const created = agendaWithHymnPlan(null, date, plan);
   const ref = await addDoc(collection(db, "agendas"), agendaToFirestore(created, null));
-  upsertLocalAgenda({ ...created, id: ref.id });
+  const snapshot = await getDoc(agendaRef(ref.id));
+  upsertLocalAgenda(normalizeAgenda(ref.id, snapshot.data()));
   return ref.id;
 }
 
 async function persistHymnPlans(proposals) {
   if (!proposals.length) return;
-  const batch = writeBatch(db);
+  const changes = [];
   const saved = [];
   proposals.forEach(({ date, proposal }) => {
     validateHymnPlan(proposal);
     const agenda = state.agendas.find((item) => hymnDateKey(item.fecha) === hymnDateKey(date)) || null;
     if (agenda?.id) {
-      batch.update(agendaRef(agenda.id), hymnPlanPatch(agenda, proposal));
+      changes.push({ ref: agendaRef(agenda.id), patch: hymnPlanPatch(agenda, proposal), expected: agenda });
       saved.push(agendaWithHymnPlan(agenda, date, proposal));
     } else {
       const ref = doc(collection(db, "agendas"));
       const created = agendaWithHymnPlan(null, date, proposal, ref.id);
-      batch.set(ref, agendaToFirestore(created, null));
+      changes.push({ ref, patch: agendaToFirestore(created, null), expected: null });
       saved.push(created);
     }
   });
-  await batch.commit();
-  saved.forEach(upsertLocalAgenda);
+  await runTransaction(db, async tx => {
+    const snapshots = await Promise.all(changes.map(c => tx.get(c.ref)));
+    changes.forEach((change, i) => {
+      if (!change.expected) { if (snapshots[i].exists()) throw new Error(t("La agenda cambió en otro dispositivo. Vuelve a abrirla antes de guardar.")); tx.set(change.ref,change.patch); }
+      else { assertAgendaRevision(snapshots[i].data(),change.expected); tx.update(change.ref,confirmationPatch(snapshots[i].data(),change.patch)); }
+    });
+  });
+  const refreshed = await Promise.all(saved.map(a => getDoc(agendaRef(a.id))));
+  refreshed.forEach((snapshot, i) => upsertLocalAgenda(normalizeAgenda(saved[i].id, snapshot.data())));
 }
 
 function renderSettings() {
@@ -4030,8 +4221,12 @@ function toastMessage(message, duration = 2800) {
 }
 
 function normalizeAgenda(id, data) {
-  return {
+  return reconcileConfirmation({
     id,
+    confirmacionVersion: data.confirmacionVersion || 0,
+    aceptaciones: data.aceptaciones || {},
+    responsablePrimaria: data.responsablePrimaria || "",
+    revision: data.revision || 0,
     numeroUnidad: data.numeroUnidad || "",
     fecha: toDate(data.fecha) || new Date(),
     estado: data.estado || "BORRADOR",
@@ -4063,12 +4258,15 @@ function normalizeAgenda(id, data) {
     creadoEn: data.creadoEn || null,
     ultimaEdicionPor: data.ultimaEdicionPor || "",
     ultimaEdicionEn: data.ultimaEdicionEn || null
-  };
+  });
 }
 
 function createBlankAgenda(date) {
-  return {
+  return reconcileConfirmation({
     id: "",
+    confirmacionVersion: 1,
+    aceptaciones: {},
+    revision: 0,
     numeroUnidad: state.unitNumber,
     fecha: new Date(date),
     estado: "BORRADOR",
@@ -4100,7 +4298,7 @@ function createBlankAgenda(date) {
     creadoEn: null,
     ultimaEdicionPor: userEmail(),
     ultimaEdicionEn: null
-  };
+  });
 }
 
 function upcomingAgenda() {

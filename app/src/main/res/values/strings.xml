@@ -497,4 +497,8 @@
     <string name="history_back">Volver al planificador</string>
     <string name="history_changed">El historial cambió. Volvé a abrir la vista previa antes de guardar.</string>
     <string name="history_error">No se pudo completar la operación. Revisá la conexión e intentá nuevamente.</string>
+    <string name="release_notes_title">Novedades de la versión %1$s</string>
+    <string name="release_notes_hymns">8 himnos nuevos en español e inglés. Ahora tenés 90 himnos del nuevo himnario disponibles para tus agendas.</string>
+    <string name="release_notes_optimization">Optimizamos la aplicación para reducir el tamaño de la descarga.</string>
+    <string name="release_notes_continue">Continuar</string>
 </resources>

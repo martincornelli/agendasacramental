@@ -1,0 +1,13 @@
+<resources>
+    <string name="release_notes_print">You can now select multiple agendas by date range or by tapping individual Sundays. Print regular Sunday agendas single-sided and fast and testimony meeting agendas double-sided.</string>
+    <string name="imprimir_agendas">Print agendas</string>
+    <string name="print_regular">Regular Sundays</string>
+    <string name="print_testimony">Fast and testimony</string>
+    <string name="print_all">All agendas</string>
+    <string name="print_simple">Print single-sided.</string>
+    <string name="print_duplex">Choose two-sided printing and flip on the long edge.</string>
+    <string name="print_separate">Choose single-sided printing. Each fast and testimony meeting will print on two separate sheets instead of on both sides of one sheet.</string>
+    <string name="print_range">Select by date range</string>
+    <string name="print_continue">Continue</string>
+    <string name="print_select">Select</string>
+</resources>

@@ -1,6 +1,6 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
 }
 
@@ -12,8 +12,8 @@ android {
         applicationId = "com.martincornelli.agendasacramental"
         minSdk = 24
         targetSdk = 36
-        versionCode = 41
-        versionName = "1.5.1"
+        versionCode = 47
+        versionName = "1.7.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -23,6 +23,14 @@ android {
     }
 
     buildTypes {
+        getByName("release") {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
         create("qa") {
             initWith(getByName("debug"))
             applicationIdSuffix = ".qa"
@@ -31,29 +39,28 @@ android {
         }
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
-    }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-    sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/historyAssets"))
 }
 
 // Android and web ship the exact same parser, workbook limits and duplicate rules.
-val syncHistoryAssets by tasks.registering(Copy::class) {
+abstract class SyncHistoryAssets : Sync() {
+    @get:Internal abstract val outputDir: DirectoryProperty
+}
+val syncHistoryAssets = tasks.register<SyncHistoryAssets>("syncHistoryAssets") {
     from(rootProject.file("docs")) {
         include("participation-history.mjs", "history-workbook.mjs", "history-workbook-worker.js", "vendor/xlsx*", "vendor/SHEETJS-LICENSE.txt")
     }
-    into(layout.buildDirectory.dir("generated/historyAssets/history"))
+    outputDir.set(layout.buildDirectory.dir("generated/historyAssets"))
+    into(outputDir)
+    eachFile { path = "history/$path" }
 }
-tasks.named("preBuild").configure { dependsOn(syncHistoryAssets) }
+androidComponents.onVariants { variant ->
+    variant.sources.assets?.addGeneratedSourceDirectory(syncHistoryAssets, SyncHistoryAssets::outputDir)
+}
 
 dependencies {
 

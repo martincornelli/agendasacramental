@@ -47,6 +47,7 @@ fun EditarAgendaScreen(
     val context = LocalContext.current
 
     var isLoading by remember { mutableStateOf(agendaId != null) }
+    var loadFailure by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
     var errorGuardado by remember { mutableStateOf("") }
     var showSolicitudDialog by remember { mutableStateOf(false) }
@@ -54,6 +55,10 @@ fun EditarAgendaScreen(
 
     var fechaDate by remember { mutableStateOf(Date()) }
     var estado by remember { mutableStateOf(EstadoAgenda.BORRADOR) }
+    var aceptaciones by remember { mutableStateOf<Map<String, AceptacionAsignacion>>(emptyMap()) }
+    var undoAcceptances by remember { mutableStateOf<Agenda?>(null) }
+    var responsablePrimaria by remember { mutableStateOf("") }
+    var agendaBase by remember { mutableStateOf<Agenda?>(null) }
     var asistencia by remember { mutableStateOf("") }
     var preside by remember { mutableStateOf("") }
     var dirige by remember { mutableStateOf("") }
@@ -78,11 +83,26 @@ fun EditarAgendaScreen(
 
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
 
-    LaunchedEffect(agendaId) {
+    LaunchedEffect(agendaId, numeroUnidad) {
+        isLoading = agendaId != null
+        loadFailure = numeroUnidad.isBlank()
+        if (loadFailure) {
+            isLoading = false
+            errorGuardado = context.getString(R.string.agenda_unit_required)
+            return@LaunchedEffect
+        }
         nombresUsados = repository.getNombresUsados(numeroUnidad)
         if (agendaId != null) {
             val result = repository.getAgenda(agendaId)
             result.onSuccess { agenda ->
+                if (agenda.numeroUnidad != numeroUnidad) {
+                    loadFailure = true
+                    errorGuardado = context.getString(R.string.agenda_unit_mismatch)
+                    return@onSuccess
+                }
+                agendaBase = agenda
+                aceptaciones = agenda.aceptaciones
+                responsablePrimaria = agenda.responsablePrimaria
                 fechaDate = agenda.fecha.toDate()
                 estado = agenda.estado
                 asistencia = if (agenda.asistencia > 0) agenda.asistencia.toString() else ""
@@ -110,14 +130,22 @@ fun EditarAgendaScreen(
                     "Última edición: ${agenda.ultimaEdicionPor} — ${dateFormat.format(agenda.ultimaEdicionEn.toDate())}"
                 else ""
             }
+            result.onFailure {
+                loadFailure = true
+                errorGuardado = context.getString(R.string.agenda_load_failed)
+            }
             isLoading = false
         }
     }
 
     fun buildAgenda(): Agenda {
-        return Agenda(
+        return reconciliarConfirmacion(Agenda(
+            confirmacionVersion = 1,
+            aceptaciones = aceptaciones,
+            responsablePrimaria = responsablePrimaria,
+            revision = agendaBase?.revision ?: 0,
             id = agendaId ?: "",
-            numeroUnidad = numeroUnidad,
+            numeroUnidad = agendaBase?.numeroUnidad ?: numeroUnidad,
             fecha = Timestamp(fechaDate),
             estado = estado,
             asistencia = asistencia.toIntOrNull() ?: 0,
@@ -143,8 +171,14 @@ fun EditarAgendaScreen(
             creadoPor = userEmail,
             creadoEn = Timestamp.now(),
             ultimaEdicionPor = userEmail,
-            ultimaEdicionEn = Timestamp.now()
-        )
+            ultimaEdicionEn = agendaBase?.ultimaEdicionEn ?: Timestamp.now()
+        ))
+    }
+
+    val checksActuales = comprobacionesAgenda(buildAgenda())
+    LaunchedEffect(checksActuales) {
+        undoAcceptances = null
+        aceptaciones = aceptaciones.filter { (id, a) -> checksActuales.any { it.id == id && it.completa && it.firma == a.firma } }
     }
 
     fun compartirWhatsApp(context: Context) {
@@ -183,13 +217,22 @@ fun EditarAgendaScreen(
         return
     }
 
+    if (loadFailure) {
+        Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(errorGuardado, color = MaterialTheme.colorScheme.error)
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onBack) { Text(stringResource(R.string.btn_volver)) }
+        }
+        return
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(if (agendaId == null) stringResource(R.string.editar_agenda_nueva) else stringResource(R.string.editar_agenda_titulo)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Volver")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.btn_volver))
                     }
                 },
                 actions = {
@@ -199,7 +242,7 @@ fun EditarAgendaScreen(
                     Box {
                         var showCompartirMenu by remember { mutableStateOf(false) }
                         IconButton(onClick = { showCompartirMenu = true }) {
-                            Icon(Icons.Default.Share, "Compartir")
+                            Icon(Icons.Default.Share, stringResource(R.string.editar_compartir))
                         }
                         DropdownMenu(
                             expanded = showCompartirMenu,
@@ -222,30 +265,35 @@ fun EditarAgendaScreen(
                             )
                         }
                     }
-                    IconButton(
+                    TextButton(
                         onClick = {
                             isSaving = true
                             scope.launch {
                                 val result = repository.guardarAgenda(buildAgenda(), userEmail)
                                 isSaving = false
                                 if (result.isSuccess) {
+                                    result.getOrNull()?.let { savedId ->
+                                        repository.getAgenda(savedId).getOrNull()?.let { agendaBase = it }
+                                    }
                                     errorGuardado = ""
                                     // Recargar el agendaId si es nueva para habilitar PDF
                                     if (agendaId == null) onBack()
-                                    else errorGuardado = "✓ ${context.getString(R.string.editar_guardado_ok)}"
+                                    else { errorGuardado = context.getString(R.string.editar_guardado_ok); undoAcceptances = null }
                                 } else if (result.exceptionOrNull()?.message == "FECHA_DUPLICADA") {
                                     errorGuardado = context.getString(R.string.editar_fecha_duplicada)
+                                } else if (result.exceptionOrNull()?.message == "AGENDA_CONFLICT") {
+                                    errorGuardado = context.getString(R.string.check_conflict)
                                 } else {
                                     errorGuardado = context.getString(R.string.editar_error_guardar)
                                 }
                             }
                         },
-                        enabled = !isSaving
+                        enabled = !isSaving && !isLoading && !loadFailure && numeroUnidad.isNotBlank() && (agendaId == null || agendaBase != null)
                     ) {
                         if (isSaving) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         } else {
-                            Icon(Icons.Default.Check, stringResource(R.string.btn_guardar))
+                            Text(stringResource(R.string.btn_guardar))
                         }
                     }
                 }
@@ -267,6 +315,10 @@ fun EditarAgendaScreen(
                     )
                 }
             }
+            CompositionLocalProvider(LocalAcceptanceUi provides AcceptanceUi(buildAgenda()) { row, checked ->
+                undoAcceptances = null
+                aceptaciones = if (checked) buildAgenda().aceptaciones + (row.id to AceptacionAsignacion(row.firma, userEmail, Timestamp.now())) else buildAgenda().aceptaciones - row.id
+            }) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -274,25 +326,6 @@ fun EditarAgendaScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(vertical = 16.dp)
             ) {
-                item {
-                    Text(
-                        stringResource(R.string.editar_agenda_titulo_card),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                item {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                        Text(
-                            text = stringResource(R.string.editar_cita_dc),
-                            style = MaterialTheme.typography.bodySmall,
-                            fontStyle = FontStyle.Italic,
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
-                }
-
                 // Fecha y Asistencia en la misma fila
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
@@ -321,7 +354,27 @@ fun EditarAgendaScreen(
                     }
                 }
 
-                item { EstadoSelector(estado = estado, onEstadoChange = { estado = it }) }
+                item {
+                    ConfirmacionResumen(buildAgenda(), agendaBase?.let { it.confirmacionVersion == 0 } == true,
+                        canUndo = undoAcceptances != null,
+                        onUndo = { undoAcceptances?.let { estado = it.estado; aceptaciones = it.aceptaciones }; undoAcceptances = null },
+                        onEstadoChange = { nuevo ->
+                            val before = buildAgenda()
+                            runCatching { cambiarEstadoAgenda(before, nuevo, userEmail, Timestamp.now()) }
+                                .onSuccess {
+                                    undoAcceptances = if (nuevo == EstadoAgenda.CONFIRMADA) before else null
+                                    estado = it.estado; aceptaciones = it.aceptaciones
+                                    errorGuardado = if (nuevo == EstadoAgenda.BORRADOR && it.estado == EstadoAgenda.CONFIRMADA)
+                                        context.getString(R.string.check_still_confirmed) else ""
+                                }
+                                .onFailure { errorGuardado = context.getString(R.string.check_incomplete_status) }
+                        })
+                }
+                if (presentacionPrimaria) item {
+                    AceptacionCampo("responsablePrimaria") {
+OutlinedTextField(value = responsablePrimaria, onValueChange = { responsablePrimaria = it }, label = { Text(stringResource(R.string.check_primary_leader)) }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
 
                 item {
                     SeccionTestimonios(
@@ -348,22 +401,27 @@ fun EditarAgendaScreen(
                 }
 
                 item {
-                    CampoConAutocompletado(
+                    AceptacionCampo("preside") {
+CampoConAutocompletado(
                         valor = preside, onValorChange = { preside = it },
                         label = stringResource(R.string.editar_preside), sugerencias = nombresUsados
                     )
+                    }
                 }
 
                 item {
-                    CampoConAutocompletado(
+                    AceptacionCampo("dirige") {
+CampoConAutocompletado(
                         valor = dirige, onValorChange = { dirige = it },
                         label = stringResource(R.string.editar_dirige), sugerencias = nombresUsados
                     )
+                    }
                 }
 
                 item {
                     ListaItemsEditor(
                         titulo = stringResource(R.string.editar_reconocimientos),
+                        emptyText = stringResource(R.string.editor_no_recognitions),
                         items = reconocimientos,
                         onItemsChange = { reconocimientos = it },
                         placeholder = stringResource(R.string.editar_agregar_reconocimiento),
@@ -374,6 +432,7 @@ fun EditarAgendaScreen(
                 item {
                     ListaItemsEditor(
                         titulo = stringResource(R.string.editar_anuncios),
+                        emptyText = stringResource(R.string.editor_no_announcements),
                         items = anuncios,
                         onItemsChange = { anuncios = it },
                         placeholder = stringResource(R.string.editar_agregar_anuncio)
@@ -391,6 +450,7 @@ fun EditarAgendaScreen(
                         },
                         onNombreChange = { primerHimnoNombre = it }
                     )
+                    AceptacionesHimno("primerHimno")
                 }
 
                 item {
@@ -415,10 +475,12 @@ fun EditarAgendaScreen(
                 }
 
                 item {
-                    CampoConAutocompletado(
+                    AceptacionCampo("primeraOracion") {
+CampoConAutocompletado(
                         valor = primeraOracion, onValorChange = { primeraOracion = it },
                         label = stringResource(R.string.editar_primera_oracion), sugerencias = nombresUsados
                     )
+                    }
                 }
 
                 item {
@@ -436,6 +498,7 @@ fun EditarAgendaScreen(
                         },
                         onNombreChange = { himnoSacramentalNombre = it }
                     )
+                    AceptacionesHimno("himnoSacramental")
                 }
 
                 item {
@@ -462,13 +525,16 @@ fun EditarAgendaScreen(
                         },
                         onNombreChange = { himnoFinalNombre = it }
                     )
+                    AceptacionesHimno("himnoFinal")
                 }
 
                 item {
-                    CampoConAutocompletado(
+                    AceptacionCampo("oracionFinal") {
+CampoConAutocompletado(
                         valor = oracionFinal, onValorChange = { oracionFinal = it },
                         label = stringResource(R.string.editar_oracion_final), sugerencias = nombresUsados
                     )
+                    }
                 }
 
                 if (metadataInfo.isNotBlank()) {
@@ -483,6 +549,7 @@ fun EditarAgendaScreen(
 
                 item { Spacer(modifier = Modifier.height(32.dp)) }
             }
+            } // AcceptanceUi
         } // close Column
     }
 }
@@ -701,6 +768,7 @@ fun CampoConAutocompletado(
 @Composable
 fun ListaItemsEditor(
     titulo: String,
+    emptyText: String = stringResource(R.string.editor_no_items),
     items: List<String>,
     onItemsChange: (List<String>) -> Unit,
     placeholder: String = stringResource(R.string.editar_agregar_reconocimiento),
@@ -774,7 +842,7 @@ fun ListaItemsEditor(
         }
         if (items.isEmpty()) {
             Text(
-                "Sin $titulo",
+                emptyText,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
@@ -1082,13 +1150,14 @@ fun TablaMensajes(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f)
             )
-            IconButton(onClick = { onMensajesChange(mensajes + MensajeEvangelio()) }) {
+            IconButton(onClick = { onMensajesChange(mensajes + MensajeEvangelio(id = UUID.randomUUID().toString())) }) {
                 Icon(Icons.Default.Add, stringResource(R.string.btn_agregar))
             }
         }
         mensajes.forEachIndexed { index, mensaje ->
             MensajeRow(
                 mensaje = mensaje,
+                acceptanceId = "mensaje_${mensaje.id.ifBlank { "legacy-$index" }}",
                 onMensajeChange = { nuevo -> onMensajesChange(mensajes.toMutableList().also { it[index] = nuevo }) },
                 onDelete = { onMensajesChange(mensajes.toMutableList().also { it.removeAt(index) }) },
                 onMoveUp = { if (index > 0) onMensajesChange(mensajes.toMutableList().also { it.add(index - 1, it.removeAt(index)) }) },
@@ -1106,6 +1175,7 @@ fun TablaMensajes(
 @Composable
 fun MensajeRow(
     mensaje: MensajeEvangelio,
+    acceptanceId: String,
     onMensajeChange: (MensajeEvangelio) -> Unit,
     onDelete: () -> Unit,
     onMoveUp: () -> Unit,
@@ -1116,7 +1186,7 @@ fun MensajeRow(
 ) {
     val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
-    var himnoNumero by remember { mutableStateOf(if (mensaje.himnoNumero > 0) mensaje.himnoNumero.toString() else "") }
+    var himnoNumero by remember(mensaje.id, mensaje.himnoNumero) { mutableStateOf(if (mensaje.himnoNumero > 0) mensaje.himnoNumero.toString() else "") }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1175,13 +1245,16 @@ fun MensajeRow(
                         modifier = Modifier.weight(1f), singleLine = true
                     )
                 }
+                AceptacionesHimno(acceptanceId)
             } else {
-                CampoConAutocompletado(
+                AceptacionCampo(acceptanceId) {
+CampoConAutocompletado(
                     valor = mensaje.nombre,
                     onValorChange = { onMensajeChange(mensaje.copy(nombre = it)) },
                     label = if (mensaje.tipo == TipoMensaje.TESTIMONIO) stringResource(R.string.editar_nombre) else stringResource(R.string.editar_discursante),
                     sugerencias = nombresUsados
                 )
+                    }
                 if (mensaje.tipo == TipoMensaje.DISCURSO) {
                     OutlinedTextField(
                         value = mensaje.tema,

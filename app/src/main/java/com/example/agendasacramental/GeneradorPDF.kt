@@ -104,6 +104,20 @@ object GeneradorPDF {
         }
     }
 
+    fun dibujarPaginaImpresion(canvas: Canvas, agenda: Agenda, testimonios: Boolean, context: Context) {
+        val formato = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+        if (testimonios) {
+            dibujarPaginaTestimonios(canvas, agenda, formato, context)
+            return
+        }
+        val fuente = seleccionarEscala(agenda, formato, context)
+        val alto = dibujarContenido(Surface(), agenda, formato, context, fuente)
+        val escala = minOf(1f, (PAGE_HEIGHT - 24f) / alto)
+        canvas.translate(PAGE_WIDTH * (1f - escala) / 2f, 0f)
+        canvas.scale(escala, escala)
+        dibujarContenido(Surface(canvas), agenda, formato, context, fuente)
+    }
+
     private fun seleccionarEscala(agenda: Agenda, dateFormat: SimpleDateFormat, context: Context): Float {
         return FONT_SCALES.firstOrNull { scale ->
             dibujarContenido(Surface(), agenda, dateFormat, context, scale) <= PAGE_HEIGHT - 24f
@@ -437,11 +451,11 @@ object GeneradorPDF {
 
         val nombres = agenda.testimonios.filter { it.isNotBlank() }
         val cantidadNecesaria = maxOf(28, nombres.size)
-        val altoLinea = ((PAGE_HEIGHT - y - 48f) / cantidadNecesaria).coerceIn(16f, 22f)
-        val lineasDisponibles = ((PAGE_HEIGHT - y - 36f) / altoLinea).toInt()
-        val cantidadLineas = cantidadNecesaria.coerceAtMost(lineasDisponibles)
+        val altoLinea = minOf((PAGE_HEIGHT - y - 48f) / cantidadNecesaria, 22f)
+        paintNombre.textSize = minOf(paintNombre.textSize, altoLinea * 0.68f)
+        paintNumero.textSize = minOf(paintNumero.textSize, paintNombre.textSize)
 
-        repeat(cantidadLineas) { index ->
+        repeat(cantidadNecesaria) { index ->
             val numero = "${index + 1}."
             val nombre = nombres.getOrNull(index).orEmpty()
             val baseline = y + (altoLinea * 0.55f)

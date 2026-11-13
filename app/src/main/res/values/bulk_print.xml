@@ -1,0 +1,13 @@
+<resources>
+    <string name="release_notes_print">Ahora podés seleccionar varias agendas por fecha o tocando cada domingo. Imprimí los domingos regulares a una cara y las reuniones de ayuno y testimonio a doble faz.</string>
+    <string name="imprimir_agendas">Imprimir agendas</string>
+    <string name="print_regular">Domingos regulares</string>
+    <string name="print_testimony">Ayuno y testimonio</string>
+    <string name="print_all">Todas las agendas</string>
+    <string name="print_simple">Una cara.</string>
+    <string name="print_duplex">Elegí doble faz con giro por el borde largo.</string>
+    <string name="print_separate">Elegí una cara. Se imprimirán las reuniones de ayuno y testimonio en dos hojas en lugar de doble faz.</string>
+    <string name="print_range">Seleccionar por fechas</string>
+    <string name="print_continue">Continuar</string>
+    <string name="print_select">Seleccionar</string>
+</resources>

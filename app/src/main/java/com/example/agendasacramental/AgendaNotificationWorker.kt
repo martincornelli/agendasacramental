@@ -151,7 +151,7 @@ class AgendaNotificationWorker(
         val intent = applicationContext.packageManager
             .getLaunchIntentForPackage(applicationContext.packageName)
             ?.apply {
-                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 putExtra("open_agenda_id", agendaId)
             }
 
@@ -163,12 +163,12 @@ class AgendaNotificationWorker(
         val fecha = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
             .format(java.util.Date(fechaMs))
         val confirmada = estado == "CONFIRMADA"
-        val body = if (confirmada) "Agenda del $fecha confirmada ✓"
-        else "Agenda del $fecha no confirmada"
+        val localizedContext = LocaleHelper.aplicarIdiomaAContexto(applicationContext, LocaleHelper.getIdiomaGuardado(applicationContext))
+        val body = localizedContext.getString(if (confirmada) R.string.notif_push_confirmada else R.string.notif_push_no_confirmada, fecha)
 
         val notif = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Agenda Sacramental")
+            .setContentTitle(localizedContext.getString(R.string.app_name))
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)

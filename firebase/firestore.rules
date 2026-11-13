@@ -62,7 +62,15 @@ match /unidades/{unidadId} {
 
     // Agendas: solo usuarios autenticados
     match /agendas/{agendaId} {
-      allow read, write: if estaAutenticado();
+      allow read, create, delete: if estaAutenticado();
+      // Old clients must not erase the acceptance schema when replacing a document.
+      allow update: if estaAutenticado()
+        && request.resource.data.get('numeroUnidad', '') == resource.data.get('numeroUnidad', '') && (
+        resource.data.get('confirmacionVersion', 0) == 0 ||
+        (request.resource.data.get('confirmacionVersion', 0) >= 1 &&
+         request.resource.data.get('revision', 0) == resource.data.get('revision', 0) + 1 &&
+         request.resource.data.get('aceptaciones', null) is map)
+      );
     }
     
     // Hermanos: solo usuarios autenticados

@@ -12,7 +12,8 @@ function load(names, globals = {}) {
     assert.ok(start >= 0, name);
     return source.slice(source.slice(start - 6, start) === 'async ' ? start - 6 : start, source.indexOf('\n}', start) + 2);
   });
-  vm.runInContext(translations + functions.join('\n'), context);
+  const confirmation = fs.readFileSync('docs/agenda-confirmation.mjs', 'utf8').replace(/^export /gm, '');
+  vm.runInContext(confirmation + '\n' + translations + functions.join('\n'), context);
   return context;
 }
 class Element {

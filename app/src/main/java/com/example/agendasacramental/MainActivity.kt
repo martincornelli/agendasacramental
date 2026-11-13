@@ -13,6 +13,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.foundation.isSystemInDarkTheme
 import android.content.Context
+import android.content.Intent
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,6 +41,7 @@ class MainActivity : AppCompatActivity() {
     private var currentScreen = mutableStateOf<Screen>(Screen.Login)
     private var currentUnidad = mutableStateOf<String>("")
     private var currentAgendaId = mutableStateOf<String?>(null)
+    private var pendingNotificationAgendaId: String? = null
     private var currentModoLecturaAgenda = mutableStateOf<Agenda?>(null)
 
     // In-app update
@@ -96,13 +98,8 @@ class MainActivity : AppCompatActivity() {
             prefsRestore.edit().remove("pantalla_actual").remove("unidad_recreate").apply()
         }
 
-        // Abrir agenda directamente si viene de una notificación
-        intent.getStringExtra("open_agenda_id")?.let { agendaId ->
-            if (agendaId.isNotBlank() && auth.currentUser != null) {
-                currentAgendaId.value = agendaId
-                currentScreen.value = Screen.EditarAgenda
-            }
-        }
+        pendingNotificationAgendaId = savedInstanceState?.getString("pending_notification_agenda")
+        handleAgendaIntent(intent)
 
         verificarActualizacion()
 
@@ -125,6 +122,8 @@ class MainActivity : AppCompatActivity() {
                     val unidad by currentUnidad
                     val agendaId by currentAgendaId
                     val modoLecturaAgenda by currentModoLecturaAgenda
+
+                    ReleaseNotesDialog(visible = screen == Screen.Home)
 
                     BackHandler(enabled = screen != Screen.Login && screen != Screen.SeleccionUnidad) {
                         when (screen) {
@@ -162,6 +161,7 @@ class MainActivity : AppCompatActivity() {
                                 AgendaNotificationWorker.programar(this@MainActivity)
                                 // Guardar próxima agenda en prefs para notificaciones
                                 sincronizarDatosUnidad(numeroUnidad)
+                                openPendingNotificationAgenda()
                             },
                             onLogout = { logout() }
                         )
@@ -206,7 +206,7 @@ class MainActivity : AppCompatActivity() {
                             },
                             onLogout = { currentScreen.value = Screen.Home }
                         )
-                        Screen.EditarAgenda -> EditarAgendaScreen(
+                        Screen.EditarAgenda -> key(unidad, agendaId) { EditarAgendaScreen(
                             numeroUnidad = unidad,
                             agendaId = agendaId,
                             userEmail = auth.currentUser?.email ?: "",
@@ -215,7 +215,7 @@ class MainActivity : AppCompatActivity() {
                                 currentModoLecturaAgenda.value = agenda
                                 currentScreen.value = Screen.ModoLectura
                             }
-                        )
+                        ) }
                         Screen.Planificacion -> PlanificacionScreen(
                             numeroUnidad = unidad,
                             onBack = { currentScreen.value = Screen.Home }
@@ -237,6 +237,39 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleAgendaIntent(intent)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("pending_notification_agenda", pendingNotificationAgendaId)
+        super.onSaveInstanceState(outState)
+    }
+
+    private fun handleAgendaIntent(intent: Intent) {
+        intent.getStringExtra("open_agenda_id")?.takeIf { it.isNotBlank() }?.let {
+            pendingNotificationAgendaId = it
+        }
+        // Consume once: recreation or a subsequent launcher entry must not replay it.
+        intent.removeExtra("open_agenda_id")
+        openPendingNotificationAgenda()
+    }
+
+    private fun openPendingNotificationAgenda() {
+        val target = pendingNotificationAgendaId ?: return
+        when (agendaEntry(auth.currentUser != null, currentUnidad.value)) {
+            AgendaEntry.LOGIN -> currentScreen.value = Screen.Login
+            AgendaEntry.UNIT_SELECTION -> currentScreen.value = Screen.SeleccionUnidad
+            AgendaEntry.EDITOR -> {
+                currentAgendaId.value = target
+                pendingNotificationAgendaId = null
+                currentScreen.value = Screen.EditarAgenda
             }
         }
     }
@@ -364,6 +397,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun logout() {
+        pendingNotificationAgendaId = null
+        currentAgendaId.value = null
         auth.signOut()
         googleSignInClient.signOut()
         currentUnidad.value = ""

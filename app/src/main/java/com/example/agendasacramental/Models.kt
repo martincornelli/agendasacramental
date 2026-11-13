@@ -19,6 +19,10 @@ data class Agenda(
     val numeroUnidad: String = "",
     val fecha: Timestamp = Timestamp.now(),
     val estado: EstadoAgenda = EstadoAgenda.BORRADOR,
+    val confirmacionVersion: Int = 0,
+    val aceptaciones: Map<String, AceptacionAsignacion> = emptyMap(),
+    val responsablePrimaria: String = "",
+    val revision: Long = 0,
     val asistencia: Int = 0,
     val preside: String = "",
     val dirige: String = "",
@@ -90,6 +94,7 @@ enum class TipoAsunto(val label: String, val stringResId: Int) {
 }
 
 data class MensajeEvangelio(
+    val id: String = "",
     val tipo: TipoMensaje = TipoMensaje.DISCURSO,
     val nombre: String = "",
     val himnoNumero: Int = 0,
@@ -105,6 +110,7 @@ enum class TipoMensaje(val label: String, val stringResId: Int) {
 }
 
 data class Hermano(
+    val organizacion: String = "",
     @DocumentId val id: String = "",
     val numeroUnidad: String = "",
     val nombre: String = "",

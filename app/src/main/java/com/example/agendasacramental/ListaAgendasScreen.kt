@@ -37,6 +37,7 @@ fun ListaAgendasScreen(
     val context = LocalContext.current
     val repository = remember { AgendaRepository() }
     val scope = rememberCoroutineScope()
+    var imprimir by androidx.compose.runtime.saveable.rememberSaveable(numeroUnidad) { mutableStateOf(false) }
 
     var agendas by remember { mutableStateOf<List<Agenda>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -126,6 +127,11 @@ fun ListaAgendasScreen(
             ))
     }
 
+    if (imprimir && !isLoading) {
+        ImprimirAgendasScreen(agendas) { imprimir = false }
+        return
+    }
+
     // Diálogo eliminar agenda
     agendaAEliminar?.let { agenda ->
         AlertDialog(
@@ -197,6 +203,9 @@ fun ListaAgendasScreen(
                 TopAppBar(
                     title = { Text(LocalContext.current.getString(R.string.agendas_titulo, numeroUnidad)) },
                     actions = {
+                        IconButton(onClick = { imprimir = true }, enabled = agendas.isNotEmpty()) {
+                            Icon(Icons.Default.Print, stringResource(R.string.imprimir_agendas))
+                        }
                         IconButton(onClick = { showCrearDomingos = true }) {
                             Icon(Icons.Default.CalendarMonth, LocalContext.current.getString(R.string.agendas_crear_domingos))
                         }
@@ -463,6 +472,9 @@ fun AgendaCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                }
+                if (agenda.confirmacionVersion > 0) {
+                    Text(context.getString(R.string.check_progress, agenda.aceptaciones.size, comprobacionesAgenda(agenda).size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (agenda.preside.isNotBlank()) {
                     Spacer(modifier = Modifier.height(4.dp))

@@ -496,4 +496,8 @@
     <string name="history_back">Back to planner</string>
     <string name="history_changed">History changed. Reopen the preview before saving.</string>
     <string name="history_error">The operation could not be completed. Check your connection and try again.</string>
+    <string name="release_notes_title">What’s new in version %1$s</string>
+    <string name="release_notes_hymns">8 new hymns in English and Spanish. You now have 90 hymns from the new hymnbook available for your agendas.</string>
+    <string name="release_notes_optimization">We optimized the app to reduce the download size.</string>
+    <string name="release_notes_continue">Continue</string>
 </resources>

@@ -4,7 +4,15 @@ import android.content.Context
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -32,6 +40,11 @@ fun SeleccionUnidadScreen(
 ) {
     val context = LocalContext.current
     val repository = remember { AgendaRepository() }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val passwordFocus = remember { FocusRequester() }
+    val confirmationFocus = remember { FocusRequester() }
+    val finishInput = { focusManager.clearFocus(); keyboard?.hide(); Unit }
     val scope = rememberCoroutineScope()
 
     var numeroUnidad by remember { mutableStateOf("") }
@@ -43,10 +56,11 @@ fun SeleccionUnidadScreen(
     var successMessage by remember { mutableStateOf("") }
     var showCreateDialog by remember { mutableStateOf(false) }
     var showForgotDialog by remember { mutableStateOf(false) }
+    var showExistingDialog by remember { mutableStateOf(false) }
     var isNewUnit by remember { mutableStateOf(false) }
-    var isChangingPassword by remember { mutableStateOf(false) }
-    var newPassword by remember { mutableStateOf("") }
-    var confirmNewPassword by remember { mutableStateOf("") }
+
+
+
     var recordarDispositivo by remember { mutableStateOf(false) }
     var usandoContrasena by remember { mutableStateOf(false) }
 
@@ -83,14 +97,14 @@ fun SeleccionUnidadScreen(
                     Text(stringResource(R.string.unidad_confirmacion_crear, numeroUnidad))
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        stringResource(R.string.unidad_primera_contrasena),
+                        stringResource(R.string.admin_creator),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showCreateDialog = false; isNewUnit = true }) { Text("Sí, crear") }
+                TextButton(onClick = { showCreateDialog = false; isNewUnit = true }) { Text(stringResource(R.string.admin_create)) }
             },
             dismissButton = {
                 TextButton(onClick = { showCreateDialog = false }) { Text(stringResource(R.string.btn_cancelar)) }
@@ -98,68 +112,12 @@ fun SeleccionUnidadScreen(
         )
     }
 
-    // Diálogo cambiar contraseña
-    if (showForgotDialog) {
-        AlertDialog(
-            onDismissRequest = { showForgotDialog = false; newPassword = ""; confirmNewPassword = "" },
-            title = { Text(stringResource(R.string.contrasena_cambiar)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        "Unidad: $numeroUnidad\nSesión verificada: $userEmail",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    OutlinedTextField(
-                        value = newPassword, onValueChange = { newPassword = it },
-                        label = { Text(stringResource(R.string.contrasena_nueva)) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
-                    OutlinedTextField(
-                        value = confirmNewPassword, onValueChange = { confirmNewPassword = it },
-                        label = { Text(stringResource(R.string.contrasena_confirmar_nueva)) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        isChangingPassword = true
-                        scope.launch {
-                            val result = repository.cambiarPassword(numeroUnidad, newPassword)
-                            isChangingPassword = false
-                            showForgotDialog = false
-                            newPassword = ""; confirmNewPassword = ""
-                            if (result.isSuccess) {
-                                successMessage = context.getString(R.string.contrasena_actualizada)
-                                errorMessage = ""
-                                prefs.edit().remove("unidad_guardada").remove("password_guardado").apply()
-                                usandoContrasena = true
-                            } else {
-                                errorMessage = context.getString(R.string.contrasena_error)
-                            }
-                        }
-                    },
-                    enabled = newPassword.length >= 4 && newPassword == confirmNewPassword && !isChangingPassword
-                ) {
-                    if (isChangingPassword) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    else Text("Cambiar")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showForgotDialog = false; newPassword = ""; confirmNewPassword = "" }) { Text(stringResource(R.string.btn_cancelar)) }
-            }
-        )
-    }
+    if (showForgotDialog) UnitAdministrationDialog(numeroUnidad) { showForgotDialog = false }
+    if (showExistingDialog) UnitReviewDialog(numeroUnidad) { showExistingDialog = false }
 
     // Pantalla principal
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -170,9 +128,10 @@ fun SeleccionUnidadScreen(
 
         OutlinedTextField(
             value = numeroUnidad,
-            onValueChange = { numeroUnidad = it; isNewUnit = false; errorMessage = ""; successMessage = "" },
+            onValueChange = { numeroUnidad = it.filter { char -> char in '0'..'9' }; isNewUnit = false; errorMessage = ""; successMessage = "" },
             label = { Text(stringResource(R.string.unidad_numero)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus() }),
             modifier = Modifier.fillMaxWidth(), singleLine = true
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -182,7 +141,8 @@ fun SeleccionUnidadScreen(
             onValueChange = { password = it; errorMessage = ""; successMessage = "" },
             label = { Text(if (isNewUnit) stringResource(R.string.contrasena_crear) else stringResource(R.string.contrasena)) },
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = if (isNewUnit) ImeAction.Next else ImeAction.Done),
+            keyboardActions = KeyboardActions(onNext = { confirmationFocus.requestFocus() }, onDone = { finishInput() }),
             trailingIcon = {
                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
                     Icon(
@@ -191,7 +151,7 @@ fun SeleccionUnidadScreen(
                     )
                 }
             },
-            modifier = Modifier.fillMaxWidth(), singleLine = true
+            modifier = Modifier.fillMaxWidth().focusRequester(passwordFocus), singleLine = true
         )
 
         if (isNewUnit) {
@@ -201,8 +161,9 @@ fun SeleccionUnidadScreen(
                 onValueChange = { confirmPassword = it; errorMessage = "" },
                 label = { Text(stringResource(R.string.contrasena_confirmar)) },
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(), singleLine = true
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { finishInput() }),
+                modifier = Modifier.fillMaxWidth().focusRequester(confirmationFocus), singleLine = true
             )
         }
 
@@ -246,7 +207,8 @@ fun SeleccionUnidadScreen(
                             if (recordarDispositivo) { if (autenticacionDispositivoDisponible) guardarCredenciales(prefs, numeroUnidad, password) else prefs.edit().putString("unidad_guardada", numeroUnidad).remove("password_guardado").apply() }
                             onUnidadIngresada(numeroUnidad)
                         } else {
-                            errorMessage = context.getString(R.string.unidad_error_crear)
+                            if (generateSequence(result.exceptionOrNull()) { it.cause }.any { it.message?.contains("ADMIN_EXISTS") == true }) showExistingDialog = true
+                            else errorMessage = adminError(context, result.exceptionOrNull()!!)
                         }
                     } else {
                         val existe = runCatching { repository.existeUnidad(numeroUnidad) }
@@ -255,7 +217,7 @@ fun SeleccionUnidadScreen(
                                 errorMessage = textoErrorVerificarUnidad(context)
                                 return@launch
                             }
-                        if (!existe) { isLoading = false; showCreateDialog = true; return@launch }
+                        if (!existe) { isLoading = false; errorMessage = context.getString(R.string.admin_missing); return@launch }
                         val passwordOk = repository.verificarPassword(numeroUnidad, password)
                         isLoading = false
                         if (passwordOk) {
@@ -290,19 +252,21 @@ fun SeleccionUnidadScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        TextButton(onClick = {
+        TextButton(enabled = !isLoading, onClick = {
             if (numeroUnidad.isBlank()) { errorMessage = context.getString(R.string.unidad_ingrese_numero_primero); return@TextButton }
-            errorMessage = ""; successMessage = ""
+            showForgotDialog = true
+        }) { Text(stringResource(R.string.admin_access)) }
+
+        TextButton(enabled = !isLoading, onClick = {
+            if (numeroUnidad.isBlank()) { errorMessage = context.getString(R.string.unidad_ingrese_numero_primero); return@TextButton }
+            isLoading = true
             scope.launch {
-                val existe = runCatching { repository.existeUnidad(numeroUnidad) }
-                    .getOrElse {
-                        errorMessage = textoErrorVerificarUnidad(context)
-                        return@launch
-                    }
-                if (existe) showForgotDialog = true
-                else errorMessage = "La unidad $numeroUnidad no existe."
+                runCatching { repository.existeUnidad(numeroUnidad) }
+                    .onSuccess { exists -> if (exists) showExistingDialog = true else showCreateDialog = true }
+                    .onFailure { errorMessage = adminError(context, it) }
+                isLoading = false
             }
-        }) { Text(stringResource(R.string.contrasena_olvide)) }
+        }) { Text(stringResource(R.string.admin_create)) }
 
         Spacer(modifier = Modifier.height(8.dp))
         TextButton(onClick = onLogout) { Text(stringResource(R.string.cerrar_sesion_google)) }
