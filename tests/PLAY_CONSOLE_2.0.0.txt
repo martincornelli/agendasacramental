@@ -1,0 +1,16 @@
+<es-419>
+• Nuevo diseño más moderno y compacto, con temas claro, oscuro y del sistema.
+• Organización de miembros y filtros para planificar participaciones.
+• Aceptaciones individuales de discursos, oraciones y música, con confirmación automática de la agenda.
+• Organización incluida en Excel y CSV, con actualización de fichas al importar.
+• Deslizá entre pestañas de Planificación y Planificador de himnos.
+• Correcciones en exportación de historial, menús y edición.
+</es-419>
+<en-US>
+• A fresh, compact design with light, dark and system themes.
+• Member organizations and filters for planning participation.
+• Individual acceptance of talks, prayers and music, with automatic agenda confirmation.
+• Organizations in Excel and CSV, with profile updates on import.
+• Swipe between tabs in Planning and Hymn planner.
+• Fixes for history export, menus and editing.
+</en-US>

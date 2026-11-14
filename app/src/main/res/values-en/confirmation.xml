@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="release_notes_design">A fresh, compact design with improved navigation and light, dark and system themes.</string>
     <string name="release_notes_swipe">Swipe sideways to switch tabs in Planning and Hymn planner.</string>
-    <string name="release_notes_history">Export and import organizations in Excel. Fixed the blank screen when opening participation history.</string>
+    <string name="release_notes_history">Excel and CSV now include Organization. Importing updates member profiles when it changes; blank cells preserve the current organization. Fixed the blank screen when opening history.</string>
     <string name="editor_no_recognitions">No acknowledgments</string>
     <string name="editor_no_announcements">No announcements</string>
     <string name="editor_no_items">No entries</string>

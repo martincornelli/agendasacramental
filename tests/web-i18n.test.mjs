@@ -19,7 +19,7 @@ test('UI translations retain Spanish and leave unknown text unchanged', () => {
 test('English CSV preserves names, topics, IDs, dates, and canonical participation types on reimport', () => {
   const records = [{ id: 'stable-id', date: '2026-11-01', name: 'Fe', type: 'Discurso', topic: 'Santa Cena' }];
   const table = parseCSV(exportCSV(records, 'en'));
-  assert.deepEqual(table[0], ['ID', 'Date', 'Name', 'Participation', 'Topic']);
+  assert.deepEqual(table[0], ['ID', 'Date', 'Name', 'Participation', 'Topic', 'Organization']);
   const result = mapRows(table, guessColumns(table[0]));
   for (const key of ['id', 'date', 'name', 'type', 'topic']) assert.equal(result[0][key], records[0][key]);
 });

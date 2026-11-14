@@ -66,7 +66,7 @@ node --test tests/agenda-web.test.cjs tests/hymn-planner-web.test.mjs tests/part
 
 En Planificación → Importar / exportar se puede descargar una plantilla vacía o
 exportar el historial en **Excel (.xlsx)** o **CSV UTF-8**, con ID, Fecha, Nombre,
-Participación y Tema. Se pueden importar `.xlsx`, `.xls`, `.csv` y `.tsv`.
+Participación, Tema y Organización. Se pueden importar `.xlsx`, `.xls`, `.csv` y `.tsv`.
 Para Excel se eligen la hoja y la fila de encabezados; las fechas nativas de Excel
 se convierten a fechas de calendario, incluidos libros con sistema de fechas 1904.
 Las hojas ocultas se omiten. Las hojas con fórmulas o errores requieren una copia
@@ -84,7 +84,7 @@ agendas o de fechas manuales se realizan en esas pantallas, no en el importador.
 
 El historial importado se guarda en `historialParticipaciones/{numeroUnidad}`,
 con `numeroUnidad`, `revision`, `records`, `actualizadoEn` y `actualizadoPor`.
-Cada registro tiene `id`, `date` (AAAA-MM-DD), `name`, `type` y `topic`.
+Cada registro tiene `id`, `date` (AAAA-MM-DD), `name`, `type`, `topic` y, opcionalmente, `organization`.
 Una transacción verifica la revisión antes de agregar o reemplazar los registros
 seleccionados. Un cambio concurrente cancela el guardado completo para volver a
 revisar. El límite inicial es 2 MB/5000 filas de datos por archivo y 700 KB/5000
@@ -112,3 +112,9 @@ para esta corrección de acceso. La lectura del historial importado requiere And
 Se validaron en el emulador el acceso autenticado sin membresía de piloto,
 la persistencia y el rechazo de revisiones desactualizadas. Si falla la lectura,
 la interfaz bloquea importación y exportación para no ofrecer un archivo incompleto.
+
+## Versión 2.0.0
+
+Diseño renovado con temas claro, oscuro y del sistema; organizaciones y filtros; aceptaciones individuales y confirmación automática; pestañas con deslizamiento táctil en ambos planificadores.
+
+Excel y CSV incluyen Organización / Organization. Al importar, una organización distinta actualiza la ficha en la misma transacción que el historial; valores vacíos conservan la actual. Los participantes nuevos con organización reciben una ficha. Una corrección únicamente de organización también se admite para participaciones de agendas o fichas, sin duplicarlas.
