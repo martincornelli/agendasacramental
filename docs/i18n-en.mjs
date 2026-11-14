@@ -1,5 +1,10 @@
 // UI copy only. Persisted values and user content are never translated.
 export const EN_TEXT = {
+  "Formato de filas": "Row layout",
+  "Importá menos de 500 cambios de organización a la vez.": "Import fewer than 500 organization changes at a time.",
+  "Organización no reconocida.": "Organization not recognized.",
+  "Hay organizaciones distintas para la misma persona.": "There are conflicting organizations for the same person.",
+  "Hay más de una ficha con ese nombre. Revisá las fichas antes de importar.": "More than one member profile has that name. Review the profiles before importing.",
   "Más opciones": "More options",
   "Más": "More",
   "Apertura": "Opening",

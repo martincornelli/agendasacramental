@@ -1,5 +1,7 @@
 package com.example.agendasacramental
 
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.width
 
 import androidx.compose.foundation.layout.Arrangement
@@ -120,7 +122,8 @@ fun PlanificadorHimnosScreen(
     var agendas by remember { mutableStateOf<List<Agenda>>(emptyList()) }
     var cargando by remember { mutableStateOf(true) }
     var anio by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
-    var tab by remember { mutableStateOf(0) }
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    val tab = pagerState.currentPage
     var fechaEnEdicion by remember { mutableStateOf<FechaPlanificador?>(null) }
     var configuracion by remember(numeroUnidad) {
         mutableStateOf(ConfiguracionPlanificacion(numeroUnidad = numeroUnidad))
@@ -326,17 +329,18 @@ fun PlanificadorHimnosScreen(
             TabRow(selectedTabIndex = tab) {
                 Tab(
                     selected = tab == 0,
-                    onClick = { tab = 0 },
+                    onClick = { scope.launch { pagerState.animateScrollToPage(0) } },
                     text = { Text(stringResource(R.string.hymn_planner_dates_tab)) },
                     icon = { Icon(Icons.AutoMirrored.Filled.EventNote, null) }
                 )
                 Tab(
                     selected = tab == 1,
-                    onClick = { tab = 1 },
+                    onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
                     text = { Text(stringResource(R.string.hymn_planner_library_tab)) },
                     icon = { Icon(Icons.Default.LibraryMusic, null) }
                 )
             }
+            HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { tab ->
             if (cargando) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -371,6 +375,7 @@ fun PlanificadorHimnosScreen(
                         }
                     }
                 )
+            }
             }
         }
     }

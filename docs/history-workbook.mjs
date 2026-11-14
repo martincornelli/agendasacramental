@@ -1,3 +1,4 @@
+import { organizationLabel } from './history-organizations.mjs';
 // SheetJS is supplied by the worker (or by tests), keeping this adapter testable.
 export function readHistoryWorkbook(buffer, XLSX) {
   const bytes = new Uint8Array(buffer);
@@ -54,10 +55,10 @@ export function workbookTable(sheet, headerRow) {
 export function writeHistoryWorkbook(records, XLSX, language = 'es') {
   const en = language === 'en';
   const types = { 'Discurso': 'Talk', 'Primera oración': 'Opening prayer', 'Última oración': 'Closing prayer', 'Oración': 'Prayer' };
-  const rows = [en ? ['ID', 'Date', 'Name', 'Participation', 'Topic'] : ['ID', 'Fecha', 'Nombre', 'Participación', 'Tema'], ...records.map(r => [r.id, r.date, r.name, en ? types[r.type] || r.type : r.type, r.topic || ''])];
+  const rows = [en ? ['ID', 'Date', 'Name', 'Participation', 'Topic', 'Organization'] : ['ID', 'Fecha', 'Nombre', 'Participación', 'Tema', 'Organización'], ...records.map(r => [r.id, r.date, r.name, en ? types[r.type] || r.type : r.type, r.topic || '', organizationLabel(r.organization, language)])];
   // Strings are written as literal cells, including strings starting with '='.
   const sheet = XLSX.utils.aoa_to_sheet(rows);
-  sheet['!cols'] = [{ wch: 48 }, { wch: 14 }, { wch: 30 }, { wch: 23 }, { wch: 48 }];
+  sheet['!cols'] = [{ wch: 48 }, { wch: 14 }, { wch: 30 }, { wch: 23 }, { wch: 48 }, { wch: 24 }];
   sheet['!autofilter'] = { ref: sheet['!ref'] };
   const book = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(book, sheet, en ? 'Participations' : 'Historial');

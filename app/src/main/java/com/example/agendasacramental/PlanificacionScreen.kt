@@ -1,5 +1,7 @@
 package com.example.agendasacramental
 
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.FlowRow
@@ -47,7 +49,8 @@ fun PlanificacionScreen(
     val repository = remember { AgendaRepository() }
     val scope = rememberCoroutineScope()
 
-    var selectedTab by remember { mutableStateOf(0) }
+    val pagerState = rememberPagerState(pageCount = { 3 })
+    val selectedTab = pagerState.currentPage
     var rankings by remember { mutableStateOf<List<HermanoRanking>>(emptyList()) }
     var agendas by remember { mutableStateOf<List<Agenda>>(emptyList()) }
     var config by remember { mutableStateOf(ConfiguracionPlanificacion(numeroUnidad = numeroUnidad)) }
@@ -383,9 +386,9 @@ fun PlanificacionScreen(
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
 
             TabRow(selectedTabIndex = selectedTab) {
-                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text(LocalContext.current.getString(R.string.plan_discursos)) })
-                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(LocalContext.current.getString(R.string.plan_oraciones)) })
-                Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text(LocalContext.current.getString(R.string.plan_temas)) })
+                Tab(selected = selectedTab == 0, onClick = { scope.launch { pagerState.animateScrollToPage(0) } }, text = { Text(LocalContext.current.getString(R.string.plan_discursos)) })
+                Tab(selected = selectedTab == 1, onClick = { scope.launch { pagerState.animateScrollToPage(1) } }, text = { Text(LocalContext.current.getString(R.string.plan_oraciones)) })
+                Tab(selected = selectedTab == 2, onClick = { scope.launch { pagerState.animateScrollToPage(2) } }, text = { Text(LocalContext.current.getString(R.string.plan_temas)) })
             }
 
             TextButton(onClick = {
@@ -395,6 +398,8 @@ fun PlanificacionScreen(
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.history_transfer))
             }
+            HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { selectedTab ->
+                Column(Modifier.fillMaxSize()) {
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -551,6 +556,8 @@ fun PlanificacionScreen(
                             )
                         }
                     }
+                }
+            }
                 }
             }
         }

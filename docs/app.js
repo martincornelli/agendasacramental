@@ -1,3 +1,5 @@
+import { bindSwipeTabs } from "./swipe-tabs.mjs";
+import { memberName, organizationLabel, organizationUpdates } from "./history-organizations.mjs";
 import { googleIdentity, isUnitAdmin, adminTransition, reviewMessage, REVIEW_EMAIL } from "./unit-admin.mjs";
 import { ADMIN_TEXT } from "./unit-admin-text.mjs";
 import { currentLanguage, translate, LANGUAGE_STORAGE_KEY } from "./i18n.mjs";
@@ -2503,6 +2505,10 @@ function exportableHistory() {
       if (date && hermano.nombre) rows.push({ id: `${prefix}manual:${hermano.id}:${key}`, date, name: hermano.nombre, type, topic: "", source: "manual" });
     });
   });
+  rows.forEach(row => {
+    const matches = state.hermanos.filter(m => memberName(m.nombre) === memberName(row.name));
+    if (matches.length === 1) row.organization = matches[0].organizacion || "";
+  });
   return rows.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name));
 }
 
@@ -2637,7 +2643,7 @@ function openHistoryMapping(table) {
     title: t("Elegir las columnas"),
     body: `<form id="history-mapping" class="form-grid">
       <p>${t("Se encontraron")} ${table.length - 1} ${t("filas. Revisá las columnas detectadas.")}</p>
-      ${field("history-layout", t("Organización del archivo"), `<select class="select" id="history-layout"><option value="long">${t("Una fila por participación")}</option><option value="wide" ${guessed.name < 0 && [guessed.talk, guessed.opening, guessed.closing].some(i => i >= 0) ? "selected" : ""}>${t("Una fila por reunión, con participantes en columnas separadas")}</option></select>`)}
+      ${field("history-layout", t("Formato de filas"), `<select class="select" id="history-layout"><option value="long">${t("Una fila por participación")}</option><option value="wide" ${guessed.name < 0 && [guessed.talk, guessed.opening, guessed.closing].some(i => i >= 0) ? "selected" : ""}>${t("Una fila por reunión, con participantes en columnas separadas")}</option></select>`)}
       ${Object.entries(HISTORY_FIELDS).map(([key, label]) => field(`history-col-${key}`, t(label), `<select class="select" id="history-col-${key}"><option value="-1">${t("Sin columna")}</option>${table[0].map((header, i) => option(String(i), `${i + 1}. ${header}`, String(guessed[key]))).join("")}</select>`)).join("")}
       ${field("history-date-order", t("Fechas con barras o guiones (el formato AAAA-MM-DD no cambia)"), `<select class="select" id="history-date-order"><option value="DMY">${t("Día / mes / año")}</option><option value="MDY">${t("Mes / día / año")}</option></select>`)}
       <p>${t("En filas por reunión se usan Discursante, Primera oración y Última oración. En filas por participación se usan Nombre, Participación e ID.")}</p>
@@ -2645,6 +2651,10 @@ function openHistoryMapping(table) {
     </form>`,
     footer: `<button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button><button class="primary-button" form="history-mapping" type="submit">${t("Vista previa")}</button>`,
     bind: dialog => {
+      const layout = dialog.querySelector("#history-layout");
+      const organization = dialog.querySelector("#history-col-organization");
+      const updateLayout = () => { organization.disabled = layout.value === "wide"; };
+      layout.onchange = updateLayout; updateLayout();
       dialog.querySelector("#history-mapping").onsubmit = event => {
         event.preventDefault();
         try {
@@ -2671,8 +2681,8 @@ function openHistoryPreview(rows, table) {
       <div class="history-preview-list">${preview.map((r, i) => `<article class="history-preview-row">
         <label><input type="checkbox" data-history-row="${i}" ${r.status === "new" && !r.candidates?.length ? "checked" : ""} ${!["new", "update"].includes(r.status) || r.candidates?.length ? "disabled" : ""}>
         <strong>${t("Fila")} ${r.row}: ${escapeHtml(labels[r.status])}</strong></label>
-        <p>${escapeHtml(r.date || t("Sin fecha válida"))} · ${escapeHtml(r.name)} · ${escapeHtml(t(r.type))}${r.topic ? ` · ${escapeHtml(r.topic)}` : ""}</p>
-        ${r.original ? `<p>${t("Existente:")} ${escapeHtml(r.original.date)} · ${escapeHtml(r.original.name)} · ${escapeHtml(t(r.original.type))} · ${escapeHtml(r.original.topic || t("Sin tema"))}</p>` : ""}
+        <p>${escapeHtml(r.date || t("Sin fecha válida"))} · ${escapeHtml(r.name)} · ${escapeHtml(t(r.type))}${r.topic ? ` · ${escapeHtml(r.topic)}` : ""}${r.organization ? ` · ${escapeHtml(organizationLabel(r.organization, uiLanguage()))}` : ""}</p>
+        ${r.original ? `<p>${t("Existente:")} ${escapeHtml(r.original.date)} · ${escapeHtml(r.original.name)} · ${escapeHtml(t(r.original.type))} · ${escapeHtml(r.original.topic || t("Sin tema"))}${r.original.organization ? ` · ${escapeHtml(organizationLabel(r.original.organization, uiLanguage()))}` : ""}</p>` : ""}
         ${r.error ? `<p role="alert">${escapeHtml(t(r.error))}</p>` : ""}
         ${r.candidates?.length ? `<label>${t("Nombre parecido:")} <select class="select" data-history-name="${i}"><option value="">${t("Elegí cómo interpretarlo")}</option><option value="keep">${t("Conservar")} ${escapeHtml(r.name)}</option>${r.candidates.map((name, n) => option(String(n), `${t("Usar")} ${name}`, "")).join("")}</select></label>` : ""}
       </article>`).join("")}</div><p id="history-save-error" role="alert"></p>`,
@@ -2708,17 +2718,29 @@ function openHistoryPreview(rows, table) {
         try {
           if (!state.historyReady || state.unitNumber !== unit) throw new Error(t("Cambió la unidad o la conexión. Volvé a abrir la importación."));
           if (JSON.stringify(exportableHistory()) !== JSON.stringify(existing)) throw new Error(t("El historial cambió desde la vista previa. Volvé a columnas y revisalo otra vez."));
-          const changes = selected.map(r => ({ id: r.id || `${unit}:import:${crypto.randomUUID()}`, date: r.date, name: r.name, type: r.type, topic: r.topic || "" }));
+          const changes = selected.map(r => ({ id: r.id || `${unit}:import:${crypto.randomUUID()}`, date: r.date, name: r.name, type: r.type, topic: r.topic || "", organization: r.organization || "", organizationOnly: Boolean(r.organizationOnly) }));
+          const orgUpdates = organizationUpdates(changes, state.hermanos).map(change => ({ ...change, ref: change.create ? doc(collection(db, "hermanos")) : doc(db, "hermanos", change.member.id) }));
+          if (orgUpdates.length >= 500) throw Error(t("Importá menos de 500 cambios de organización a la vez."));
           const ref = doc(db, "historialParticipaciones", unit);
           await runTransaction(db, async transaction => {
             const snapshot = await transaction.get(ref);
+            const memberSnapshots = await Promise.all(orgUpdates.map(change => transaction.get(change.ref)));
+            memberSnapshots.forEach((snapshot, i) => {
+              if (orgUpdates[i].create) { if (snapshot.exists()) throw Error(t("El historial cambió desde la vista previa. Volvé a columnas y revisalo otra vez.")); return; }
+              const before = orgUpdates[i].member, current = snapshot.data();
+              if (!current || current.numeroUnidad !== unit || current.nombre !== before.nombre || (current.organizacion || "") !== (before.organizacion || "")) throw Error(t("El historial cambió desde la vista previa. Volvé a columnas y revisalo otra vez."));
+            });
             const current = snapshot.data() || {};
             if ((current.revision || 0) !== revision) throw new Error(t("Otra persona modificó el historial. Volvé a columnas y revisá la vista previa."));
             const byId = new Map((current.records || []).map(r => [r.id, r]));
-            changes.forEach(r => byId.set(r.id, r));
+            changes.filter(r => !r.organizationOnly).forEach(({ organizationOnly, ...r }) => byId.set(r.id, { ...r, organization: r.organization || byId.get(r.id)?.organization || "" }));
             const records = [...byId.values()];
             if (records.length > 5000) throw new Error(t('El historial admite hasta 5000 participaciones por unidad. No se guardó ningún cambio.'));
             if (new TextEncoder().encode(JSON.stringify(records)).length > 700000) throw new Error(t("El historial alcanzó el tamaño máximo de esta primera versión. No se guardó ningún cambio."));
+            orgUpdates.forEach(change => {
+              if (change.create) transaction.set(change.ref, { numeroUnidad: unit, nombre: change.member.nombre, organizacion: change.organization, agregadoManualmente: false, creadoEn: serverTimestamp() });
+              else transaction.update(change.ref, { organizacion: change.organization });
+            });
             transaction.set(ref, { numeroUnidad: unit, revision: revision + 1, records, actualizadoEn: serverTimestamp(), actualizadoPor: userEmail() });
           });
           closeModal();
@@ -2779,6 +2801,7 @@ function renderPlanning() {
       renderPlanning();
     });
   });
+  bindSwipeTabs(screen, "[data-planning-tab]");
   screen.querySelector("#planning-search").addEventListener("input", (event) => {
     state.planningSearch = event.target.value;
     if (isTopics) {
@@ -3527,6 +3550,7 @@ function renderHymnPlanner() {
       renderHymnPlanner();
     });
   });
+  bindSwipeTabs(screen, "[data-hymn-tab]");
   if (tab === "dates") bindHymnDateActions();
   else bindHymnLibraryActions();
 }

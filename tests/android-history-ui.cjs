@@ -49,7 +49,7 @@ const XLSX = require('../docs/vendor/xlsx-0.20.3.full.min.js');
       const exported = await page.evaluate(() => window.downloads[1]);
       const csv = Buffer.from(exported.base64, 'base64').toString('utf8');
       assert.ok(csv.includes(language === 'en' ? 'Participation' : 'Participación'));
-      const extra = '\r\n"";"2026-01-11";"José Pérez";"Talk";"Faith, hope and charity"';
+      const extra = '\r\n"";"2026-01-11";"José Pérez";"Talk";"Faith, hope and charity";""';
       await page.evaluate(file => { window.nextFile = file; }, { name: 'history.csv', base64: Buffer.from(csv + extra).toString('base64') });
       await page.locator('#pick').click();
       await page.locator('#layout').waitFor();

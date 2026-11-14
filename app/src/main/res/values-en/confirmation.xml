@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="release_notes_swipe">Swipe sideways to switch tabs in Planning and Hymn planner.</string>
+    <string name="release_notes_history">Export and import organizations in Excel. Fixed the blank screen when opening participation history.</string>
     <string name="editor_no_recognitions">No acknowledgments</string>
     <string name="editor_no_announcements">No announcements</string>
     <string name="editor_no_items">No entries</string>

@@ -2,8 +2,8 @@
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const source = fs.readFileSync('docs/app.js', 'utf8');
-const domain = fs.readFileSync('docs/participation-history.mjs', 'utf8').replace(/^export /gm, '');
-const workbook = fs.readFileSync('docs/history-workbook.mjs', 'utf8').replace(/^export /gm, '');
+const domain = fs.readFileSync('docs/participation-history.mjs', 'utf8').replace(/^export /gm, '').replace(/^import .*$/gm, '');
+const workbook = fs.readFileSync('docs/history-workbook.mjs', 'utf8').replace(/^export /gm, '').replace(/^import .*$/gm, '');
 const names = ['exportableHistory', 'downloadHistoryCSV', 'historySpreadsheetJob', 'downloadHistoryFile', 'openHistoryWorkbook', 'syncHistoryTransferAccess', 'openHistoryTransfer', 'openHistoryMapping', 'openHistoryPreview', 'openModal', 'closeModal', 'escapeHtml', 'escapeAttr', 'option'];
 const functions = names.map(name => {
   const start = source.indexOf(`function ${name}(`);
@@ -18,14 +18,26 @@ let persisted = { revision: 0, records: [] };
 function field(id, label, html) { return '<label for="' + id + '">' + label + html + '</label>'; }
 function toDate(v) { return v ? new Date(v) : null; }
 function dateInputValue(v) { return v ? new Date(v).toISOString().slice(0, 10) : ''; }
-function doc(...args) { return args.join('/'); }
+function collection(...args) { return args.join('/'); }
+function doc(...args) { return args.length === 1 ? args[0] + '/' + crypto.randomUUID() : args.join('/'); }
 function serverTimestamp() { return 'test-time'; }
 function userEmail() { return 'test@example.com'; }
 function toastMessage(message) { window.lastToast = message; document.querySelector('#fixture-status').textContent = message; }
+let memberData = new Map();
+window.setMembers = members => { state.hermanos = members; memberData = new Map(members.map(m => [doc(db, 'hermanos', m.id), {...m}])); };
+window.members = () => [...memberData.values()];
+window.memberConflict = () => { const member = [...memberData.values()][0]; member.organizacion = 'BISHOPRIC'; };
 async function runTransaction(db, callback) {
-  await callback({ get: async () => ({ data: () => persisted }), set: (_, data) => {
-    persisted = data; state.importedHistory = data.records; state.historyRevision = data.revision;
-  }});
+  const writes = [];
+  await callback({
+    get: async ref => { const data = ref.includes('/hermanos/') ? memberData.get(ref) : persisted; return { data: () => data, exists: () => Boolean(data) }; },
+    update: (ref, data) => writes.push(() => memberData.set(ref, {...memberData.get(ref), ...data})),
+    set: (ref, data) => writes.push(() => {
+      if (ref.includes('/hermanos/')) memberData.set(ref, {...data, id: ref.split('/').at(-1)});
+      else { persisted = data; state.importedHistory = data.records; state.historyRevision = data.revision; }
+    })
+  });
+  writes.forEach(write => write()); state.hermanos = [...memberData.values()];
 }
 window.stored = () => persisted;
 window.conflict = () => { persisted.revision++; state.historyRevision = persisted.revision; };
@@ -33,7 +45,7 @@ window.start = openHistoryTransfer;
 window.historyAccess = (ready, error = '') => { state.historyReady = ready; state.historyError = error; syncHistoryTransferAccess(); };
 openHistoryTransfer();
 `;
-const fixtureScript = `import { translate } from './i18n.mjs';\nconst t = text => translate(text, 'es');\nconst uiLanguage = () => 'es';\n` + domain + '\n' + workbook + '\n' + functions + '\n' + fixtures;
+const fixtureScript = `import { memberName, parseOrganization, organizationLabel, organizationUpdates } from './history-organizations.mjs';\nimport { translate } from './i18n.mjs';\nconst t = text => translate(text, 'es');\nconst uiLanguage = () => 'es';\n` + domain + '\n' + workbook + '\n' + functions + '\n' + fixtures;
 const fixtureHTML = '<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/styles.css"></head><body><button onclick="window.start()">Abrir importación de prueba</button><p id="fixture-status" role="status"></p><dialog></dialog><script type="module" src="/history-fixture.mjs"></script></body></html>';
 if (process.argv.includes('--serve')) {
   const http = require('node:http');
@@ -107,6 +119,25 @@ if (process.argv.includes('--serve')) {
     await page.getByRole('button', { name: 'Importar seleccionadas', exact: true }).click();
     await page.waitForFunction(() => window.stored().records[0].date === '2026-01-11');
     assert.equal(await page.evaluate(() => window.stored().records.length), 2);
+    // Organization-only updates change the member profile without duplicating history.
+    await page.evaluate(() => window.setMembers([{ id:'ana', nombre:'Ana', numeroUnidad:'123', organizacion:'RELIEF_SOCIETY' }]));
+    await page.evaluate(() => window.start());
+    await upload('ID;Fecha;Nombre;Participación;Tema;Organización\n' + id + ';2026-01-11;Ana;Discurso;Esperanza;Primaria');
+    assert.equal(await page.locator('[data-history-row]:checked').count(), 0);
+    await page.locator('[data-history-row="0"]').check();
+    await page.getByRole('button', { name: 'Importar seleccionadas', exact: true }).click();
+    await page.waitForFunction(() => window.members()[0].organizacion === 'PRIMARY');
+    assert.equal(await page.evaluate(() => window.stored().records.length), 2);
+    await page.evaluate(() => window.start());
+    await upload('ID;Fecha;Nombre;Participación;Tema;Organización\n' + id + ';2026-01-11;Ana;Discurso;Esperanza;Primaria');
+    assert.equal(await page.locator('[data-history-row]:checked').count(), 0);
+    assert.equal(await page.locator('[data-history-row]:disabled').count(), 1);
+    await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await page.evaluate(() => window.start());
+    await upload('ID;Fecha;Nombre;Participación;Tema;Organización\n;2026-01-18;Eva;Discurso;Fe;Mujeres Jóvenes');
+    await page.getByRole('button', { name: 'Importar seleccionadas', exact: true }).click();
+    await page.waitForFunction(() => window.members().some(m => m.nombre === 'Eva' && m.organizacion === 'YOUNG_WOMEN'));
+    assert.equal(await page.evaluate(() => window.stored().records.length), 3);
     assert.deepEqual(errors, []);
     console.log('UI OK: mobile preview, import, reimport without duplicates, explicit corrections, atomic conflict rejection.');
   } finally { await browser.close(); }

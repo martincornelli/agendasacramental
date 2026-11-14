@@ -22,13 +22,13 @@ test('Excel export and reimport preserve IDs and classify existing data without 
 
 test('Excel template contains headers only, no sample participations', () => {
   const [sheet] = readHistoryWorkbook(writeHistoryWorkbook([], XLSX), XLSX);
-  assert.deepEqual(sheet.rows, [['ID', 'Fecha', 'Nombre', 'Participación', 'Tema']]);
+  assert.deepEqual(sheet.rows, [['ID', 'Fecha', 'Nombre', 'Participación', 'Tema', 'Organización']]);
   assert.throws(() => workbookTable(sheet, 1), /No hay participaciones/);
 });
 
 test('English Excel headers and roles round-trip to the shared canonical history', () => {
   const [sheet] = readHistoryWorkbook(writeHistoryWorkbook([record], XLSX, 'en'), XLSX);
-  assert.deepEqual(sheet.rows[0], ['ID', 'Date', 'Name', 'Participation', 'Topic']);
+  assert.deepEqual(sheet.rows[0], ['ID', 'Date', 'Name', 'Participation', 'Topic', 'Organization']);
   assert.equal(sheet.rows[1][3], 'Talk');
   const table = workbookTable(sheet, 1);
   assert.equal(previewRows(mapRows(table, guessColumns(table[0])), [record])[0].status, 'unchanged');

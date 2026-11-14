@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="release_notes_swipe">Deslizá hacia los lados para cambiar de pestaña en Planificación y Planificador de himnos.</string>
+    <string name="release_notes_history">Exportá e importá la organización en Excel. Se corrigió la pantalla en blanco al abrir el historial.</string>
     <string name="editor_no_recognitions">Sin reconocimientos</string>
     <string name="editor_no_announcements">Sin anuncios</string>
     <string name="editor_no_items">Sin registros</string>

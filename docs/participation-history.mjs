@@ -1,5 +1,6 @@
+import { organizationLabel, parseOrganization } from './history-organizations.mjs';
 // Pure import/export logic. All dates are calendar dates, never UTC instants.
-export const HISTORY_FIELDS = { id: 'ID', date: 'Fecha', name: 'Nombre', type: 'Participación', topic: 'Tema', opening: 'Primera oración', closing: 'Última oración', talk: 'Discursante' };
+export const HISTORY_FIELDS = { id: 'ID', date: 'Fecha', name: 'Nombre', type: 'Participación', topic: 'Tema', organization: 'Organización', opening: 'Primera oración', closing: 'Última oración', talk: 'Discursante' };
 export const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
 export const exactName = value => String(value ?? '').trim().replace(/\s+/g, ' ');
 export function parseCSV(text) {
@@ -35,7 +36,7 @@ export function parseCSV(text) {
   return rows;
 }
 export function guessColumns(headers) {
-  const aliases = { id: ['id', 'identificador'], date: ['fecha', 'date', 'domingo'], name: ['nombre', 'name', 'hermano', 'participante'], type: ['participacion', 'participation', 'tipo', 'type', 'funcion', 'role'], topic: ['tema', 'topic'], opening: ['primera oracion', 'oracion inicial', 'apertura', 'opening prayer'], closing: ['ultima oracion', 'oracion final', 'cierre', 'closing prayer'], talk: ['discursante', 'discurso', 'orador', 'speaker', 'talk'] };
+  const aliases = { id: ['id', 'identificador'], date: ['fecha', 'date', 'domingo'], name: ['nombre', 'name', 'hermano', 'participante'], type: ['participacion', 'participation', 'tipo', 'type', 'funcion', 'role'], topic: ['tema', 'topic'], organization: ['organizacion', 'organization', 'organisation'], opening: ['primera oracion', 'oracion inicial', 'apertura', 'opening prayer'], closing: ['ultima oracion', 'oracion final', 'cierre', 'closing prayer'], talk: ['discursante', 'discurso', 'orador', 'speaker', 'talk'] };
   return Object.fromEntries(Object.entries(aliases).map(([key, values]) => [key, headers.findIndex(h => values.includes(normalize(h)))]));
 }
 export function parseDate(value, order = 'DMY') {
@@ -64,7 +65,7 @@ export function participationType(value) {
 export function mapRows(table, mapping, order = 'DMY', wide = false) {
   if (mapping.date < 0 || (!wide && (mapping.name < 0 || mapping.type < 0))) throw new Error('Indicá las columnas de fecha, nombre y participación.');
   if (wide && !['talk', 'opening', 'closing'].some(key => mapping[key] >= 0)) throw new Error('Elegí al menos una columna de participantes.');
-  const selected = (wide ? ['date', 'talk', 'opening', 'closing', 'topic'] : ['date', 'name', 'type', 'topic', 'id']).map(k => mapping[k]).filter(v => v >= 0);
+  const selected = (wide ? ['date', 'talk', 'opening', 'closing', 'topic'] : ['date', 'name', 'type', 'topic', 'id', 'organization']).map(k => mapping[k]).filter(v => v >= 0);
   if (new Set(selected).size !== selected.length) throw new Error('Cada campo debe usar una columna diferente.');
   return table.slice(1).flatMap((row, index) => {
     if (row.every(value => !String(value ?? '').trim())) return [];
@@ -73,10 +74,10 @@ export function mapRows(table, mapping, order = 'DMY', wide = false) {
       const value = String(row[mapping[key]] ?? '').trim();
       return table.sourceFormat === 'xlsx' ? value : value.replace(/^'(?=\s*[=+@\-\t\r])/, '');
     };
-    const base = { date: parseDate(get('date'), order), topic: get('topic'), row: index + 1 + (table.sourceRow || 1) };
+    const base = { date: parseDate(get('date'), order), topic: get('topic'), organization: wide ? '' : parseOrganization(get('organization')), row: index + 1 + (table.sourceRow || 1) };
     const records = wide ? [['talk', 'Discurso'], ['opening', 'Primera oración'], ['closing', 'Última oración']].filter(([key]) => get(key)).map(([key, type]) => ({ ...base, id: '', name: get(key), type, topic: type === 'Discurso' ? base.topic : '' })) : [{ ...base, id: get('id'), name: get('name'), type: participationType(get('type')) }];
     if (!records.length) records.push({ ...base, id: '', name: '', type: '' });
-    return records.map(record => ({ ...record, name: exactName(record.name), error: row.length !== table[0].length ? 'La cantidad de columnas no coincide con el encabezado.' : !record.date ? 'Fecha inválida.' : !record.name ? 'Falta el nombre.' : !record.type ? 'Participación no reconocida.' : record.name.length > 200 || record.topic.length > 2000 ? 'Nombre o tema demasiado largo.' : '' }));
+    return records.map(record => ({ ...record, name: exactName(record.name), error: record.organization === null ? 'Organización no reconocida.' : row.length !== table[0].length ? 'La cantidad de columnas no coincide con el encabezado.' : !record.date ? 'Fecha inválida.' : !record.name ? 'Falta el nombre.' : !record.type ? 'Participación no reconocida.' : record.name.length > 200 || record.topic.length > 2000 ? 'Nombre o tema demasiado largo.' : '' }));
   });
 }
 export const recordKey = r => JSON.stringify([exactName(r.name), r.date, r.type]);
@@ -91,8 +92,15 @@ export function previewRows(rows, existing) {
     if (row.id) seenIds.add(row.id);
     const original = row.id && ids.get(row.id);
     if (row.id && !original) return { ...result, status: 'invalid', error: 'ID desconocido para esta unidad. Dejá el ID vacío solo si es una participación nueva.' };
+    const organizationChanged = row.organization && row.organization !== original?.organization;
+    if (original && sameRecord(row, original) && organizationChanged) return { ...result, status: 'update', original, organizationOnly: original.source !== 'import' };
     if (original && sameRecord(row, original)) return { ...result, status: 'unchanged' };
     const duplicate = accepted.find(r => (!row.id || r.id !== row.id) && recordKey(r) === recordKey(row));
+    if (duplicate && sameRecord(row, duplicate) && row.organization && row.organization !== duplicate.organization) {
+      if (seenIds.has(duplicate.id)) return { ...result, status: 'duplicate', original: duplicate };
+      seenIds.add(duplicate.id);
+      return { ...result, id: duplicate.id, status: 'update', original: duplicate, organizationOnly: duplicate.source !== 'import' };
+    }
     if (duplicate) return { ...result, status: 'duplicate', original: duplicate };
     if (original) {
       if (original.source !== 'import') return { ...result, status: 'invalid', error: 'Este registro pertenece a una agenda o ficha. Corregilo allí y volvé a exportar.' };
@@ -112,5 +120,5 @@ export function exportCSV(records, language = 'es') {
   };
   const en = language === 'en';
   const types = { 'Discurso': 'Talk', 'Primera oración': 'Opening prayer', 'Última oración': 'Closing prayer', 'Oración': 'Prayer' };
-  return '\uFEFF' + [en ? ['ID', 'Date', 'Name', 'Participation', 'Topic'] : ['ID', 'Fecha', 'Nombre', 'Participación', 'Tema'], ...records.map(r => [r.id, r.date, r.name, en ? types[r.type] || r.type : r.type, r.topic])].map(row => row.map(safe).join(';')).join('\r\n');
+  return '\uFEFF' + [en ? ['ID', 'Date', 'Name', 'Participation', 'Topic', 'Organization'] : ['ID', 'Fecha', 'Nombre', 'Participación', 'Tema', 'Organización'], ...records.map(r => [r.id, r.date, r.name, en ? types[r.type] || r.type : r.type, r.topic, organizationLabel(r.organization, language)])].map(row => row.map(safe).join(';')).join('\r\n');
 }

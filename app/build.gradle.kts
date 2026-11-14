@@ -12,8 +12,8 @@ android {
         applicationId = "com.martincornelli.agendasacramental"
         minSdk = 24
         targetSdk = 36
-        versionCode = 48
-        versionName = "1.7.1"
+        versionCode = 49
+        versionName = "1.7.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -52,15 +52,16 @@ abstract class SyncHistoryAssets : Sync() {
 }
 val syncHistoryAssets = tasks.register<SyncHistoryAssets>("syncHistoryAssets") {
     from(rootProject.file("docs")) {
-        include("participation-history.mjs", "history-workbook.mjs", "history-workbook-worker.js", "vendor/xlsx*", "vendor/SHEETJS-LICENSE.txt")
+        include("participation-history.mjs", "history-workbook.mjs", "history-organizations.mjs", "history-workbook-worker.js", "vendor/xlsx*", "vendor/SHEETJS-LICENSE.txt")
     }
     outputDir.set(layout.buildDirectory.dir("generated/historyAssets"))
     into(outputDir)
     eachFile { path = "history/$path" }
 }
-androidComponents.onVariants { variant ->
-    variant.sources.assets?.addGeneratedSourceDirectory(syncHistoryAssets, SyncHistoryAssets::outputDir)
-}
+// Register once for all variants and retain the task dependency. A generated
+// variant source was absent from merge*Assets, leaving a blank history WebView.
+android.sourceSets.getByName("main").assets.directories.add(layout.buildDirectory.dir("generated/historyAssets").get().asFile.path)
+tasks.named("preBuild").configure { dependsOn(syncHistoryAssets) }
 
 dependencies {
 
