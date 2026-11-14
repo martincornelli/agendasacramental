@@ -38,4 +38,14 @@ Se corrigieron dos problemas detectados en las pruebas: una actualización difer
 
 Esta es una propuesta visual para revisión, no un despliegue. No se ha repetido un recorrido completo de autenticación real, notificaciones del sistema ni publicación. El importador Android basado en Views/WebView y los documentos PDF conservan su presentación específica; no se han convertido al nuevo sistema Compose.
 
-Pendiente antes de publicar esta rama: en la prueba física, la pulsación Atrás inyectada por ADB no cerró los DropdownMenu. Seleccionar una opción y tocar fuera sí funcionaron. No se ha determinado si ocurre también con la interacción física del usuario o fuera de la actividad QA; no se considera validado ese cierre.
+El pendiente de Atrás quedó resuelto el 14/11/2026: la regresión automatizada sobre el teléfono Android 16 comprueba que el menú se cierra sin abandonar la pantalla en inicio ES/EN, editor ES y planificación EN. También comprueba escritura completa, conservación de cambios sin guardar y persistencia de las 12 aceptaciones al guardar y reabrir en inglés.
+
+### Compatibilidad con Atrás en Android 16
+
+El dispositivo usa API 36. Se inspeccionó el código fuente de Compose UI 1.6.1: sus popups solo interceptaban `KEYCODE_BACK`. La versión 1.7.8 registra además `OnBackInvokedCallback` con prioridad de ventana superpuesta. Esto coincide con la [migración oficial de navegación Atrás](https://developer.android.com/guide/navigation/custom-back/predictive-back-gesture).
+
+La dependencia efectiva ahora toma el BOM 2025.04.00 del catálogo de versiones, que resuelve Compose UI 1.7.8 y Material3 1.3.2. Los autocompletados editables de nombres e himnos utilizan `MenuAnchorType.PrimaryEditable` para conservar el foco del teclado. Los selectores de solo lectura conservan su comportamiento.
+
+La actividad QA configura sus recursos de idioma en la propia actividad, para que las ventanas emergentes reciban el mismo idioma que la pantalla. Esta configuración no modifica MainActivity ni las preferencias reales del usuario.
+
+Validación final: `:app:assembleQa :app:testDebugUnitTest :app:assembleRelease` pasó, incluidas 40 pruebas unitarias y la optimización R8. `node tests/phone-menu-back.cjs --with-data` pasó; reinicializa exclusivamente los datos del emulador local de QA. Capturas: `output/confirmation-phone/back-*.png`. No se repitieron las pruebas web porque esta corrección no modifica código web. La corrección existe únicamente en `codex/design-polish`; la rama 1.7.0 continúa intacta.

@@ -17,7 +17,18 @@ import com.google.firebase.firestore.FirebaseFirestoreSettings
 
 /** QA APK only. Production screens and repositories, isolated emulator and demo project. */
 class ConfirmationPhoneFixture : ComponentActivity() {
+    private var qaResources: android.content.res.Resources? = null
+    override fun getResources(): android.content.res.Resources = qaResources ?: super.getResources()
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        val language = intent.getStringExtra("language") ?: "es"
+        val appearance = intent.getStringExtra("appearance") ?: "light"
+        val configuration = android.content.res.Configuration(baseContext.resources.configuration).apply {
+            setLocale(java.util.Locale.forLanguageTag(language))
+            if (appearance.contains("large")) fontScale = 1.5f
+        }
+        // Configure the Activity itself: popup windows create their own themed contexts.
+        qaResources = baseContext.createConfigurationContext(configuration).resources
         super.onCreate(savedInstanceState)
         check(BuildConfig.APPLICATION_ID.endsWith(".qa"))
         val old = FirebaseApp.getInstance()
@@ -30,23 +41,12 @@ class ConfirmationPhoneFixture : ComponentActivity() {
                 useEmulator("127.0.0.1", 8191)
             }
         }
-        val language = intent.getStringExtra("language") ?: "es"
         val unit = when (intent.getStringExtra("scenario")) { "empty-unit" -> ""; "other-unit" -> "other-unit"; else -> "phone-qa" }
-        val appearance = intent.getStringExtra("appearance") ?: "light"
         requestedOrientation = if (appearance.contains("landscape")) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        val languageContext = LocaleHelper.aplicarIdiomaAContexto(this, language)
-        val configuration = android.content.res.Configuration(languageContext.resources.configuration).apply {
-            if (appearance.contains("large")) fontScale = 1.5f
-        }
-        val configuredResources = languageContext.createConfigurationContext(configuration).resources
-        // Keep the Activity in the context chain so popup windows can handle system Back.
-        val localized = object : android.content.ContextWrapper(this) {
-            override fun getResources(): android.content.res.Resources = configuredResources
-        }
         setContent {
             CompositionLocalProvider(
-                LocalContext provides localized,
-                LocalConfiguration provides localized.resources.configuration,
+                LocalContext provides this,
+                LocalConfiguration provides resources.configuration,
                 androidx.activity.compose.LocalActivityResultRegistryOwner provides this,
                 androidx.activity.compose.LocalOnBackPressedDispatcherOwner provides this
             ) {

@@ -745,7 +745,7 @@ fun CampoConAutocompletado(
                 value = valor,
                 onValueChange = { nombreResuelto = null; onValorChange(it); expanded = true },
                 label = { Text(label) },
-                modifier = Modifier.fillMaxWidth().menuAnchor().onFocusChanged {
+                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryEditable).onFocusChanged {
                     if (!it.isFocused && valor != valor.trimEnd()) onValorChange(valor.trimEnd())
                 }, singleLine = true
             )

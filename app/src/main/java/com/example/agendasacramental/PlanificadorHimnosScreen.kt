@@ -1123,7 +1123,7 @@ private fun SelectorHimno(
                 },
                 label = { Text(label) },
                 placeholder = { Text(stringResource(R.string.hymn_picker_placeholder)) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                modifier = Modifier.fillMaxWidth().menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryEditable),
                 singleLine = true,
                 trailingIcon = {
                     if (seleccion.numero > 0 || seleccion.nombre.isNotBlank()) {
