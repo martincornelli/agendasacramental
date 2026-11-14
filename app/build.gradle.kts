@@ -12,8 +12,8 @@ android {
         applicationId = "com.martincornelli.agendasacramental"
         minSdk = 24
         targetSdk = 36
-        versionCode = 47
-        versionName = "1.7.0"
+        versionCode = 48
+        versionName = "1.7.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -33,8 +33,8 @@ android {
         }
         create("qa") {
             initWith(getByName("debug"))
-            applicationIdSuffix = ".qa"
-            versionNameSuffix = "-qa"
+            applicationIdSuffix = ".design.qa"
+            versionNameSuffix = "-design-qa"
             matchingFallbacks += listOf("debug")
         }
     }

@@ -1,6 +1,6 @@
 const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
 const adb='C:/Users/marti/AppData/Local/Android/Sdk/platform-tools/adb.exe';
-const serial='bd36348a', app='com.martincornelli.agendasacramental.qa';
+const serial='bd36348a', app='com.martincornelli.agendasacramental.design.qa';
 const out='output/confirmation-phone';fs.mkdirSync(out,{recursive:true});
 const run=(...args)=>execFileSync(adb,['-s',serial,...args],{timeout:30000,maxBuffer:12*1024*1024});
 const delay=ms=>new Promise(r=>setTimeout(r,ms));

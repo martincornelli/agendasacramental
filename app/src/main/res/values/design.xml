@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="design_more_options">Más opciones</string>
+    <string name="design_agenda_actions">Opciones de la agenda del %1$s</string>
+    <string name="design_person_actions">Opciones de %1$s</string>
+    <string name="design_attendance">Asistencia: %1$d</string>
+    <string name="design_edited_by">Editado por: %1$s</string>
+    <string name="design_home_title">Preparar con propósito</string>
+    <string name="design_home_subtitle">Cada participación, cada himno, una reunión bien preparada.</string>
+    <string name="design_workspace">TU UNIDAD</string>
+    <string name="design_prepare">PREPARAR LA REUNIÓN</string>
+    <string name="design_opening">Apertura</string>
+    <string name="design_sacrament">Santa Cena</string>
+    <string name="design_closing">Cierre</string>
+</resources>

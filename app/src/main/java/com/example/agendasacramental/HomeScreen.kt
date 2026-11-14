@@ -6,6 +6,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Groups
@@ -195,126 +197,36 @@ fun HomeScreen(
         ) {
             Column(
                 modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxWidth()
-                    .padding(bottom = 24.dp)
+                    .align(Alignment.TopCenter)
+                    .widthIn(max = 720.dp).fillMaxWidth()
+                    .padding(bottom = 40.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.Start
             ) {
-                Text(
-                    LocalContext.current.getString(R.string.home_que_deseas),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
+                Surface(color = androidx.compose.ui.graphics.Color(0xFF192F49), contentColor = androidx.compose.ui.graphics.Color.White, shape = MaterialTheme.shapes.large) {
+                    Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(stringResource(R.string.design_workspace), style = MaterialTheme.typography.labelMedium, color = androidx.compose.ui.graphics.Color(0xFF95DADD))
+                        Text(stringResource(R.string.design_home_title), style = MaterialTheme.typography.headlineMedium)
+                        Text(stringResource(R.string.design_home_subtitle), style = MaterialTheme.typography.bodyMedium, color = androidx.compose.ui.graphics.Color(0xFFD4DEEA))
+                    }
+                }
+                Text(stringResource(R.string.design_prepare), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Módulo Agendas
-                Card(
-                    onClick = onIrAgendas,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(24.dp),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.CalendarMonth,
-                            contentDescription = null,
-                            modifier = Modifier.size(36.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            LocalContext.current.getString(R.string.home_agendas),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Text(
-                            LocalContext.current.getString(R.string.home_agendas_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-
-                // Módulo Planificación
-                Card(
-                    onClick = onIrPlanificacion,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(24.dp),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.Groups,
-                            contentDescription = null,
-                            modifier = Modifier.size(36.dp),
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            LocalContext.current.getString(R.string.home_planificacion),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                        Text(
-                            LocalContext.current.getString(R.string.home_planificacion_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-
-                // Módulo Planificador de Himnos
-                Card(
-                    onClick = onIrPlanificadorHimnos,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(24.dp),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.LibraryMusic,
-                            contentDescription = null,
-                            modifier = Modifier.size(36.dp),
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            LocalContext.current.getString(R.string.home_hymn_planner),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
-                        Text(
-                            LocalContext.current.getString(R.string.home_hymn_planner_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
+                HomeDestination(
+                    stringResource(R.string.home_agendas), stringResource(R.string.home_agendas_desc),
+                    Icons.Default.CalendarMonth, onIrAgendas, prominent = true
+                )
+                HomeDestination(
+                    stringResource(R.string.home_planificacion), stringResource(R.string.home_planificacion_desc),
+                    Icons.Default.Groups, onIrPlanificacion
+                )
+                HomeDestination(
+                    stringResource(R.string.home_hymn_planner), stringResource(R.string.home_hymn_planner_desc),
+                    Icons.Default.LibraryMusic, onIrPlanificadorHimnos
+                )
             }
 
             Text(
@@ -323,6 +235,23 @@ fun HomeScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
+        }
+    }
+}
+
+@Composable
+private fun HomeDestination(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit, prominent: Boolean = false) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = if (prominent) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.primaryContainer) {
+                Icon(icon, null, modifier = Modifier.padding(12.dp).size(24.dp), tint = MaterialTheme.colorScheme.primary)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

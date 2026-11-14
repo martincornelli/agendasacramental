@@ -1,5 +1,7 @@
 package com.example.agendasacramental
 
+import androidx.compose.foundation.layout.width
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -433,11 +435,13 @@ private fun FechaHimnosCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = if (selecciones.isEmpty()) MaterialTheme.colorScheme.surfaceVariant
-            else MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surface
         )
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                AgendaDateTile(item.fecha)
+                Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
                         formatoFecha.format(item.fecha).replaceFirstChar { it.titlecase(locale) },

@@ -1,5 +1,12 @@
 // UI copy only. Persisted values and user content are never translated.
 export const EN_TEXT = {
+  "Más opciones": "More options",
+  "Más": "More",
+  "Apertura": "Opening",
+  "Cierre": "Closing",
+  "mensaje": "message",
+  "mensajes": "messages",
+
   "Aceptar todas": "Accept all",
   "Deshacer": "Undo",
   "Los cambios se aplican al guardar.": "Changes apply when you save.",

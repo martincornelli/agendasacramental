@@ -236,18 +236,20 @@ fun EditarAgendaScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { onModoLectura(buildAgenda()) }) {
-                        Icon(Icons.Default.MenuBook, stringResource(R.string.editar_modo_lectura))
-                    }
                     Box {
                         var showCompartirMenu by remember { mutableStateOf(false) }
                         IconButton(onClick = { showCompartirMenu = true }) {
-                            Icon(Icons.Default.Share, stringResource(R.string.editar_compartir))
+                            Icon(Icons.Default.MoreVert, stringResource(R.string.design_more_options))
                         }
                         DropdownMenu(
                             expanded = showCompartirMenu,
                             onDismissRequest = { showCompartirMenu = false }
                         ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.editar_modo_lectura)) },
+                                leadingIcon = { Icon(Icons.Default.MenuBook, null) },
+                                onClick = { showCompartirMenu = false; onModoLectura(buildAgenda()) }
+                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.editar_enviar_agenda)) },
                                 leadingIcon = { Icon(Icons.Default.Share, null) },
@@ -439,6 +441,8 @@ CampoConAutocompletado(
                     )
                 }
 
+                item { DesignSectionHeading(stringResource(R.string.design_opening)) }
+
                 item {
                     CampoHimno(
                         label = stringResource(R.string.editar_primer_himno), numero = primerHimnoNumero, nombre = primerHimnoNombre,
@@ -487,6 +491,8 @@ CampoConAutocompletado(
                     TablaAsuntos(asuntos = asuntos, onAsuntosChange = { asuntos = it })
                 }
 
+                item { DesignSectionHeading(stringResource(R.string.design_sacrament)) }
+
                 item {
                     CampoHimno(
                         label = stringResource(R.string.editar_himno_sacramental), numero = himnoSacramentalNumero, nombre = himnoSacramentalNombre,
@@ -513,6 +519,8 @@ CampoConAutocompletado(
                         )
                     }
                 }
+
+                item { DesignSectionHeading(stringResource(R.string.design_closing)) }
 
                 item {
                     CampoHimno(

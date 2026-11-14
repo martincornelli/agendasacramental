@@ -62,7 +62,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:833115584713:android:c7eeeb4ce34f0dbdbeb518",
         "android_client_info": {
-          "package_name": "com.martincornelli.agendasacramental.qa"
+          "package_name": "com.martincornelli.agendasacramental.design.qa"
         }
       },
       "oauth_client": [
@@ -70,7 +70,7 @@
           "client_id": "833115584713-3ego1vca9ki93snsfm31om214j5ral2u.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.martincornelli.agendasacramental.qa",
+            "package_name": "com.martincornelli.agendasacramental.design.qa",
             "certificate_hash": "b06f9e9d38f480dbcb5dfb2cc5dc747c6a43e040"
           }
         },

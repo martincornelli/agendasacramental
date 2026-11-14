@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync('docs/app.js', 'utf8');
 function load(names, globals = {}) {
-  names = [...new Set([...names, 'manualParticipationDate', 'sameMoment', 'toDate'])];
+  names = [...new Set([...names, 'manualParticipationDate', 'sameMoment', 'toDate', 'secondaryActions'])];
   const context = vm.createContext(globals);
   const translations = source.slice(source.indexOf('const MEETING_TEXT'), source.indexOf('const UNIT_STORAGE_KEY'));
   const functions = names.map(name => {

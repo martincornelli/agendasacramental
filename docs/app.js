@@ -1107,6 +1107,7 @@ function agendaCard(agenda, highlighted = false) {
   return `
     <article class="agenda-card agenda-card-${escapeAttr(agenda.estado)} ${highlighted ? "agenda-card-highlighted" : ""}">
       <button class="agenda-card-main" data-open="${escapeAttr(agenda.id)}" type="button" aria-label="${t("Editar agenda del")} ${escapeAttr(formatDateLong(agenda.fecha))}">
+        <span class="date-tile" aria-hidden="true"><strong>${agenda.fecha.getDate()}</strong><small>${escapeHtml(agenda.fecha.toLocaleDateString(uiLanguage(), {month:"short"}))}</small></span>
         <div class="agenda-card-copy">
           <div class="agenda-card-titleline">
             <h3>
@@ -1124,18 +1125,33 @@ function agendaCard(agenda, highlighted = false) {
       <div class="agenda-card-footer">
         <div class="agenda-card-facts item-meta">
           ${Number(agenda.asistencia || 0) > 0 ? `<span>👥 ${Number(agenda.asistencia)}</span>` : ""}
-          ${messages > 0 ? `<span>${messages} ${messages === 1 ? "mensaje" : "mensajes"}</span>` : ""}
+          ${messages > 0 ? `<span>${messages} ${messages === 1 ? t("mensaje") : t("mensajes")}</span>` : ""}
           ${agenda.dirige ? `<span>${t("Dirige:")} ${escapeHtml(agenda.dirige)}</span>` : ""}
         </div>
         <div class="item-actions agenda-card-actions">
           <button class="agenda-action-button" data-read="${escapeAttr(agenda.id)}" type="button" title="${t("Modo lectura")}" aria-label="${t("Abrir modo lectura")}">${buttonIcon("bookOpen")}<span>${t("Lectura")}</span></button>
           <button class="agenda-action-button" data-print-agenda="${escapeAttr(agenda.id)}" type="button" title="${t("Exportar PDF")}" aria-label="${t("Exportar agenda a PDF")}">${buttonIcon("fileText")}<span>PDF</span></button>
-          <button class="agenda-action-button danger-action" data-delete-agenda="${escapeAttr(agenda.id)}" type="button" title="${t("Eliminar")}" aria-label="${t("Eliminar agenda")}">${icon("x")}<span>${t("Eliminar")}</span></button>
+          ${secondaryActions(`<button class="danger-action" data-delete-agenda="${escapeAttr(agenda.id)}" type="button">${buttonIcon("trash")}${t("Eliminar agenda")}</button>`)}
         </div>
       </div>
     </article>
   `;
 }
+
+function secondaryActions(content, label = t("Más opciones")) {
+  return `<details class="action-menu"><summary aria-label="${escapeAttr(label)}"><span aria-hidden="true">⋯</span><span>${t("Más")}</span></summary><div class="action-menu-list">${content}</div></details>`;
+}
+
+document.addEventListener("click", event => {
+  document.querySelectorAll(".action-menu[open]").forEach(menu => {
+    if (!menu.contains(event.target) || event.target.closest("button")) menu.open = false;
+  });
+});
+document.addEventListener("keydown", event => {
+  if (event.key !== "Escape") return;
+  const menu = event.target.closest?.(".action-menu[open]");
+  if (menu) { menu.open = false; menu.querySelector("summary").focus(); event.preventDefault(); }
+});
 
 function icon(name, className = "svg-icon") {
   return `<svg class="${className}" viewBox="0 0 24 24" aria-hidden="true">${SVG_ICONS[name] || ""}</svg>`;
@@ -1202,14 +1218,15 @@ function renderAgendaEditor() {
   screen.innerHTML = `
     <form id="agenda-form" class="screen-grid">
       <section class="panel">
-        ${sectionTitle(state.activeAgendaId ? t("Editar agenda") : t("Nueva agenda"), "E", `
-          <div class="button-row">
-            <button class="secondary-button" data-action="back" type="button">${t("Volver")}</button>
-            <button class="secondary-button" data-action="reading-preview" type="button">${t("Modo lectura")}</button>
-            <button class="secondary-button" data-action="export-pdf" type="button">${t("Exportar PDF")}</button>
-            <button class="primary-button" type="submit">${t("Guardar")}</button>
-          </div>
-        `)}
+        <header class="editor-heading">
+          <button class="icon-button" data-action="back" type="button" aria-label="${t("Volver")}">${icon("chevronLeft")}</button>
+          <h2>${state.activeAgendaId ? t("Editar agenda") : t("Nueva agenda")}</h2>
+          <button class="primary-button" type="submit">${t("Guardar")}</button>
+          ${secondaryActions(`
+            <button data-action="reading-preview" type="button">${buttonIcon("bookOpen")}${t("Modo lectura")}</button>
+            <button data-action="export-pdf" type="button">${buttonIcon("fileText")}${t("Exportar PDF")}</button>
+          `)}
+        </header>
         <div class="form-grid">
           <div class="inline-fields">
             ${field("fecha", t("Fecha"), `<input id="fecha" class="input" type="date" value="${escapeAttr(dateInputValue(agenda.fecha))}" required>`)}
@@ -1229,18 +1246,15 @@ function renderAgendaEditor() {
       </section>
 
       <section class="panel">
-        ${sectionTitle(t("Himnos y música"), "H", "")}
+        ${sectionTitle(t("Apertura"), "H", "")}
         <div class="form-grid">
           ${hymnFields("primerHimno", t("Primer himno"), agenda.primerHimnoNumero, agenda.primerHimnoNombre)}
-          ${hymnFields("himnoSacramental", t("Himno sacramental"), agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre)}
-          ${hymnFields("himnoFinal", t("Himno final"), agenda.himnoFinalNumero, agenda.himnoFinalNombre)}
           <div class="inline-fields">
             ${field("directorMusica", t("Director/a de música"), textInput("directorMusica", agenda.directorMusica, "names-list"))}
             ${field("pianista", t("Pianista"), textInput("pianista", agenda.pianista, "names-list"))}
           </div>
           <div class="inline-fields">
             ${field("primeraOracion", t("Primera oración"), textInput("primeraOracion", agenda.primeraOracion, "names-list"))}
-            ${field("oracionFinal", t("Oración final"), textInput("oracionFinal", agenda.oracionFinal, "names-list"))}
           </div>
         </div>
       </section>
@@ -1250,6 +1264,10 @@ function renderAgendaEditor() {
         <div id="business-list" class="dynamic-list">${agenda.asuntosEstacaBarrio.map(businessRow).join("")}</div>
       </section>
 
+      <section class="panel">
+        ${sectionTitle(t("Santa Cena"), "H", "")}
+        ${hymnFields("himnoSacramental", t("Himno sacramental"), agenda.himnoSacramentalNumero, agenda.himnoSacramentalNombre)}
+      </section>
       <section class="panel">
         ${sectionTitle(t("Tipo de reunión"), "M", `<button class="secondary-button" id="add-message" type="button">${t("Agregar")}</button>`)}
         <label class="checkbox-line">
@@ -1271,6 +1289,13 @@ function renderAgendaEditor() {
       </section>
 
 
+      <section class="panel">
+        ${sectionTitle(t("Cierre"), "H", "")}
+        <div class="form-grid">
+          ${hymnFields("himnoFinal", t("Himno final"), agenda.himnoFinalNumero, agenda.himnoFinalNombre)}
+          ${field("oracionFinal", t("Oración final"), textInput("oracionFinal", agenda.oracionFinal, "names-list"))}
+        </div>
+      </section>
       <datalist id="names-list">${usedNames().map((name) => `<option value="${escapeAttr(name)}"></option>`).join("")}</datalist>
     </form>
   `;
@@ -1303,6 +1328,7 @@ function renderAgendaEditor() {
     changeEditorStatus(agenda, requested);
   });
   const refreshChecks = event => {
+    if (!screen.querySelector("#agenda-form")) return;
     if (!event?.target?.matches?.("[data-acceptance], #estado")) {
       if (event?.type === "input" || event?.type === "change") editorAcceptanceUndo = null;
       renderConfirmationPanel(agenda);
@@ -2729,8 +2755,10 @@ function renderPlanning() {
         </div>
         ${!isTopics ? organizationSelect("planning-organization", organizationFilter, true) : ""}
         <div class="planning-toolbar-actions">
-          <button id="history-transfer" class="secondary-button" type="button">${t("Importar / exportar")}</button>
-          <button id="planning-config" class="icon-button" type="button" aria-label="${t("Configuración")}" title="${t("Configuración")}">${icon("settings")}</button>
+          ${secondaryActions(`
+            <button id="planning-config" type="button">${buttonIcon("settings")}${t("Configuración")}</button>
+            <button id="history-transfer" type="button">${t("Importar / exportar")}</button>
+          `)}
           ${isTopics
             ? `<button id="topic-tags" class="icon-button" type="button" aria-label="${t("Etiquetas de temas")}" title="${t("Etiquetas de temas")}">${icon("tag")}</button>`
             : `<button id="add-brother" class="primary-button planning-add-button" type="button">${buttonIcon("personAdd")}<span class="button-label">${t("Agregar hermano")}</span></button>`}
@@ -2986,9 +3014,11 @@ function brotherRow(item, tab) {
         <span class="planning-open-action"><span>${t("Asignar")}</span>${icon("chevronRight")}</span>
       </button>
       <div class="item-actions">
-        <button class="secondary-button planning-action-button" data-edit-brother="${escapeAttr(item.key)}" type="button" aria-label="Editar ${escapeAttr(item.hermano.nombre)}" title="${t("Editar")}">${buttonIcon("pencil")}<span>${t("Editar")}</span></button>
-        <button class="secondary-button planning-action-button" data-toggle-inactive="${escapeAttr(item.key)}" type="button" aria-label="${inactive ? t("Reactivar") : t("Inactivar")} a ${escapeAttr(item.hermano.nombre)}" title="${inactive ? t("Reactivar") : t("Inactivar")}">${buttonIcon(inactive ? "eye" : "eyeOff")}<span>${inactive ? t("Reactivar") : t("Inactivar")}</span></button>
-        <button class="secondary-button planning-action-button danger-action" data-delete-brother="${escapeAttr(item.key)}" type="button" aria-label="Eliminar ${escapeAttr(item.hermano.nombre)}" title="${t("Eliminar")}">${buttonIcon("trash")}<span>${t("Eliminar")}</span></button>
+        <button class="secondary-button planning-action-button" data-edit-brother="${escapeAttr(item.key)}" type="button" aria-label="${t("Editar")} ${escapeAttr(item.hermano.nombre)}" title="${t("Editar")}">${buttonIcon("pencil")}<span>${t("Editar")}</span></button>
+        ${secondaryActions(`
+          <button data-toggle-inactive="${escapeAttr(item.key)}" type="button">${buttonIcon(inactive ? "eye" : "eyeOff")}${inactive ? t("Reactivar") : t("Inactivar")}</button>
+          <button class="danger-action" data-delete-brother="${escapeAttr(item.key)}" type="button">${buttonIcon("trash")}${t("Eliminar")}</button>
+        `, t("Más opciones") + " · " + item.hermano.nombre)}
       </div>
     </article>
   `;

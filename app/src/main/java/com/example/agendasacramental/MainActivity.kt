@@ -114,9 +114,7 @@ class MainActivity : AppCompatActivity() {
                 "claro" -> false
                 else -> sistemaOscuro
             }
-            MaterialTheme(
-                colorScheme = if (usarOscuro) darkColorScheme() else lightColorScheme()
-            ) {
+            com.example.agendasacramental.ui.theme.AgendaSacramentalTheme(darkTheme = usarOscuro) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val screen by currentScreen
                     val unidad by currentUnidad

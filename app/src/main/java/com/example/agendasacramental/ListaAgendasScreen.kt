@@ -416,6 +416,7 @@ fun CrearDomingosDialog(
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AgendaCard(
     agenda: Agenda,
@@ -436,7 +437,7 @@ fun AgendaCard(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = if (destacada)
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
             else
                 MaterialTheme.colorScheme.surface
         )
@@ -445,14 +446,15 @@ fun AgendaCard(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            AgendaDateTile(agenda.fecha.toDate())
+            Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = dateFormat.format(agenda.fecha.toDate()),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = if (destacada) FontWeight.Bold else FontWeight.Normal
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
                     Surface(
                         color = estadoColor.copy(alpha = 0.15f),
                         shape = MaterialTheme.shapes.small
@@ -467,7 +469,7 @@ fun AgendaCard(
                     if (agenda.asistencia > 0) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "👥 ${agenda.asistencia}",
+                            text = context.getString(R.string.design_attendance, agenda.asistencia),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -487,18 +489,22 @@ fun AgendaCard(
                 }
                 if (agenda.ultimaEdicionPor.isNotBlank()) {
                     Text(
-                        text = "Editado por: ${agenda.ultimaEdicionPor}",
+                        text = context.getString(R.string.design_edited_by, agenda.ultimaEdicionPor),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-            IconButton(onClick = onModoLectura) {
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onModoLectura) {
                 Icon(Icons.Default.MenuBook, contentDescription = LocalContext.current.getString(R.string.editar_modo_lectura), tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.editar_modo_lectura))
             }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = LocalContext.current.getString(R.string.btn_eliminar), tint = MaterialTheme.colorScheme.error)
-            }
+            SecondaryActionMenu(listOf(
+                SecondaryAction(stringResource(R.string.btn_eliminar), onDelete, destructive = true)
+            ), description = stringResource(R.string.design_agenda_actions, dateFormat.format(agenda.fecha.toDate())))
         }
     }
 }

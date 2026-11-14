@@ -597,7 +597,7 @@ fun HermanoRankingCard(
             }
         )
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)) {
             // Fila principal: indicador + nombre + badge color
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -627,7 +627,7 @@ fun HermanoRankingCard(
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
@@ -675,7 +675,7 @@ fun HermanoRankingCard(
                             context.getString(R.string.plan_ultima_etiqueta_resumen, ranking.ultimaEtiquetaDiscurso),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     } else if (ranking.ultimoTemaDiscurso.isNotBlank()) {
@@ -683,7 +683,7 @@ fun HermanoRankingCard(
                             context.getString(R.string.plan_ultimo_tema, ranking.ultimoTemaDiscurso),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
@@ -718,19 +718,10 @@ fun HermanoRankingCard(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp))
                     }
-                    IconButton(onClick = onToggleInactivo, modifier = Modifier.size(48.dp)) {
-                        Icon(
-                            if (inactivo) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = if (inactivo) LocalContext.current.getString(R.string.plan_reactivar) else LocalContext.current.getString(R.string.plan_desactivar),
-                            tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Default.Close, LocalContext.current.getString(R.string.btn_eliminar),
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp))
-                    }
+                    SecondaryActionMenu(listOf(
+                        SecondaryAction(context.getString(if (inactivo) R.string.plan_reactivar else R.string.plan_desactivar), onToggleInactivo),
+                        SecondaryAction(context.getString(R.string.btn_eliminar), onDelete, destructive = true)
+                    ), description = context.getString(R.string.design_person_actions, ranking.hermano.nombre))
                 }
             }
         }
@@ -1918,10 +1909,14 @@ fun calcularColor(ultimaVez: Timestamp?, diasVerde: Int, diasAmarillo: Int): Col
     }
 }
 
-fun colorParaChip(color: ColorRanking): Color = when (color) {
-    ColorRanking.VERDE -> ColorVerde
-    ColorRanking.AMARILLO -> ColorAmarillo
-    ColorRanking.ROJO -> ColorRojo
+@Composable
+fun colorParaChip(color: ColorRanking): Color {
+    val dark = MaterialTheme.colorScheme.background == Color(0xFF101B29)
+    return when (color) {
+        ColorRanking.VERDE -> if (dark) Color(0xFF91D6AD) else Color(0xFF246442)
+        ColorRanking.AMARILLO -> if (dark) Color(0xFFF3CC85) else Color(0xFF81570C)
+        ColorRanking.ROJO -> if (dark) Color(0xFFFFB1BB) else Color(0xFFAC283D)
+    }
 }
 
 fun calcularRankings(
