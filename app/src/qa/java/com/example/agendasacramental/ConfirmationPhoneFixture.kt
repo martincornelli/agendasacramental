@@ -22,7 +22,7 @@ class ConfirmationPhoneFixture : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val language = intent.getStringExtra("language") ?: "es"
-        val appearance = intent.getStringExtra("appearance") ?: "light"
+        val appearance = intent.getStringExtra("appearance") ?: "system"
         val configuration = android.content.res.Configuration(baseContext.resources.configuration).apply {
             setLocale(java.util.Locale.forLanguageTag(language))
             if (appearance.contains("large")) fontScale = 1.5f
@@ -44,6 +44,20 @@ class ConfirmationPhoneFixture : ComponentActivity() {
         val unit = when (intent.getStringExtra("scenario")) { "empty-unit" -> ""; "other-unit" -> "other-unit"; else -> "phone-qa" }
         requestedOrientation = if (appearance.contains("landscape")) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         setContent {
+            val prefs = remember { getSharedPreferences("agenda_prefs", MODE_PRIVATE) }
+            var theme by remember {
+                mutableStateOf(when {
+                    appearance.startsWith("dark") -> "oscuro"
+                    appearance.startsWith("light") -> "claro"
+                    else -> prefs.getString("tema", "sistema") ?: "sistema"
+                })
+            }
+            val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            val darkTheme = when (theme) {
+                "oscuro" -> true
+                "claro" -> false
+                else -> systemDark
+            }
             CompositionLocalProvider(
                 LocalContext provides this,
                 LocalConfiguration provides resources.configuration,
@@ -53,7 +67,7 @@ class ConfirmationPhoneFixture : ComponentActivity() {
                 androidx.compose.runtime.CompositionLocalProvider(
                     androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(resources.displayMetrics.density, configuration.fontScale)
                 ) {
-                com.example.agendasacramental.ui.theme.AgendaSacramentalTheme(darkTheme = appearance.contains("dark")) {
+                com.example.agendasacramental.ui.theme.AgendaSacramentalTheme(darkTheme = darkTheme) {
                     Surface(Modifier.fillMaxSize()) {
                         var route by remember { mutableStateOf(intent.getStringExtra("screen") ?: "menu") }
                         when (route) {
@@ -61,7 +75,10 @@ class ConfirmationPhoneFixture : ComponentActivity() {
                             "hymns" -> PlanificadorHimnosScreen(unit, "phone-qa@example.test", { route = "home" })
                             "planning" -> PlanificacionScreen("phone-qa", { route = "menu" })
                             "home" -> HomeScreen(
-                                numeroUnidad = unit, tema = "light", onTemaChange = {},
+                                numeroUnidad = unit, tema = theme, onTemaChange = {
+                                    theme = it
+                                    prefs.edit().putString("tema", it).apply()
+                                },
                                 idioma = language, onIdiomaChange = {}, onIrAgendas = { route = "agendas" },
                                 onIrPlanificacion = { route = "planning" }, onIrPlanificadorHimnos = { route = "hymns" },
                                 onIrNotificaciones = { route = "menu" }, onCambiarUnidad = { route = "menu" }, onLogout = { route = "menu" }

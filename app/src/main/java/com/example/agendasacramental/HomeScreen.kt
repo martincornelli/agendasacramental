@@ -1,6 +1,8 @@
 package com.example.agendasacramental
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -119,11 +121,15 @@ fun HomeScreen(
                                         ).forEach { (valor, label) ->
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.fillMaxWidth()
+                                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(
+                                                    selected = tema == valor,
+                                                    role = Role.RadioButton,
+                                                    onClick = { onTemaChange(valor); showTemaDialog = false }
+                                                )
                                             ) {
                                                 RadioButton(
                                                     selected = tema == valor,
-                                                    onClick = { onTemaChange(valor); showTemaDialog = false }
+                                                    onClick = null
                                                 )
                                                 Text(label, modifier = Modifier.padding(start = 8.dp))
                                             }

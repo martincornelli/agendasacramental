@@ -48,4 +48,14 @@ La dependencia efectiva ahora toma el BOM 2025.04.00 del catálogo de versiones,
 
 La actividad QA configura sus recursos de idioma en la propia actividad, para que las ventanas emergentes reciban el mismo idioma que la pantalla. Esta configuración no modifica MainActivity ni las preferencias reales del usuario.
 
+### Selector de tema en Diseño QA
+
+Se corrigió una divergencia de la actividad de demostración: fijaba el tema claro, pasaba una etiqueta de tema que no correspondía y no conectaba el cambio de selección. Ahora Claro/Oscuro/Según el sistema actualizan el estado y guardan la preferencia en el paquete QA. El arranque normal respeta esa preferencia y el modo del sistema; las variantes explícitas `light`/`dark` siguen disponibles únicamente para las pruebas visuales dirigidas. El lanzador de pruebas usa por defecto `system`.
+
+En el diálogo compartido de Android, toda la fila de cada opción es seleccionable, con semántica de radio y un alto mínimo de 48 dp; antes solo respondía el círculo. Los tamaños de letra compactos se mantienen.
+
+Regresión física: `tests/phone-theme.py` cambia las tres opciones desde el diálogo, verifica el color real del fondo en las capturas y vuelve a abrir la actividad para comprobar persistencia. Requiere el teléfono en modo oscuro y no cambia el ajuste del sistema.
+
+Resultado: Claro, Oscuro y Según el sistema comprobados en el teléfono, con aplicación inmediata y persistencia al reabrir. La app quedó en Según el sistema, mostrando el tema oscuro del dispositivo. Compilación QA y 40 pruebas unitarias aprobadas.
+
 Validación final: `:app:assembleQa :app:testDebugUnitTest :app:assembleRelease` pasó, incluidas 40 pruebas unitarias y la optimización R8. `node tests/phone-menu-back.cjs --with-data` pasó; reinicializa exclusivamente los datos del emulador local de QA. Capturas: `output/confirmation-phone/back-*.png`. No se repitieron las pruebas web porque esta corrección no modifica código web. La corrección existe únicamente en `codex/design-polish`; la rama 1.7.0 continúa intacta.
