@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hymn_topics_edit">Edit topics</string>
+    <string name="hymn_topics_scope">These changes are shared only with your unit and this hymnbook language.</string>
+    <string name="hymn_topics_label">Topics (one per line)</string>
+    <string name="hymn_topics_limit">Up to 30 topics, 80 characters each.</string>
+    <string name="hymn_topics_restore">Restore official topics</string>
+    <string name="hymn_topics_error">Could not save topics. Check your connection and permissions, then try again.</string>
+    <string name="hymn_topics_loading">Loading unit topics…</string>
+    <string name="hymn_topics_unavailable">Could not load unit topics.</string>
+    <string name="module_refresh">Refresh</string>
+    <string name="module_refresh_error">Could not refresh. Check your connection and try again.</string>
+</resources>

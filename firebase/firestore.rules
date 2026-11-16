@@ -2,6 +2,29 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+// Unit-scoped overrides, following the existing authenticated-unit compatibility policy.
+// No client operation writes to the bundled/global hymn catalog.
+function temasHimnoValidos(data, unidad, himno) {
+  return data.keys().hasOnly(['numeroUnidad', 'numero', 'idioma', 'temas', 'actualizadoEn'])
+    && data.keys().hasAll(['numeroUnidad', 'numero', 'idioma', 'temas', 'actualizadoEn'])
+    && data.numeroUnidad == unidad
+    && data.numero is int && data.numero > 0 && data.numero <= 9999
+    && data.idioma in ['es', 'en']
+    && himno == data.idioma + '-' + string(data.numero)
+    && data.actualizadoEn == request.time
+    && data.temas is list && data.temas.size() <= 30
+    && data.temas.toSet().size() == data.temas.size()
+    // Round-trip equality rejects non-string elements and embedded newlines.
+    && (data.temas.size() == 0 || (
+      data.temas.join('\n').split('\n') == data.temas
+      && data.temas.join('\n').matches('[^\\n]{1,80}(\\n[^\\n]{1,80}){0,29}')
+    ));
+}
+match /temasHimnosUnidad/{unidad}/himnos/{himno} {
+  allow read, delete: if request.auth != null;
+  allow create, update: if request.auth != null && temasHimnoValidos(request.resource.data, unidad, himno);
+}
+
     // Solo usuarios autenticados con Google pueden acceder
     function estaAutenticado() {
       return request.auth != null;

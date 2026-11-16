@@ -1,3 +1,4 @@
+import { effectiveHymnTopics } from "./hymn-topics.mjs";
 const CATEGORY_DEFINITIONS = {
   praise: ["alabanza", "adoracion", "gloria", "praise", "worship", "glory"],
   jesus_christ: ["jesucristo", "cristo", "jesus", "salvador", "redentor", "christ", "savior", "redeemer"],
@@ -55,52 +56,17 @@ function addCategories(target, values) {
   values.forEach((value) => target.add(value));
 }
 
-export function hymnMetadata(numberValue, name, language = "es") {
+export function hymnMetadata(numberValue, name, language = "es", overrides = {}) {
   const number = Number(numberValue || 0);
-  const categories = new Set();
-  const english = String(language).toLowerCase().startsWith("en");
-
-  if (english) {
-    if (number >= 1 && number <= 61) addCategories(categories, ["restoration", "zion"]);
-    else if (number <= 96) categories.add("praise");
-    else if (number <= 168) addCategories(categories, ["faith", "prayer"]);
-    else if (number <= 196) addCategories(categories, ["sacrament", "jesus_christ"]);
-    else if (number <= 200) addCategories(categories, ["easter", "jesus_christ"]);
-    else if (number <= 215) addCategories(categories, ["christmas", "jesus_christ"]);
-    else if (number <= 252) addCategories(categories, ["service", "gratitude"]);
-    else if (number <= 280) addCategories(categories, ["missionary", "scriptures"]);
-    else if (number <= 291) categories.add("temple");
-    else if (number <= 318) addCategories(categories, ["family", "love"]);
-    else if (number <= 337) categories.add("service");
-  } else {
-    if (number >= 1 && number <= 29) addCategories(categories, ["restoration", "zion"]);
-    else if (number <= 47) categories.add("praise");
-    else if (number <= 82) addCategories(categories, ["faith", "prayer"]);
-    else if (number <= 101) categories.add("praise");
-    else if (number <= 120) addCategories(categories, ["sacrament", "jesus_christ"]);
-    else if (number <= 122) addCategories(categories, ["easter", "jesus_christ"]);
-    else if (number <= 134) addCategories(categories, ["christmas", "jesus_christ"]);
-    else if (number <= 160) addCategories(categories, ["service", "gratitude"]);
-    else if (number <= 180) addCategories(categories, ["missionary", "scriptures"]);
-    else if (number <= 186) categories.add("temple");
-    else if (number <= 204) addCategories(categories, ["family", "love"]);
-    else if (number <= 209) categories.add("service");
-  }
-
-  const normalizedName = normalizePlannerText(name);
-  Object.entries(CATEGORY_DEFINITIONS).forEach(([category, aliases]) => {
-    if (aliases.some((alias) => normalizedName.includes(normalizePlannerText(alias)))) categories.add(category);
-  });
-
-  if (number >= 1000 && !categories.size) addCategories(categories, ["jesus_christ", "faith"]);
-  const sacramental = categories.has("sacrament") || (!english && number === 101) || SACRAMENTAL_NEW_HYMNS.has(number);
-  if (sacramental) addCategories(categories, ["sacrament", "jesus_christ"]);
-
-  return {
-    categories: [...categories],
-    newCollection: String(number).length === 4,
-    sacramental
-  };
+  const english = String(language).startsWith("en");
+  const topics = effectiveHymnTopics(number, language, overrides);
+  const normalized = topics.map(normalizePlannerText);
+  const categories = Object.entries(CATEGORY_DEFINITIONS).filter(([, aliases]) =>
+    aliases.some(alias => normalized.includes(normalizePlannerText(alias)))).map(([key]) => key);
+  // Suitability for the sacrament slot is independent of editable topic labels.
+  const sacramental = (english ? number >= 169 && number <= 196 : number >= 101 && number <= 120) || SACRAMENTAL_NEW_HYMNS.has(number);
+  if (sacramental && !categories.includes("sacrament")) categories.push("sacrament");
+  return { topics, categories, newCollection: String(number).length === 4, sacramental };
 }
 
 export function planFromAgenda(agenda) {
@@ -222,7 +188,7 @@ export function generateHymnPlans({ catalog, agendas, dates, options = {}, langu
   const candidates = Object.entries(catalog).map(([number, name]) => ({
     number: Number(number),
     name,
-    metadata: hymnMetadata(number, name, language)
+    metadata: hymnMetadata(number, name, language, settings.topicOverrides)
   }));
   const agendaByDate = new Map(agendas.map((agenda) => [dateKey(toValidDate(agenda.fecha)), agenda]));
   const targetDates = [...dates]
@@ -366,9 +332,9 @@ function chooseHymn({ candidates, position, date, topics, alreadyChosen, occupie
 function thematicMatches(metadata, topics) {
   if (!topics.length) return 0;
   const normalizedTopics = topics.map(normalizePlannerText);
-  return metadata.categories.filter((category) => {
-    const terms = [...(CATEGORY_DEFINITIONS[category] || []), category.replaceAll("_", " ")].map(normalizePlannerText);
-    return terms.some((term) => normalizedTopics.some((topic) => topic.includes(term) || term.includes(topic)));
+  return metadata.topics.filter(label => {
+    const term = normalizePlannerText(label);
+    return normalizedTopics.some(topic => topic && (topic.includes(term) || term.includes(topic)));
   }).length;
 }
 

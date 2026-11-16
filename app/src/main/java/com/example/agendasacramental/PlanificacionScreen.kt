@@ -1,5 +1,8 @@
 package com.example.agendasacramental
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.background
@@ -398,166 +401,178 @@ fun PlanificacionScreen(
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.history_transfer))
             }
-            HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { selectedTab ->
-                Column(Modifier.fillMaxSize()) {
-            if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            } else if (loadError) {
-                Column(Modifier.padding(24.dp)) {
-                    Text(stringResource(R.string.history_error))
-                    TextButton(onClick = { recargar() }) { Text(stringResource(R.string.history_retry)) }
-                }
-            } else if (selectedTab == 2) {
-                TemasPlanificacionContent(
-                    agendas = agendas,
-                    searchQuery = searchQuery,
-                    config = config,
-                    onSugeridoClick = { temaParaAsignar = it }
-                )
-            } else {
-                OrganizacionSelector(organizacionFiltro, { organizacionFiltro = it }, incluirTodas = true, modifier = Modifier.padding(horizontal = 16.dp))
-                val filtrosActivos = if (selectedTab == 0) filtrosDiscurso else filtrosOracion
-
-                @OptIn(ExperimentalLayoutApi::class)
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    ColorRanking.values().forEach { color ->
-                        val seleccionado = color in filtrosActivos
-                        FilterChip(
-                            selected = seleccionado,
-                            onClick = {
-                                if (selectedTab == 0) {
-                                    filtrosDiscurso = if (seleccionado) filtrosDiscurso - color else filtrosDiscurso + color
-                                } else {
-                                    filtrosOracion = if (seleccionado) filtrosOracion - color else filtrosOracion + color
-                                }
-                            },
-                            label = { Text(context.getString(color.stringResId)) },
-                            leadingIcon = if (seleccionado) {
-                                { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
-                            } else null,
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = colorParaChip(color).copy(alpha = 0.2f),
-                                selectedLabelColor = colorParaChip(color)
-                            )
-                        )
-                    }
-                }
-
-                val inactivoParaTab: (HermanoRanking) -> Boolean = { r ->
-                    if (selectedTab == 0) r.hermano.inactivoDiscurso else r.hermano.inactivoOracion
-                }
-
-                val listaFiltrada = rankings
-                    .filter { organizacionFiltro == "ALL" || it.hermano.organizacion == organizacionFiltro }
-                    .filter { ranking ->
-                        // Si hay búsqueda activa, ignorar filtros de color y mostrar todos los que coincidan
-                        if (searchQuery.isNotBlank()) {
-                            return@filter normalizarNombre(ranking.hermano.nombre)
-                                .contains(normalizarNombre(searchQuery))
-                        }
-                        if (inactivoParaTab(ranking)) return@filter true
-                        val color = if (selectedTab == 0)
-                            calcularColor(ranking.ultimaVezDiscurso, config.diasVerdeDiscurso, config.diasAmarilloDiscurso)
-                        else
-                            calcularColor(ranking.ultimaVezOracion, config.diasVerdeOracion, config.diasAmarilloOracion)
-                        color in filtrosActivos
-                    }
-                    .sortedWith(Comparator { a, b ->
-                        if (inactivoParaTab(a) && !inactivoParaTab(b)) return@Comparator 1
-                        if (!inactivoParaTab(a) && inactivoParaTab(b)) return@Comparator -1
-                        val diasA = if (selectedTab == 0) diasDesde(a.ultimaVezDiscurso) else diasDesde(a.ultimaVezOracion)
-                        val diasB = if (selectedTab == 0) diasDesde(b.ultimaVezDiscurso) else diasDesde(b.ultimaVezOracion)
-                        diasB.compareTo(diasA)
-                    })
-
-                if (listaFiltrada.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(LocalContext.current.getString(R.string.plan_sin_hermanos), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(listaFiltrada) { ranking ->
-                            val itemId = ranking.hermano.id.ifBlank { ranking.hermano.nombre }
-                            val estaSeleccionado = itemId in seleccionados
-                            HermanoRankingCard(
-                                ranking = ranking,
-                                tab = selectedTab,
+            ModuleRefreshBox(Modifier.weight(1f), enabled = !isLoading, onRefresh = {
+                val source = com.google.firebase.firestore.Source.SERVER
+                val nuevaConfig = repository.getConfiguracion(numeroUnidad, source) ?: ConfiguracionPlanificacion(numeroUnidad = numeroUnidad)
+                val records = HistorialRepository().registros(numeroUnidad, source)
+                val hermanos = repository.getHermanos(numeroUnidad, records, source)
+                val nuevasAgendas = repository.getAgendas(numeroUnidad, source).getOrThrow() + historialParaPlanificacion(numeroUnidad, records)
+                config = nuevaConfig
+                agendas = nuevasAgendas
+                rankings = calcularRankings(hermanos, nuevasAgendas, nuevaConfig)
+                loadError = false
+            }) {
+                HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { selectedTab ->
+                    Column(Modifier.fillMaxSize()) {
+                        if (isLoading) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
+                        } else if (loadError) {
+                            Column(Modifier.padding(24.dp)) {
+                                Text(stringResource(R.string.history_error))
+                                TextButton(onClick = { recargar() }) { Text(stringResource(R.string.history_retry)) }
+                            }
+                        } else if (selectedTab == 2) {
+                            TemasPlanificacionContent(
+                                agendas = agendas,
+                                searchQuery = searchQuery,
                                 config = config,
-                                modoSeleccion = modoSeleccion,
-                                estaSeleccionado = estaSeleccionado,
-                                onClick = {
-                                    if (modoSeleccion) {
-                                        seleccionados = if (estaSeleccionado)
-                                            seleccionados - itemId
-                                        else
-                                            seleccionados + itemId
-                                    } else {
-                                        if (!inactivoParaTab(ranking)) hermanoParaAsignar = ranking
+                                onSugeridoClick = { temaParaAsignar = it }
+                            )
+                        } else {
+                            OrganizacionSelector(organizacionFiltro, { organizacionFiltro = it }, incluirTodas = true, modifier = Modifier.padding(horizontal = 16.dp))
+                            val filtrosActivos = if (selectedTab == 0) filtrosDiscurso else filtrosOracion
+
+                            @OptIn(ExperimentalLayoutApi::class)
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                ColorRanking.values().forEach { color ->
+                                    val seleccionado = color in filtrosActivos
+                                    FilterChip(
+                                        selected = seleccionado,
+                                        onClick = {
+                                            if (selectedTab == 0) {
+                                                filtrosDiscurso = if (seleccionado) filtrosDiscurso - color else filtrosDiscurso + color
+                                            } else {
+                                                filtrosOracion = if (seleccionado) filtrosOracion - color else filtrosOracion + color
+                                            }
+                                        },
+                                        label = { Text(context.getString(color.stringResId)) },
+                                        leadingIcon = if (seleccionado) {
+                                            { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
+                                        } else null,
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = colorParaChip(color).copy(alpha = 0.2f),
+                                            selectedLabelColor = colorParaChip(color)
+                                        )
+                                    )
+                                }
+                            }
+
+                            val inactivoParaTab: (HermanoRanking) -> Boolean = { r ->
+                                if (selectedTab == 0) r.hermano.inactivoDiscurso else r.hermano.inactivoOracion
+                            }
+
+                            val listaFiltrada = rankings
+                                .filter { organizacionFiltro == "ALL" || it.hermano.organizacion == organizacionFiltro }
+                                .filter { ranking ->
+                                    // Si hay búsqueda activa, ignorar filtros de color y mostrar todos los que coincidan
+                                    if (searchQuery.isNotBlank()) {
+                                        return@filter normalizarNombre(ranking.hermano.nombre)
+                                            .contains(normalizarNombre(searchQuery))
                                     }
-                                },
-                                onLongClick = {
-                                    if (!modoSeleccion) {
-                                        modoSeleccion = true
-                                        seleccionados = setOf(itemId)
-                                    }
-                                },
-                                onDelete = { hermanoAEliminar = ranking },
-                                onEdit = {
-                                    scope.launch {
-                                        if (ranking.hermano.id.isNotBlank()) {
-                                            hermanoAEditar = ranking
-                                        } else {
-                                            val result = repository.agregarHermano(
-                                                Hermano(
-                                                    numeroUnidad = numeroUnidad,
-                                                    nombre = ranking.hermano.nombre,
-                                                    agregadoManualmente = false
-                                                )
-                                            )
-                                            if (result.isSuccess) {
-                                                recargar()
-                                                val hermanos = repository.getHermanos(numeroUnidad)
-                                                val nuevo = hermanos.find {
-                                                    normalizarNombre(it.nombre) == normalizarNombre(ranking.hermano.nombre) && it.id.isNotBlank()
+                                    if (inactivoParaTab(ranking)) return@filter true
+                                    val color = if (selectedTab == 0)
+                                        calcularColor(ranking.ultimaVezDiscurso, config.diasVerdeDiscurso, config.diasAmarilloDiscurso)
+                                    else
+                                        calcularColor(ranking.ultimaVezOracion, config.diasVerdeOracion, config.diasAmarilloOracion)
+                                    color in filtrosActivos
+                                }
+                                .sortedWith(Comparator { a, b ->
+                                    if (inactivoParaTab(a) && !inactivoParaTab(b)) return@Comparator 1
+                                    if (!inactivoParaTab(a) && inactivoParaTab(b)) return@Comparator -1
+                                    val diasA = if (selectedTab == 0) diasDesde(a.ultimaVezDiscurso) else diasDesde(a.ultimaVezOracion)
+                                    val diasB = if (selectedTab == 0) diasDesde(b.ultimaVezDiscurso) else diasDesde(b.ultimaVezOracion)
+                                    diasB.compareTo(diasA)
+                                })
+
+                            if (listaFiltrada.isEmpty()) {
+                                Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
+                                    Text(LocalContext.current.getString(R.string.plan_sin_hermanos), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(listaFiltrada) { ranking ->
+                                        val itemId = ranking.hermano.id.ifBlank { ranking.hermano.nombre }
+                                        val estaSeleccionado = itemId in seleccionados
+                                        HermanoRankingCard(
+                                            ranking = ranking,
+                                            tab = selectedTab,
+                                            config = config,
+                                            modoSeleccion = modoSeleccion,
+                                            estaSeleccionado = estaSeleccionado,
+                                            onClick = {
+                                                if (modoSeleccion) {
+                                                    seleccionados = if (estaSeleccionado)
+                                                        seleccionados - itemId
+                                                    else
+                                                        seleccionados + itemId
+                                                } else {
+                                                    if (!inactivoParaTab(ranking)) hermanoParaAsignar = ranking
                                                 }
-                                                if (nuevo != null) {
-                                                    hermanoAEditar = ranking.copy(hermano = nuevo)
+                                            },
+                                            onLongClick = {
+                                                if (!modoSeleccion) {
+                                                    modoSeleccion = true
+                                                    seleccionados = setOf(itemId)
+                                                }
+                                            },
+                                            onDelete = { hermanoAEliminar = ranking },
+                                            onEdit = {
+                                                scope.launch {
+                                                    if (ranking.hermano.id.isNotBlank()) {
+                                                        hermanoAEditar = ranking
+                                                    } else {
+                                                        val result = repository.agregarHermano(
+                                                            Hermano(
+                                                                numeroUnidad = numeroUnidad,
+                                                                nombre = ranking.hermano.nombre,
+                                                                agregadoManualmente = false
+                                                            )
+                                                        )
+                                                        if (result.isSuccess) {
+                                                            recargar()
+                                                            val hermanos = repository.getHermanos(numeroUnidad)
+                                                            val nuevo = hermanos.find {
+                                                                normalizarNombre(it.nombre) == normalizarNombre(ranking.hermano.nombre) && it.id.isNotBlank()
+                                                            }
+                                                            if (nuevo != null) {
+                                                                hermanoAEditar = ranking.copy(hermano = nuevo)
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            onToggleInactivo = {
+                                                scope.launch {
+                                                    val campo = if (selectedTab == 0) "inactivoDiscurso" else "inactivoOracion"
+                                                    val valorActual = if (selectedTab == 0) ranking.hermano.inactivoDiscurso else ranking.hermano.inactivoOracion
+                                                    if (ranking.hermano.id.isNotBlank()) {
+                                                        repository.toggleInactivoHermano(ranking.hermano.id, campo, !valorActual)
+                                                    } else {
+                                                        val hermano = if (selectedTab == 0)
+                                                            Hermano(numeroUnidad = numeroUnidad, nombre = ranking.hermano.nombre, inactivoDiscurso = true)
+                                                        else
+                                                            Hermano(numeroUnidad = numeroUnidad, nombre = ranking.hermano.nombre, inactivoOracion = true)
+                                                        repository.agregarHermano(hermano)
+                                                    }
+                                                    recargar()
                                                 }
                                             }
-                                        }
-                                    }
-                                },
-                                onToggleInactivo = {
-                                    scope.launch {
-                                        val campo = if (selectedTab == 0) "inactivoDiscurso" else "inactivoOracion"
-                                        val valorActual = if (selectedTab == 0) ranking.hermano.inactivoDiscurso else ranking.hermano.inactivoOracion
-                                        if (ranking.hermano.id.isNotBlank()) {
-                                            repository.toggleInactivoHermano(ranking.hermano.id, campo, !valorActual)
-                                        } else {
-                                            val hermano = if (selectedTab == 0)
-                                                Hermano(numeroUnidad = numeroUnidad, nombre = ranking.hermano.nombre, inactivoDiscurso = true)
-                                            else
-                                                Hermano(numeroUnidad = numeroUnidad, nombre = ranking.hermano.nombre, inactivoOracion = true)
-                                            repository.agregarHermano(hermano)
-                                        }
-                                        recargar()
+                                        )
                                     }
                                 }
-                            )
+                            }
                         }
                     }
-                }
-            }
                 }
             }
         }

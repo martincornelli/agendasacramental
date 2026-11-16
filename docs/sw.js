@@ -1,10 +1,10 @@
-const CACHE_NAME = "agenda-sacramental-20261114-swipe-history-1";
+const CACHE_NAME = "agenda-sacramental-20261116-hymn-topics-1";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css?v=20261113-design-1",
   "./design.css?v=20261113-design-2",
-  "./app.js?v=20261114-swipe-history-1",
+  "./app.js?v=20261116-hymn-topics-1",
   "./i18n.mjs",
   "./agenda-confirmation.mjs",
   "./unit-admin.mjs",
@@ -12,6 +12,9 @@ const APP_SHELL = [
   "./i18n-en.mjs",
   "./hymns.js?v=20261029-2",
   "./hymn-planner.mjs",
+  "./hymn-topics.mjs",
+  "./hymn-topics-data.mjs",
+  "./hymn-topics-text.mjs",
   "./participation-history.mjs",
   "./history-workbook.mjs",
   "./history-organizations.mjs",

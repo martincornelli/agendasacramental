@@ -1,3 +1,5 @@
+import { hymnTopicKey, parseHymnTopics } from "./hymn-topics.mjs";
+import { HYMN_TOPICS_TEXT } from "./hymn-topics-text.mjs";
 import { bindSwipeTabs } from "./swipe-tabs.mjs";
 import { memberName, organizationLabel, organizationUpdates } from "./history-organizations.mjs";
 import { googleIdentity, isUnitAdmin, adminTransition, reviewMessage, REVIEW_EMAIL } from "./unit-admin.mjs";
@@ -269,6 +271,9 @@ const state = {
   hymnPlannerYear: new Date().getFullYear(),
   hymnLibraryFilter: "all",
   hymnLibraryCategory: "all",
+  hymnTopicOverrides: {},
+  hymnTopicsReady: false,
+  hymnTopicsError: false,
   deferredInstallPrompt: null,
   agendas: [],
   hermanos: [],
@@ -541,12 +546,29 @@ function cleanupSubscriptions() {
   state.historyError = "";
   state.config = { ...defaultConfig };
   state.configId = "";
+  state.hymnTopicOverrides = {};
+  state.hymnTopicsReady = false;
+  state.hymnTopicsError = false;
   state.unitAdmin = null;
 }
 
 function subscribeUnitData(unitNumber) {
   cleanupSubscriptions();
   state.isReady = false;
+  state.hymnTopicOverrides = {};
+  state.hymnTopicsReady = false;
+  state.hymnTopicsError = false;
+  state.unsubscribers.push(onSnapshot(collection(db, "temasHimnosUnidad", unitNumber, "himnos"), snapshot => {
+    if (state.unitNumber !== unitNumber) return;
+    state.hymnTopicOverrides = Object.fromEntries(snapshot.docs.map(item => [item.id, item.data().temas]));
+    state.hymnTopicsReady = true;
+    state.hymnTopicsError = false;
+    if (state.route === "hymns") render();
+  }, () => {
+    if (state.unitNumber !== unitNumber) return;
+    state.hymnTopicsError = true;
+    if (state.route === "hymns") render();
+  }));
   state.unsubscribers.push(onSnapshot(unitRef(unitNumber), snapshot => {
     state.unitAdmin = snapshot.data() || null;
     if (state.route === "settings") renderSettings();
@@ -3737,7 +3759,8 @@ function hymnSelectionLabel(selection) {
 }
 
 function renderHymnLibrary() {
-  const categories = Object.entries(HYMN_CATEGORY_LABELS).sort((a, b) => a[1].localeCompare(b[1]));
+  const categories = [...new Set(hymnLibraryItems().flatMap(item => item.metadata.topics))].sort((a, b) => a.localeCompare(b, hymnLanguage())).map(topic => [topic, topic]);
+  if (state.hymnLibraryCategory !== "all" && !categories.some(([value]) => value === state.hymnLibraryCategory)) state.hymnLibraryCategory = "all";
   return `
     <div class="module-toolbar library-toolbar" aria-label="${t("Buscar y filtrar biblioteca")}">
       <div class="search-field">
@@ -3758,6 +3781,7 @@ function renderHymnLibrary() {
         ["excluded", "Excluidos"]
       ].map(([value, label]) => `<button class="filter-chip ${state.hymnLibraryFilter === value ? "active" : ""}" data-hymn-filter="${value}" type="button">${t(label)}</button>`).join("")}
     </div>
+    ${!state.hymnTopicsReady || state.hymnTopicsError ? `<p role="status">${HYMN_TOPICS_TEXT[uiLanguage()][state.hymnTopicsError ? "unavailable" : "loading"]}</p>` : ""}
     <div id="hymn-library-list" class="hymn-library-grid">${renderHymnLibraryList("")}</div>
   `;
 }
@@ -3767,7 +3791,7 @@ function hymnLibraryItems() {
   const excluded = new Set((state.config.himnosExcluidos || []).map(Number));
   return hymnHistory(catalog, state.agendas, state.hymnPlannerYear).map((item) => ({
     ...item,
-    metadata: hymnMetadata(item.number, item.name, hymnLanguage()),
+    metadata: hymnMetadata(item.number, item.name, hymnLanguage(), state.hymnTopicOverrides),
     excluded: excluded.has(item.number)
   }));
 }
@@ -3775,8 +3799,8 @@ function hymnLibraryItems() {
 function renderHymnLibraryList(searchValue) {
   const queryValue = normalizeText(searchValue);
   const items = hymnLibraryItems().filter((item) => {
-    if (queryValue && !normalizeText(`${item.number} ${item.name}`).includes(queryValue)) return false;
-    if (state.hymnLibraryCategory !== "all" && !item.metadata.categories.includes(state.hymnLibraryCategory)) return false;
+    if (queryValue && !normalizeText(`${item.number} ${item.name} ${item.metadata.topics.join(" ")}`).includes(queryValue)) return false;
+    if (state.hymnLibraryCategory !== "all" && !item.metadata.topics.includes(state.hymnLibraryCategory)) return false;
     if (state.hymnLibraryFilter === "new" && !item.metadata.newCollection) return false;
     if (state.hymnLibraryFilter === "unused" && item.usesInYear !== 0) return false;
     if (state.hymnLibraryFilter === "planned" && !item.nextPlanned) return false;
@@ -3788,18 +3812,19 @@ function renderHymnLibraryList(searchValue) {
 }
 
 function hymnLibraryCard(item) {
-  const categories = item.metadata.categories.slice(0, 3).map((category) => `<span>${escapeHtml(HYMN_CATEGORY_LABELS[category] || category)}</span>`).join("");
+  const categories = item.metadata.topics.map((topic) => `<span>${escapeHtml(topic)}</span>`).join("");
   return `
     <article class="hymn-library-card ${item.excluded ? "is-excluded" : ""}">
       <div class="hymn-number">${item.number}</div>
       <div class="hymn-library-main">
         <div class="hymn-library-title"><h3>${escapeHtml(item.name)}</h3>${item.metadata.newCollection ? `<span class="new-hymn-badge">${t("Nuevo")}</span>` : ""}</div>
-        <div class="topic-chips">${categories || `<span>${uiLanguage() === "en" ? "Uncategorized" : "Sin categoría"}</span>`}</div>
+        <div class="topic-chips">${categories || `<span>${HYMN_TOPICS_TEXT[uiLanguage()].empty}</span>`}</div>
         <p class="item-meta">${hymnHistoryText(item)}</p>
         ${item.nextPlanned ? `<p class="item-meta next-use">${t("Próxima planificación:")} ${escapeHtml(formatDateShort(item.nextPlanned))}</p>` : ""}
         ${item.excluded ? `<p class="item-meta warning-text">${t("Excluido de la generación automática")}</p>` : ""}
       </div>
       <div class="hymn-library-actions">
+        <button class="text-button" data-edit-hymn-topics="${item.number}" type="button" ${!state.hymnTopicsReady || state.hymnTopicsError ? "disabled" : ""}>${HYMN_TOPICS_TEXT[uiLanguage()].edit}</button>
         <button class="secondary-button" data-assign-hymn="${item.number}" type="button">${t("Asignar")}</button>
         <button class="text-button" data-toggle-hymn="${item.number}" type="button">${item.excluded ? t("Volver a incluir") : t("Excluir")}</button>
       </div>
@@ -3834,6 +3859,9 @@ function bindHymnLibraryActions() {
 }
 
 function bindHymnLibraryCardActions() {
+  screen.querySelectorAll("[data-edit-hymn-topics]").forEach(button => {
+    button.addEventListener("click", () => openHymnTopicsDialog(Number(button.dataset.editHymnTopics)));
+  });
   const items = new Map(hymnLibraryItems().map((item) => [item.number, item]));
   screen.querySelectorAll("[data-assign-hymn]").forEach((button) => {
     button.addEventListener("click", () => openAssignHymnDialog(items.get(Number(button.dataset.assignHymn))));
@@ -3899,6 +3927,10 @@ function openAssignHymnDialog(item) {
 }
 
 function openHymnGeneratorDialog() {
+  if (!state.hymnTopicsReady || state.hymnTopicsError) {
+    toastMessage(HYMN_TOPICS_TEXT[uiLanguage()][state.hymnTopicsError ? "unavailable" : "loading"]);
+    return;
+  }
   const today = startOfDay(new Date());
   const available = sundaysOfYear(state.hymnPlannerYear).filter((date) => date >= today);
   if (!available.length) {
@@ -3959,6 +3991,7 @@ function openHymnGeneratorDialog() {
               prioritizeTopics: config.priorizarTemasHimnos,
               includeIntermediate: config.generarHimnoIntermedio,
               excludedHymns: state.config.himnosExcluidos || [],
+              topicOverrides: state.hymnTopicOverrides,
               seed: `${state.unitNumber}-${hymnDateKey(start)}`
             }
           });
@@ -4936,6 +4969,49 @@ function openUnitReview(unitNumber, alreadyExists = false) {
         await navigator.clipboard.writeText(`${REVIEW_EMAIL}\n${message.subject}\n\n${message.body}`);
         toastMessage(t('Texto copiado'));
       }));
+    }
+  });
+}
+
+function openHymnTopicsDialog(number) {
+  if (!state.hymnTopicsReady || state.hymnTopicsError) return;
+  const text = HYMN_TOPICS_TEXT[uiLanguage()];
+  const unit = state.unitNumber;
+  const language = hymnLanguage();
+  const key = hymnTopicKey(number, language);
+  const item = hymnLibraryItems().find(item => item.number === number);
+  if (!item) return;
+  openModal({
+    title: text.edit + ' · ' + number + ' ' + item.name,
+    body: '<p>' + text.scope + '</p><label for="unit-hymn-topics">' + text.label + '</label><textarea id="unit-hymn-topics" class="input" rows="9" aria-describedby="unit-topics-limit unit-topics-error">' + escapeHtml(item.metadata.topics.join('\n')) + '</textarea><p id="unit-topics-limit">' + text.limit + '</p><p id="unit-topics-error" role="alert"></p>',
+    footer: '<button class="text-button" data-restore-topics type="button">' + text.restore + '</button><button class="secondary-button" data-action="cancel" type="button">' + text.cancel + '</button><button class="primary-button" data-save-topics type="button">' + text.save + '</button>',
+    bind: dialog => {
+      let saving = false;
+      const save = async restore => {
+        if (saving || state.unitNumber !== unit) return;
+        let topics;
+        try { topics = restore ? null : parseHymnTopics(dialog.querySelector('#unit-hymn-topics').value); }
+        catch { dialog.querySelector('#unit-topics-error').textContent = text.invalid; return; }
+        saving = true;
+        dialog.querySelectorAll('button').forEach(button => button.disabled = true);
+        try {
+          const ref = doc(db, 'temasHimnosUnidad', unit, 'himnos', key);
+          if (restore) await deleteDoc(ref);
+          else await setDoc(ref, {numeroUnidad: unit, numero: number, idioma: language, temas: topics, actualizadoEn: serverTimestamp()});
+          if (state.unitNumber !== unit) return;
+          if (restore) delete state.hymnTopicOverrides[key]; else state.hymnTopicOverrides[key] = topics;
+          closeModal();
+          renderHymnPlanner();
+          toastMessage(text.saved);
+        } catch {
+          dialog.querySelector('#unit-topics-error').textContent = text.error;
+        } finally {
+          saving = false;
+          dialog.querySelectorAll('button').forEach(button => button.disabled = false);
+        }
+      };
+      dialog.querySelector('[data-save-topics]').onclick = () => save(false);
+      dialog.querySelector('[data-restore-topics]').onclick = () => save(true);
     }
   });
 }

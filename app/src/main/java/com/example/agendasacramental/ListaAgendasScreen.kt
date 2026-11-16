@@ -249,7 +249,10 @@ fun ListaAgendasScreen(
                 }
             }
 
-            Box(modifier = Modifier.fillMaxSize()) {
+            ModuleRefreshBox(modifier = Modifier.fillMaxSize(), enabled = !isLoading, onRefresh = {
+                val nuevas = repository.getAgendas(numeroUnidad, com.google.firebase.firestore.Source.SERVER).getOrThrow()
+                agendas = nuevas
+            }) {
                 when {
                     isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     else -> {

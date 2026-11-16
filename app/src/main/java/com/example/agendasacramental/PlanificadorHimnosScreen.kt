@@ -53,6 +53,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -69,6 +70,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -118,6 +120,44 @@ fun PlanificadorHimnosScreen(
     val snackbar = remember { SnackbarHostState() }
     val catalogo = remember(context.resources.configuration.locales[0].language) {
         if (context.resources.configuration.locales[0].language == "en") HimnosEn.himnos else Himnos.lista
+    }
+    val topicsRepository = remember { UnitHymnTopicsRepository() }
+    val idioma = if (context.resources.configuration.locales[0].language == "en") "en" else "es"
+    var temasUnidad by remember(numeroUnidad) { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
+    var temasListos by remember(numeroUnidad) { mutableStateOf(false) }
+    var errorTemas by remember(numeroUnidad) { mutableStateOf(false) }
+    var editandoTemas by remember(numeroUnidad) { mutableStateOf<ResumenUsoHimno?>(null) }
+    var guardandoTemas by remember { mutableStateOf(false) }
+    var errorGuardarTemas by remember { mutableStateOf("") }
+    DisposableEffect(numeroUnidad) {
+        val listener = topicsRepository.collection(numeroUnidad).addSnapshotListener { snapshot, error ->
+            errorTemas = error != null
+            if (snapshot != null) {
+                temasUnidad = snapshot.documents.associate { doc -> doc.id to (doc.get("temas") as? List<*>)?.filterIsInstance<String>().orEmpty() }
+                temasListos = true
+            }
+        }
+        onDispose { listener.remove() }
+    }
+    editandoTemas?.let { himno ->
+        HymnTopicsDialog(himno.numero, himno.nombre, temasEfectivosHimno(himno.numero, idioma, temasUnidad),
+            guardandoTemas, errorGuardarTemas, onDismiss = { editandoTemas = null }, onSave = { temas ->
+                if (!guardandoTemas) {
+                    guardandoTemas = true
+                    errorGuardarTemas = ""
+                    scope.launch {
+                        try {
+                            topicsRepository.save(numeroUnidad, himno.numero, idioma, temas)
+                            temasUnidad = temasUnidad.toMutableMap().apply {
+                                if (temas == null) remove(claveTemasHimno(himno.numero, idioma)) else put(claveTemasHimno(himno.numero, idioma), temas)
+                            }
+                            editandoTemas = null
+                        } catch (e: kotlinx.coroutines.CancellationException) { throw e
+                        } catch (_: Exception) { errorGuardarTemas = context.getString(R.string.hymn_topics_error)
+                        } finally { guardandoTemas = false }
+                    }
+                }
+            })
     }
     var agendas by remember { mutableStateOf<List<Agenda>>(emptyList()) }
     var cargando by remember { mutableStateOf(true) }
@@ -180,6 +220,7 @@ fun PlanificadorHimnosScreen(
                     forzarHimnoNuevo = nuevaConfiguracion.forzarHimnoNuevo,
                     incluirIntermedio = nuevaConfiguracion.generarHimnoIntermedio,
                     himnosExcluidos = nuevaConfiguracion.himnosExcluidos.toSet(),
+                    temasUnidad = temasUnidad,
                     semilla = numeroUnidad.hashCode().toLong() * 31L +
                             (fechasElegidas.firstOrNull()?.time ?: 0L)
                 )
@@ -307,7 +348,7 @@ fun PlanificadorHimnosScreen(
                 },
                 actions = {
                     if (tab == 0) {
-                        IconButton(onClick = { mostrarGenerador = true }) {
+                        IconButton(enabled = temasListos && !errorTemas, onClick = { mostrarGenerador = true }) {
                             Icon(
                                 Icons.Default.AutoAwesome,
                                 stringResource(R.string.hymn_generate_action)
@@ -340,42 +381,60 @@ fun PlanificadorHimnosScreen(
                     icon = { Icon(Icons.Default.LibraryMusic, null) }
                 )
             }
-            HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { tab ->
-            if (cargando) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+            ModuleRefreshBox(Modifier.weight(1f), enabled = !cargando && !guardandoTemas, onRefresh = {
+                val source = com.google.firebase.firestore.Source.SERVER
+                val nuevasAgendas = repository.getAgendas(numeroUnidad, source).getOrThrow()
+                val nuevaConfig = repository.getConfiguracion(numeroUnidad, source) ?: ConfiguracionPlanificacion(numeroUnidad = numeroUnidad)
+                val nuevosTemas = topicsRepository.collection(numeroUnidad).get(source).await().documents.associate {
+                    it.id to (it.get("temas") as? List<*>)?.filterIsInstance<String>().orEmpty()
                 }
-            } else if (tab == 0) {
-                PlanificacionPorFechas(
-                    fechas = fechas,
-                    estadoLista = estadoListaFechas,
-                    onEditar = { fechaEnEdicion = it }
-                )
-            } else {
-                BibliotecaHimnos(
-                    catalogo = catalogo,
-                    agendas = agendas,
-                    anio = anio,
-                    configuracion = configuracion,
-                    onSeleccionarHimno = { himnoParaAsignar = it },
-                    onCambiarExclusion = { numero ->
-                        val anterior = configuracion
-                        val excluidos = configuracion.himnosExcluidos.toMutableSet().apply {
-                            if (!add(numero)) remove(numero)
-                        }.sorted()
-                        val nueva = configuracion.copy(himnosExcluidos = excluidos)
-                        configuracion = nueva
-                        scope.launch {
-                            if (repository.guardarConfiguracion(nueva).isSuccess) {
-                                snackbar.showSnackbar(context.getString(R.string.hymn_exclusions_saved))
-                            } else {
-                                configuracion = anterior
-                                snackbar.showSnackbar(context.getString(R.string.hymn_config_save_error))
-                            }
+                agendas = nuevasAgendas
+                configuracion = nuevaConfig
+                temasUnidad = nuevosTemas
+                temasListos = true
+                errorTemas = false
+            }) {
+                HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { tab ->
+                    if (cargando) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
                         }
+                    } else if (tab == 0) {
+                        PlanificacionPorFechas(
+                            fechas = fechas,
+                            estadoLista = estadoListaFechas,
+                            onEditar = { fechaEnEdicion = it }
+                        )
+                    } else {
+                        BibliotecaHimnos(
+                            catalogo = catalogo,
+                            agendas = agendas,
+                            anio = anio,
+                            configuracion = configuracion,
+                            temasUnidad = temasUnidad,
+                            temasListos = temasListos && !errorTemas,
+                            errorTemas = errorTemas,
+                            onEditarTemas = { errorGuardarTemas = ""; editandoTemas = it },
+                            onSeleccionarHimno = { himnoParaAsignar = it },
+                            onCambiarExclusion = { numero ->
+                                val anterior = configuracion
+                                val excluidos = configuracion.himnosExcluidos.toMutableSet().apply {
+                                    if (!add(numero)) remove(numero)
+                                }.sorted()
+                                val nueva = configuracion.copy(himnosExcluidos = excluidos)
+                                configuracion = nueva
+                                scope.launch {
+                                    if (repository.guardarConfiguracion(nueva).isSuccess) {
+                                        snackbar.showSnackbar(context.getString(R.string.hymn_exclusions_saved))
+                                    } else {
+                                        configuracion = anterior
+                                        snackbar.showSnackbar(context.getString(R.string.hymn_config_save_error))
+                                    }
+                                }
+                            }
+                        )
                     }
-                )
-            }
+                }
             }
         }
     }
@@ -497,20 +556,32 @@ private fun BibliotecaHimnos(
     anio: Int,
     configuracion: ConfiguracionPlanificacion,
     onSeleccionarHimno: (ResumenUsoHimno) -> Unit,
-    onCambiarExclusion: (Int) -> Unit
+    onCambiarExclusion: (Int) -> Unit,
+    temasUnidad: Map<String, List<String>>,
+    temasListos: Boolean,
+    errorTemas: Boolean,
+    onEditarTemas: (ResumenUsoHimno) -> Unit
 ) {
     val context = LocalContext.current
     val locale = context.resources.configuration.locales[0]
     var busqueda by remember { mutableStateOf("") }
     var filtro by remember { mutableStateOf(FiltroBiblioteca.TODOS) }
-    var categoria by remember { mutableStateOf<CategoriaHimno?>(null) }
+    var categoria by remember { mutableStateOf<String?>(null) }
     var menuCategorias by remember { mutableStateOf(false) }
     val formatoFecha = remember(locale) { SimpleDateFormat("dd/MM/yyyy", locale) }
     val historial = remember(catalogo, agendas, anio) { calcularHistorialHimnos(catalogo, agendas, anio) }
-    val visibles = remember(historial, busqueda, filtro, categoria, configuracion.himnosExcluidos) {
+    val idioma = if (locale.language == "en") "en" else "es"
+    val temasDisponibles = remember(catalogo, temasUnidad, idioma) {
+        catalogo.keys.flatMap { temasEfectivosHimno(it, idioma, temasUnidad) }.distinct().sorted()
+    }
+    LaunchedEffect(temasDisponibles) {
+        if (categoria != null && categoria !in temasDisponibles) categoria = null
+    }
+    val visibles = remember(historial, busqueda, filtro, categoria, configuracion.himnosExcluidos, temasUnidad) {
         historial.filter { resumen ->
             val coincide = busqueda.isBlank() || resumen.numero.toString().contains(busqueda.trim()) ||
-                    resumen.nombre.contains(busqueda.trim(), ignoreCase = true)
+                    resumen.nombre.contains(busqueda.trim(), ignoreCase = true) ||
+                    temasEfectivosHimno(resumen.numero, idioma, temasUnidad).any { normalizarNombre(it).contains(normalizarNombre(busqueda)) }
             val pasaFiltro = when (filtro) {
                 FiltroBiblioteca.TODOS -> true
                 FiltroBiblioteca.NUEVOS -> resumen.numero.toString().length == 4
@@ -519,7 +590,7 @@ private fun BibliotecaHimnos(
                 FiltroBiblioteca.EXCLUIDOS -> resumen.numero in configuracion.himnosExcluidos
             }
             val pasaCategoria = categoria == null ||
-                    categoria in metadataHimno(resumen.numero, resumen.nombre).categorias
+                    categoria in temasEfectivosHimno(resumen.numero, idioma, temasUnidad)
             coincide && pasaFiltro && pasaCategoria
         }
     }
@@ -560,7 +631,7 @@ private fun BibliotecaHimnos(
             onExpandedChange = { menuCategorias = it }
         ) {
             OutlinedTextField(
-                value = categoria?.let { stringResource(it.stringResId) }
+                value = categoria
                     ?: stringResource(R.string.hymn_category_all),
                 onValueChange = {},
                 label = { Text(stringResource(R.string.hymn_category_filter)) },
@@ -580,9 +651,9 @@ private fun BibliotecaHimnos(
                         menuCategorias = false
                     }
                 )
-                CategoriaHimno.entries.forEach { opcion ->
+                temasDisponibles.forEach { opcion ->
                     DropdownMenuItem(
-                        text = { Text(stringResource(opcion.stringResId)) },
+                        text = { Text(opcion) },
                         onClick = {
                             categoria = opcion
                             menuCategorias = false
@@ -591,6 +662,7 @@ private fun BibliotecaHimnos(
                 }
             }
         }
+        if (!temasListos) Text(stringResource(if (errorTemas) R.string.hymn_topics_unavailable else R.string.hymn_topics_loading))
         Spacer(Modifier.height(8.dp))
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -598,7 +670,7 @@ private fun BibliotecaHimnos(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)
         ) {
             items(visibles, key = { it.numero }) { resumen ->
-                val metadata = metadataHimno(resumen.numero, resumen.nombre)
+                val metadata = metadataHimno(resumen.numero, resumen.nombre, temasUnidad, idioma)
                 val excluido = resumen.numero in configuracion.himnosExcluidos
                 Card(
                     onClick = { onSeleccionarHimno(resumen) },
@@ -648,12 +720,12 @@ private fun BibliotecaHimnos(
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
-                        if (metadata.categorias.isNotEmpty()) {
+                        if (metadata.temas.isNotEmpty()) {
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                metadata.categorias.take(3).forEach { tema ->
+                                metadata.temas.forEach { tema ->
                                     AssistChip(
                                         onClick = { categoria = tema },
-                                        label = { Text(stringResource(tema.stringResId)) }
+                                        label = { Text(tema) }
                                     )
                                 }
                             }
@@ -669,6 +741,7 @@ private fun BibliotecaHimnos(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End
                         ) {
+                            TextButton(enabled = temasListos, onClick = { onEditarTemas(resumen) }) { Text(stringResource(R.string.hymn_topics_edit)) }
                             TextButton(onClick = { onSeleccionarHimno(resumen) }) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.EventNote,

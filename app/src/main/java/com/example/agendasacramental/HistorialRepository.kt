@@ -16,8 +16,8 @@ class HistorialRepository(
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance(),
     private val currentEmail: () -> String? = { FirebaseAuth.getInstance().currentUser?.email }
 ) {
-    suspend fun registros(unidad: String): List<Map<String, Any>> {
-        val snapshot = db.collection("historialParticipaciones").document(unidad).get().await()
+    suspend fun registros(unidad: String, source: Source = Source.DEFAULT): List<Map<String, Any>> {
+        val snapshot = db.collection("historialParticipaciones").document(unidad).get(source).await()
         @Suppress("UNCHECKED_CAST")
         return snapshot.get("records") as? List<Map<String, Any>> ?: emptyList()
     }

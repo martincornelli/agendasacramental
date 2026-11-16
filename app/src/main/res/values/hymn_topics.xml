@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hymn_topics_edit">Editar temas</string>
+    <string name="hymn_topics_scope">Estos cambios se comparten solo con tu unidad y este idioma del himnario.</string>
+    <string name="hymn_topics_label">Temas (uno por línea)</string>
+    <string name="hymn_topics_limit">Hasta 30 temas, de 80 caracteres cada uno.</string>
+    <string name="hymn_topics_restore">Restaurar temas oficiales</string>
+    <string name="hymn_topics_error">No se pudieron guardar los temas. Revisá la conexión y los permisos e intentá de nuevo.</string>
+    <string name="hymn_topics_loading">Cargando temas de la unidad…</string>
+    <string name="hymn_topics_unavailable">No se pudieron cargar los temas de la unidad.</string>
+    <string name="module_refresh">Actualizar</string>
+    <string name="module_refresh_error">No se pudo actualizar. Revisá la conexión e intentá de nuevo.</string>
+</resources>

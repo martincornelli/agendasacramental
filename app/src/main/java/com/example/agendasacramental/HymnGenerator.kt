@@ -27,6 +27,7 @@ data class OpcionesGeneracionHimnos(
     val forzarHimnoNuevo: Boolean = false,
     val incluirIntermedio: Boolean = false,
     val himnosExcluidos: Set<Int> = emptySet(),
+    val temasUnidad: Map<String, List<String>> = emptyMap(),
     val semilla: Long = 0L
 )
 
@@ -54,7 +55,7 @@ fun generarPlanificacionHimnos(
 ): ResultadoGeneracionHimnos {
     val random = Random(opciones.semilla)
     val catalogoPreparado = catalogo.map { (numero, nombre) ->
-        CandidatoHimno(numero, nombre, metadataHimno(numero, nombre))
+        CandidatoHimno(numero, nombre, metadataHimno(numero, nombre, opciones.temasUnidad))
     }
     val agendasPorFecha = agendas.associateBy { claveFecha(it.fecha.toDate()) }
     val fechasOrdenadas = fechas.distinctBy(::claveFecha).sorted()

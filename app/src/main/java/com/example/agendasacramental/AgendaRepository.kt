@@ -1,6 +1,7 @@
 package com.example.agendasacramental
 
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
@@ -67,16 +68,18 @@ class AgendaRepository {
         }
     }
 
-    suspend fun getAgendas(numeroUnidad: String): Result<List<Agenda>> {
+    suspend fun getAgendas(numeroUnidad: String, source: Source = Source.DEFAULT): Result<List<Agenda>> {
         return try {
             val snapshot = agendasRef
                 .whereEqualTo("numeroUnidad", numeroUnidad)
                 .orderBy("fecha", Query.Direction.DESCENDING)
-                .get().await()
+                .get(source).await()
             val agendas = snapshot.documents.mapNotNull { doc ->
                 doc.toObject(Agenda::class.java)?.copy(id = doc.id)?.let(::reconciliarConfirmacion)
             }
             Result.success(agendas)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -579,12 +582,12 @@ class AgendaRepository {
         UnitAdministrationRepository().change(numeroUnidad, "password", newPassword)
     }
 
-    suspend fun getHermanos(numeroUnidad: String, importedRecords: List<Map<String, Any>>? = null): List<Hermano> {
+    suspend fun getHermanos(numeroUnidad: String, importedRecords: List<Map<String, Any>>? = null, source: Source = Source.DEFAULT): List<Hermano> {
         return try {
             val snapshot = db.collection("hermanos")
                 .whereEqualTo("numeroUnidad", numeroUnidad)
                 .orderBy("nombre")
-                .get().await()
+                .get(source).await()
 
             val excluidos = snapshot.documents
                 .filter { it.getBoolean("excluido") == true }
@@ -598,7 +601,7 @@ class AgendaRepository {
             // Extraer nombres del historial de agendas
             val agendasSnap = agendasRef
                 .whereEqualTo("numeroUnidad", numeroUnidad)
-                .get().await()
+                .get(source).await()
             val nombresHistorial = mutableSetOf<String>()
             agendasSnap.documents.forEach { doc ->
                 doc.getString("primeraOracion")?.takeIf { it.isNotBlank() }?.let { nombresHistorial.add(it.trim()) }
@@ -622,7 +625,10 @@ class AgendaRepository {
                 .map { Hermano(numeroUnidad = numeroUnidad, nombre = it) }
 
             (manual + deHistorial).sortedBy { it.nombre.lowercase() }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
+            if (source == Source.SERVER) throw e
             emptyList()
         }
     }
@@ -653,14 +659,17 @@ class AgendaRepository {
         hermanosRef.document(hermanoId).update("organizacion", organizacion).await()
     }
 
-    suspend fun getConfiguracion(numeroUnidad: String): ConfiguracionPlanificacion? {
+    suspend fun getConfiguracion(numeroUnidad: String, source: Source = Source.DEFAULT): ConfiguracionPlanificacion? {
         return try {
             val snapshot = db.collection("configuracion")
                 .whereEqualTo("numeroUnidad", numeroUnidad)
                 .limit(1)
-                .get().await()
+                .get(source).await()
             snapshot.documents.firstOrNull()?.toObject(ConfiguracionPlanificacion::class.java)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
+            if (source == Source.SERVER) throw e
             null
         }
     }
