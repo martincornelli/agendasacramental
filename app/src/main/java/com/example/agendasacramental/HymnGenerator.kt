@@ -30,6 +30,7 @@ data class OpcionesGeneracionHimnos(
     val himnosExcluidos: Set<Int> = emptySet(),
     val temasUnidad: Map<String, List<String>> = emptyMap(),
     val modoTemporada: String = "NONE",
+    val combinacionAnterior: Map<String, PlanificacionHimnos> = emptyMap(),
     val semilla: Long = 0L
 )
 
@@ -280,7 +281,11 @@ private fun elegirHimno(
         }
     }
     val relajaIntervalo = candidatosConIntervalo.isEmpty()
-    val disponibles = if (relajaIntervalo) candidatos else candidatosConIntervalo
+    val elegibles = if (relajaIntervalo) candidatos else candidatosConIntervalo
+    // Prefer a different suggestion only after all eligibility and interval rules.
+    val anterior = opciones.combinacionAnterior[claveFecha(fecha)]?.seleccion(posicion)?.numero
+    val alternativas = elegibles.filter { it.numero != anterior }
+    val disponibles = alternativas.ifEmpty { elegibles }
 
     val elegido = disponibles.maxByOrNull { candidato ->
         val numero = candidato.numero

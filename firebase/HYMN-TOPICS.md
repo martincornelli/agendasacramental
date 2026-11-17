@@ -86,6 +86,13 @@ Manual selections remain untouched; conflicts and exhausted seasonal pools are
 reported in the preview. A missing seasonal candidate does not fall back to an
 ordinary hymn. Generation still requires preview and explicit saving.
 
+Both previews offer “Try another combination” without saving hymn plans or
+configuration again. Each retry uses the original request snapshot and prefers
+another hymn for each slot after applying eligibility, exclusions and minimum
+interval constraints. Seasonal and new-hymnbook requirements still apply. If no
+different result is found, the current preview remains with an explanatory message.
+The Apply action saves only the latest visible result; Cancel discards the preview.
+
 ## Verification
 
 ```sh

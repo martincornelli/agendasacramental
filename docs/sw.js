@@ -1,10 +1,10 @@
-const CACHE_NAME = "agenda-sacramental-20261117-seasonal-hymns-1";
+const CACHE_NAME = "agenda-sacramental-20261117-hymn-retry-1";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css?v=20261113-design-1",
   "./design.css?v=20261113-design-2",
-  "./app.js?v=20261117-seasonal-hymns-1",
+  "./app.js?v=20261117-hymn-retry-1",
   "./i18n.mjs",
   "./agenda-confirmation.mjs",
   "./unit-admin.mjs",

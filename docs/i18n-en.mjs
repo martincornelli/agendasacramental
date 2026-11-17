@@ -1,5 +1,7 @@
 // UI copy only. Persisted values and user content are never translated.
 export const EN_TEXT = {
+  "Probar otra combinación": "Try another combination",
+  "No se encontró otra combinación con estas reglas. Se mantienen las sugerencias actuales.": "No different combination was found with these rules. The current suggestions are unchanged.",
   "Filtros": "Filters",
   "Más temas": "More topics",
   "Himnos de temporada": "Seasonal hymns",

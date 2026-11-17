@@ -516,4 +516,6 @@
     <string name="hymn_library_assign_short">Assign</string>
     <string name="hymn_library_include_short">Include</string>
     <string name="hymn_library_exclude_short">Exclude</string>
+    <string name="hymn_preview_retry">Try another combination</string>
+    <string name="hymn_preview_no_alternative">No different combination was found with these rules. The current suggestions are unchanged.</string>
 </resources>

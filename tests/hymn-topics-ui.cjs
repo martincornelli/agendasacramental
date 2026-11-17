@@ -4,10 +4,14 @@ const {chromium}=require('playwright');
 const base=fs.readFileSync('tests/web-i18n-ui.cjs','utf8').match(/const fixture = `([\s\S]*?)`;/)[1];
 const fixture=base+`
 state.hymnTopicsReady = true;
-setDoc = async (ref, data) => { if(window.failSave) throw Error('offline'); window.savedTopic = {ref,data}; };
+window.writeCount = 0;
+setDoc = async (ref, data) => { if(window.failSave) throw Error('offline'); window.writeCount++; window.savedTopic = {ref,data}; };
 deleteDoc = async ref => { window.restoredTopic = ref; };
 window.qa.openTopics = openHymnTopicsDialog;
 window.qa.openGenerator = openHymnGeneratorDialog;
+window.qa.openPreview = openHymnPreviewDialog;
+window.qa.generateHymns = generateHymnPlans;
+persistHymnPlans = async proposals => { window.savedHymnPlans = structuredClone(proposals); window.writeCount++; };
 state.route='hymns'; state.hymnPlannerTab='library'; render();
 `;
 (async()=>{
@@ -60,6 +64,32 @@ state.route='hymns'; state.hymnPlannerTab='library'; render();
    await page.locator('button[form="hymn-generator-form"]').click();
    await page.waitForFunction(()=>!document.querySelector('#hymn-generator-form'));
    assert.equal(await page.evaluate(()=>qa.state.config.modoTemporadaHimnos),'CHRISTMAS_ONLY');
+   const writes=await page.evaluate(()=>window.writeCount);
+   const beforeRetry=await page.locator('.hymn-preview-slots').allTextContents();
+   await page.locator('#retry-hymn-preview').click();
+   const afterRetry=await page.locator('.hymn-preview-slots').allTextContents();
+   assert.notDeepEqual(afterRetry,beforeRetry);
+   assert.equal(await page.evaluate(()=>window.writeCount),writes,'Retry must not save configuration or hymns');
+   assert.equal(await page.locator('#retry-hymn-preview').innerText(),language==='en'?'Try another combination':'Probar otra combinación');
+   await page.screenshot({path:'output/hymn-topics-ui/retry-'+language+'-'+viewport.width+'-'+theme+'.png'});
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+   assert.ok(await page.locator('#apply-hymn-preview').isEnabled());
+   const applyBounds=await page.locator('#apply-hymn-preview').boundingBox();
+   assert.ok(applyBounds.y+applyBounds.height<=viewport.height,'Apply must remain fully visible');
+   await page.locator('#apply-hymn-preview').click();
+   const savedPlans=await page.evaluate(()=>window.savedHymnPlans);
+   for(const item of savedPlans) for(const slot of ['opening','sacrament','closing']) assert.ok(afterRetry.join('').includes(item.proposal[slot].name));
+   assert.equal(await page.evaluate(()=>window.writeCount),writes+1);
+   await page.evaluate(()=>{
+     const catalog=qa.hymnCatalog(),date=new Date(2027,0,3,12),sacrament=qa.language()==='en'?169:101;
+     const request={catalog:{1:catalog[1],2:catalog[2],[sacrament]:catalog[sacrament]},language:qa.language(),dates:[date],
+       agendas:[{fecha:date,primerHimnoNumero:1,primerHimnoNombre:catalog[1],primerHimnoOrigen:'PLANIFICADOR_MANUAL'}],options:{onlyEmptyDates:false,seed:0}};
+     qa.openPreview(qa.generateHymns(request),request);
+   });
+   const constrained=await page.locator('.hymn-preview-slots').allTextContents();
+   await page.locator('#retry-hymn-preview').click();
+   assert.deepEqual(await page.locator('.hymn-preview-slots').allTextContents(),constrained);
+   assert.ok((await page.locator('#hymn-retry-status').innerText()).length>20);
    await page.evaluate(()=>qa.closeModal());
    assert.deepEqual(errors,[]);
    await ctx.close();

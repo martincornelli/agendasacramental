@@ -334,7 +334,10 @@ function chooseHymn({ candidates, position, date, topics, alreadyChosen, occupie
     (occupiedDates.get(candidate.number) || []).every((other) => differenceInDays(date, other) >= interval)
   );
   const relaxed = !withinInterval.length;
-  const pool = relaxed ? available : withinInterval;
+  const eligible = relaxed ? available : withinInterval;
+  const previousNumber = settings.previousCombination?.[dateKey(date)]?.[position]?.number;
+  const alternatives = eligible.filter(candidate => candidate.number !== previousNumber);
+  const pool = alternatives.length ? alternatives : eligible;
   const selected = pool.reduce((best, candidate) => {
     const uses = historicalUses.get(candidate.number) || [];
     const previous = uses.filter((item) => item <= date).sort((a, b) => b - a)[0];

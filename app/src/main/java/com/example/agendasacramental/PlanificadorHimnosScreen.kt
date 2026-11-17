@@ -174,6 +174,8 @@ fun PlanificadorHimnosScreen(
     var mostrarGenerador by remember { mutableStateOf(false) }
     var generandoPrevisualizacion by remember { mutableStateOf(false) }
     var previsualizacion by remember { mutableStateOf<ResultadoGeneracionHimnos?>(null) }
+    var reintentarGeneracion by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var sinOtraCombinacion by remember { mutableStateOf(false) }
     var guardandoGeneracion by remember { mutableStateOf(false) }
     var himnoParaAsignar by remember { mutableStateOf<ResumenUsoHimno?>(null) }
     var guardandoAsignacion by remember { mutableStateOf(false) }
@@ -228,23 +230,37 @@ fun PlanificadorHimnosScreen(
                     semilla = numeroUnidad.hashCode().toLong() * 31L +
                             (fechasElegidas.firstOrNull()?.time ?: 0L)
                 )
-                scope.launch {
-                    val resultado = runCatching {
-                        withContext(Dispatchers.Default) {
-                            generarPlanificacionHimnos(
-                                catalogo = catalogo,
-                                agendas = agendas,
-                                fechas = fechasElegidas,
-                                opciones = opciones
-                            )
+                // Keep a snapshot of the request; retries never use the preview as saved agendas.
+                val catalogoInicial = catalogo.toMap()
+                val agendasIniciales = agendas.toList()
+                val fechasIniciales = fechasElegidas.toList()
+                var intento = 0L
+                fun generar(anterior: ResultadoGeneracionHimnos? = null) {
+                    generandoPrevisualizacion = true
+                    sinOtraCombinacion = false
+                    scope.launch {
+                        try {
+                            val nuevo = withContext(Dispatchers.Default) {
+                                generarPlanificacionHimnos(catalogoInicial, agendasIniciales, fechasIniciales,
+                                    opciones.copy(semilla = opciones.semilla + intento++, combinacionAnterior =
+                                        anterior?.propuestas?.associate { claveFecha(it.fecha) to it.propuesta }.orEmpty()))
+                            }
+                            sinOtraCombinacion = anterior != null &&
+                                anterior.propuestas.map { it.fecha to it.propuesta } == nuevo.propuestas.map { it.fecha to it.propuesta }
+                            val visible = if (sinOtraCombinacion) anterior!! else nuevo
+                            previsualizacion = visible
+                            reintentarGeneracion = { generar(visible) }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            snackbar.showSnackbar(context.getString(R.string.hymn_generation_error))
+                        } finally {
+                            generandoPrevisualizacion = false
                         }
                     }
-                    generandoPrevisualizacion = false
-                    if (resultado.isSuccess) {
-                        previsualizacion = resultado.getOrThrow()
-                    } else {
-                        snackbar.showSnackbar(context.getString(R.string.hymn_generation_error))
-                    }
+                }
+                generar()
+                scope.launch {
                     if (repository.guardarConfiguracion(nuevaConfiguracion).isFailure) {
                         snackbar.showSnackbar(context.getString(R.string.hymn_config_save_error))
                     }
@@ -253,15 +269,17 @@ fun PlanificadorHimnosScreen(
         )
     }
 
-    if (generandoPrevisualizacion) {
+    if (generandoPrevisualizacion && previsualizacion == null) {
         GenerandoPrevisualizacionHimnosDialog()
     }
 
     previsualizacion?.let { resultado ->
         PrevisualizacionGeneracionHimnosDialog(
             resultado = resultado,
-            guardando = guardandoGeneracion,
-            onDismiss = { previsualizacion = null },
+            guardando = guardandoGeneracion || generandoPrevisualizacion,
+            sinOtraCombinacion = sinOtraCombinacion,
+            onRetry = { if (!generandoPrevisualizacion && !guardandoGeneracion) reintentarGeneracion?.invoke() },
+            onDismiss = { previsualizacion = null; reintentarGeneracion = null },
             onConfirm = {
                 scope.launch {
                     guardandoGeneracion = true

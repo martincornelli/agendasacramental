@@ -3992,7 +3992,7 @@ function openHymnGeneratorDialog() {
             generarHimnoIntermedio: dialog.querySelector("#include-intermediate-hymn").checked
           };
           await savePlanningConfig(config);
-          const result = generateHymnPlans({
+          const request = structuredClone({
             catalog: hymnCatalog(),
             agendas: state.agendas,
             dates,
@@ -4011,7 +4011,7 @@ function openHymnGeneratorDialog() {
             }
           });
           closeModal();
-          openHymnPreviewDialog(result);
+          openHymnPreviewDialog(generateHymnPlans(request), request);
         });
       });
     }
@@ -4022,7 +4022,7 @@ function generatorCheckbox(id, label, checked) {
   return `<label class="checkbox-line"><input id="${escapeAttr(id)}" type="checkbox" ${checked ? "checked" : ""}><span>${escapeHtml(label)}</span></label>`;
 }
 
-function openHymnPreviewDialog(result) {
+function openHymnPreviewDialog(result, request, attempt = 0, noAlternative = false) {
   openModal({
     title: t("Vista previa"),
     body: `
@@ -4040,14 +4040,33 @@ function openHymnPreviewDialog(result) {
     `,
     footer: `
       <button class="secondary-button" data-action="cancel" type="button">${t("Cancelar")}</button>
+      <span id="hymn-retry-status" role="status" class="item-meta">${noAlternative ? t("No se encontró otra combinación con estas reglas. Se mantienen las sugerencias actuales.") : ""}</span>
+      <button class="secondary-button" id="retry-hymn-preview" type="button" ${request && result.proposals.length ? "" : "disabled"}>${t("Probar otra combinación")}</button>
       <button class="primary-button" id="apply-hymn-preview" type="button" ${result.proposals.length ? "" : "disabled"}>${t("Aplicar planificación")}</button>
     `,
     bind: (dialog) => {
-      dialog.classList.add("wide");
+      dialog.classList.add("wide", "hymn-preview-dialog");
+      const retryButton = dialog.querySelector("#retry-hymn-preview");
+      retryButton.addEventListener("click", () => {
+        retryButton.disabled = true;
+        try {
+          const next = generateHymnPlans({...request, options: {...request.options,
+            seed: `${request.options.seed}-retry-${attempt + 1}`,
+            previousCombination: Object.fromEntries(result.proposals.map(item => [hymnDateKey(item.date), item.proposal]))}});
+          const selections = value => JSON.stringify(value.proposals.map(item => [hymnDateKey(item.date), item.proposal]));
+          const unchanged = selections(next) === selections(result);
+          openHymnPreviewDialog(unchanged ? result : next, request, attempt + 1, unchanged);
+          modal.querySelector("#retry-hymn-preview")?.focus();
+        } catch (error) {
+          retryButton.disabled = false;
+          toastMessage(error.message);
+        }
+      });
       dialog.querySelector("#apply-hymn-preview")?.addEventListener("click", async (event) => {
         const button = event.currentTarget;
         button.disabled = true;
         button.textContent = t("Guardando...");
+        retryButton.disabled = true;
         await withToastError(async () => {
           await persistHymnPlans(result.proposals);
           closeModal();
@@ -4057,6 +4076,7 @@ function openHymnPreviewDialog(result) {
         if (modal.open) {
           button.disabled = false;
           button.textContent = t("Aplicar planificación");
+          retryButton.disabled = !request || !result.proposals.length;
         }
       });
     }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
@@ -26,12 +27,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
@@ -322,9 +327,13 @@ fun GenerandoPrevisualizacionHimnosDialog() {
 fun PrevisualizacionGeneracionHimnosDialog(
     resultado: ResultadoGeneracionHimnos,
     guardando: Boolean,
+    sinOtraCombinacion: Boolean,
+    onRetry: () -> Unit,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
+    val lista = rememberLazyListState()
+    LaunchedEffect(resultado, sinOtraCombinacion) { lista.scrollToItem(0) }
     val context = LocalContext.current
     val locale = context.resources.configuration.locales[0]
     val formato = remember(locale) {
@@ -367,15 +376,26 @@ fun PrevisualizacionGeneracionHimnosDialog(
                 } else {
                     LazyColumn(
                         modifier = Modifier.weight(1f),
+                        state = lista,
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        if (sinOtraCombinacion) item {
+                            Text(
+                                stringResource(R.string.hymn_preview_no_alternative),
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                            )
+                        }
                         items(resultado.propuestas, key = { claveFecha(it.fecha) }) { propuesta ->
                             PropuestaHimnosCard(propuesta, formato)
                         }
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
+                TextButton(enabled = !guardando && resultado.propuestas.isNotEmpty(), onClick = onRetry,
+                    modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.hymn_preview_retry))
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,

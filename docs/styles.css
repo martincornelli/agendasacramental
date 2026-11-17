@@ -4099,6 +4099,19 @@ summary:focus-visible {
 }
 
 /* Keep the library focused on hymns; secondary controls expand on demand. */
+#hymn-retry-status:empty { display: none; }
+#hymn-retry-status { flex-basis: 100%; }
+@media (max-width: 600px) {
+  .hymn-preview-dialog .modal-content > .button-row:last-child {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    bottom: 0;
+    margin-bottom: 0;
+  }
+  #retry-hymn-preview, #hymn-retry-status { grid-column: 1 / -1; grid-row: 1; }
+  #hymn-retry-status:not(:empty) { grid-row: 1; }
+  #hymn-retry-status:not(:empty) + #retry-hymn-preview { grid-row: 2; }
+}
 .hymn-hero-compact > div:first-child { display: none; }
 .module-hero.hymn-hero-compact { padding: 8px 12px; min-height: 0; justify-content: flex-end; }
 .hymn-hero-compact .year-stepper { margin: 0; }
