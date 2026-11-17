@@ -15,18 +15,22 @@ import kotlinx.coroutines.delay
 
 /** QA-only UI fixture. No authentication, repositories or database writes. */
 class HymnTopicsFixture : ComponentActivity() {
+    private var qaResources: android.content.res.Resources? = null
+    override fun getResources(): android.content.res.Resources = qaResources ?: super.getResources()
+
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        check(BuildConfig.APPLICATION_ID.endsWith(".qa"))
         val language = intent.getStringExtra("language") ?: "es"
-        requestedOrientation = if (intent.getBooleanExtra("landscape", false)) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        val configuration = android.content.res.Configuration(resources.configuration).apply {
+        val configuration = android.content.res.Configuration(baseContext.resources.configuration).apply {
             setLocale(java.util.Locale.forLanguageTag(language))
             if (intent.getBooleanExtra("large", false)) fontScale = 1.5f
         }
-        val localized = createConfigurationContext(configuration)
+        // Dialog windows obtain their configuration from the Activity, too.
+        qaResources = baseContext.createConfigurationContext(configuration).resources
+        super.onCreate(savedInstanceState)
+        check(BuildConfig.APPLICATION_ID.endsWith(".qa"))
+        requestedOrientation = if (intent.getBooleanExtra("landscape", false)) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         setContent {
-            CompositionLocalProvider(LocalContext provides localized, LocalConfiguration provides configuration) {
+            CompositionLocalProvider(LocalContext provides this, LocalConfiguration provides resources.configuration) {
                 MaterialTheme(colorScheme = if (intent.getBooleanExtra("dark", false)) darkColorScheme() else lightColorScheme()) {
                     var count by remember { mutableStateOf(0) }
                     var showEditor by remember { mutableStateOf(false) }

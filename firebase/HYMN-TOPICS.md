@@ -78,5 +78,10 @@ with large text/dark landscape. It never reads or writes a production database.
 
 Verification on this branch: 43 Android unit tests, 50 web domain tests, all eight
 browser UI combinations, and three Firestore emulator tests passed. Android debug
-compilation and the QA APK build passed. The physical phone test could not run:
-the device rejected QA APK installation with `INSTALL_FAILED_USER_RESTRICTED`.
+compilation and the QA APK build passed. After the user accepted installation,
+the physical phone tests passed in Spanish and English, light portrait and
+dark/large-text landscape. They verify the actual pull gesture, refresh button,
+editor localization, visible dialog actions and cancellation. Screenshot review
+found and fixed clipped dialog controls in large-text landscape. The installed
+QA fixture uses temporary in-memory data; live unit synchronization remains
+covered by the web tests and Firestore emulator tests, not this phone fixture.

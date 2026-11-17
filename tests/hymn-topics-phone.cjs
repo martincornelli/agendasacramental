@@ -10,7 +10,7 @@ function bounds(xml,text){const node=xml.match(new RegExp('<node[^>]*text="'+tex
 function tap(xml,text){const [x,y,r,b]=bounds(xml,text);run('shell','input','tap',String((x+r)>>1),String((y+b)>>1));}
 (async()=>{
  fs.mkdirSync('output/hymn-topics-phone',{recursive:true});
- run('install','-r','app/build/outputs/apk/qa/app-qa.apk');
+ if (!process.argv.includes('--skip-install')) run('install','-r','app/build/outputs/apk/qa/app-qa.apk');
  for(const language of ['es','en']) for(const large of [false,true]) {
   run('shell','am','force-stop',app);
   run('shell','am','start','-W','-n',app+'/com.example.agendasacramental.HymnTopicsFixture','--es','language',language,'--ez','dark',String(large),'--ez','large',String(large),'--ez','landscape',String(large));
@@ -18,7 +18,9 @@ function tap(xml,text){const [x,y,r,b]=bounds(xml,text);run('shell','input','tap
   let xml=dump();assert.ok(xml.includes('Refresh count: 0'));
   // Pull down from the first item of the actual LazyColumn.
   const [x,y,r,b]=bounds(xml,'Refresh count: 0');
-  run('shell','input','swipe',String((x+r)>>1),String(b+25),String((x+r)>>1),String(b+480),'500');
+  const height=Number(xml.match(/bounds="\[0,0\]\[\d+,(\d+)\]"/)[1]);
+  const start=(y+b)>>1;
+  run('shell','input','swipe',String((x+r)>>1),String(start),String((x+r)>>1),String(Math.min(height-100,start+900)),'650');
   await delay(2100);xml=dump();assert.ok(xml.includes('Refresh count: 1'),'Pull-to-refresh did not complete');
   tap(xml,language==='en'?'Refresh':'Actualizar');
   await delay(2100);xml=dump();assert.ok(xml.includes('Refresh count: 2'),'Accessible button did not refresh');
@@ -27,8 +29,12 @@ function tap(xml,text){const [x,y,r,b]=bounds(xml,text);run('shell','input','tap
   fs.writeFileSync('output/hymn-topics-phone/'+language+'-'+large+'.xml',xml);
   const png=execFileSync(adb,['-s',serial,'exec-out','screencap','-p'],{timeout:30000});
   fs.writeFileSync('output/hymn-topics-phone/'+language+'-'+large+'.png',png);
+  const dialogHeight=Number(xml.match(/bounds="\[\d+,\d+\]\[\d+,(\d+)\]"/)[1]);
+  const cancelBounds=bounds(xml,language==='en'?'Cancel':'Cancelar');
+  assert.ok(cancelBounds[3]<dialogHeight-20,'Dialog actions must stay above the bottom edge');
   tap(xml,language==='en'?'Cancel':'Cancelar');
   assert.ok(dump().includes('Refresh count: 2'));
+  console.log('Passed', language, large ? 'dark/large landscape' : 'light portrait');
  }
  console.log('Passed actual Android pull gesture, accessible refresh, editor/cancel, both languages, dark/large landscape.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
