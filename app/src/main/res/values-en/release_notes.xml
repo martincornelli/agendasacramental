@@ -1,0 +1,7 @@
+<resources>
+    <string name="release_notes_topics_210">Browse official hymn topics in English and Spanish and use them to plan music for each meeting.</string>
+    <string name="release_notes_unit_topics_210">Edit topics for your unit. Changes sync with the web app without changing other units or the official catalog.</string>
+    <string name="release_notes_seasonal_210">Include one Christmas hymn per meeting, or generate Christmas-only or Easter-only selections. The sacrament hymn remains a sacrament hymn, and manual selections are preserved.</string>
+    <string name="release_notes_library_210">A more compact Library: open filters with one tap and expand topics when needed, leaving more room for hymns.</string>
+    <string name="release_notes_refresh_210">Pull down to refresh Agendas, Planning, and Hymn Planner. Hymn Planner also keeps its Refresh button for long lists.</string>
+</resources>

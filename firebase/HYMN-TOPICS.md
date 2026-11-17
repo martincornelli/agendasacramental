@@ -54,8 +54,9 @@ On 2026-11-17 the additive fragment was tested against the exact live rules and
 published as ruleset `2ec386e2-5111-4711-8abd-0d93dbd73c26`. The previous release
 was `c8d64d5a-f22f-4847-b3aa-2f90447deb40`; backups and the verified release receipt
 are in local `output/hymn-topics-release/`. Existing rule content was preserved.
-The regular Android package was installed on the user's phone. Web source changes
-remain on the feature branch and have not been published.
+The regular Android package was installed on the user's phone. The user confirmed
+web-to-Android synchronization and verified another unit retained official defaults
+using the local preview before authorizing publication of the web client.
 
 ## Refresh
 

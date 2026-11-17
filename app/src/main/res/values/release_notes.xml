@@ -1,0 +1,7 @@
+<resources>
+    <string name="release_notes_topics_210">Consultá los temas oficiales de los himnos en español e inglés y usalos para planificar la música de cada reunión.</string>
+    <string name="release_notes_unit_topics_210">Editá los temas para tu unidad. Los cambios se sincronizan con la web, sin modificar los temas de otras unidades ni el catálogo oficial.</string>
+    <string name="release_notes_seasonal_210">Incluí un himno de Navidad por reunión o generá selecciones solo de Navidad o Pascua. El himno sacramental sigue siendo de Santa Cena y se conservan las selecciones manuales.</string>
+    <string name="release_notes_library_210">Biblioteca más compacta: filtros a un toque y temas desplegables para dejar más espacio a la lista de himnos.</string>
+    <string name="release_notes_refresh_210">Deslizá hacia abajo para actualizar Agendas, Planificación y el Planificador de himnos. El planificador de himnos también conserva el botón Actualizar para las listas largas.</string>
+</resources>

@@ -58,11 +58,11 @@ fun ReleaseNotesDialog(visible: Boolean) {
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(stringResource(R.string.release_notes_design))
-                    Text(stringResource(R.string.release_notes_organizations))
-                    Text(stringResource(R.string.release_notes_confirmations))
-                    Text(stringResource(R.string.release_notes_swipe))
-                    Text(stringResource(R.string.release_notes_history))
+                    Text(stringResource(R.string.release_notes_topics_210))
+                    Text(stringResource(R.string.release_notes_unit_topics_210))
+                    Text(stringResource(R.string.release_notes_seasonal_210))
+                    Text(stringResource(R.string.release_notes_library_210))
+                    Text(stringResource(R.string.release_notes_refresh_210))
                 }
             },
             confirmButton = {
