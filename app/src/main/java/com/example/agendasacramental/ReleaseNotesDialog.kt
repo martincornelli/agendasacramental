@@ -61,6 +61,7 @@ fun ReleaseNotesDialog(visible: Boolean) {
                     Text(stringResource(R.string.release_notes_topics_210))
                     Text(stringResource(R.string.release_notes_unit_topics_210))
                     Text(stringResource(R.string.release_notes_seasonal_210))
+                    Text(stringResource(R.string.release_notes_retry_210))
                     Text(stringResource(R.string.release_notes_library_210))
                     Text(stringResource(R.string.release_notes_refresh_210))
                 }

@@ -4,6 +4,7 @@
 • Incluí un himno de Navidad o elegí solo Navidad o Pascua; el himno de Santa Cena se mantiene y se conservan las selecciones manuales.
 • Biblioteca más compacta, con filtros y temas desplegables.
 • Deslizá hacia abajo para actualizar Agendas, Planificación y el Planificador de himnos.
+• Probá otra combinación desde la vista previa antes de guardar.
 </es-419>
 <en-US>
 • Official hymn topics in English and Spanish.
@@ -11,4 +12,5 @@
 • Include one Christmas hymn or choose Christmas-only or Easter-only selections; the sacrament hymn and manual selections are preserved.
 • A more compact Library with expandable filters and topics.
 • Pull down to refresh Agendas, Planning, and Hymn Planner.
+• Try another hymn combination from the preview before saving.
 </en-US>
