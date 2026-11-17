@@ -31,6 +31,9 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -216,6 +219,7 @@ fun PlanificadorHimnosScreen(
                     intervaloMinimoDias = nuevaConfiguracion.intervaloMinimoHimnosDias,
                     soloFechasSinPlanificacion = nuevaConfiguracion.soloFechasSinHimnos,
                     reemplazarAutomaticas = nuevaConfiguracion.reemplazarHimnosAutomaticos,
+                    modoTemporada = nuevaConfiguracion.modoTemporadaHimnos,
                     priorizarTemas = nuevaConfiguracion.priorizarTemasHimnos,
                     forzarHimnoNuevo = nuevaConfiguracion.forzarHimnoNuevo,
                     incluirIntermedio = nuevaConfiguracion.generarHimnoIntermedio,
@@ -568,6 +572,7 @@ private fun BibliotecaHimnos(
     var filtro by remember { mutableStateOf(FiltroBiblioteca.TODOS) }
     var categoria by remember { mutableStateOf<String?>(null) }
     var menuCategorias by remember { mutableStateOf(false) }
+    var mostrarFiltros by remember { mutableStateOf(false) }
     val formatoFecha = remember(locale) { SimpleDateFormat("dd/MM/yyyy", locale) }
     val historial = remember(catalogo, agendas, anio) { calcularHistorialHimnos(catalogo, agendas, anio) }
     val idioma = if (locale.language == "en") "en" else "es"
@@ -608,6 +613,16 @@ private fun BibliotecaHimnos(
                 }
             }
         )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.hymn_library_results, visibles.size), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { mostrarFiltros = true }) {
+                Text(stringResource(R.string.hymn_library_filters) + if (filtro != FiltroBiblioteca.TODOS || categoria != null) " •" else "")
+            }
+        }
+        if (mostrarFiltros) AlertDialog(
+            onDismissRequest = { mostrarFiltros = false },
+            title = { Text(stringResource(R.string.hymn_library_filters)) },
+            text = { Column(Modifier.verticalScroll(rememberScrollState())) {
         FlowRow(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -662,6 +677,11 @@ private fun BibliotecaHimnos(
                 }
             }
         }
+
+            } },
+            confirmButton = { TextButton(onClick = { mostrarFiltros = false }) { Text(stringResource(R.string.hymn_library_show_results)) } },
+            dismissButton = { TextButton(onClick = { filtro = FiltroBiblioteca.TODOS; categoria = null }) { Text(stringResource(R.string.hymn_library_clear_filters)) } }
+        )
         if (!temasListos) Text(stringResource(if (errorTemas) R.string.hymn_topics_unavailable else R.string.hymn_topics_loading))
         Spacer(Modifier.height(8.dp))
         LazyColumn(
@@ -671,6 +691,7 @@ private fun BibliotecaHimnos(
         ) {
             items(visibles, key = { it.numero }) { resumen ->
                 val metadata = metadataHimno(resumen.numero, resumen.nombre, temasUnidad, idioma)
+                var expandirTemas by remember(resumen.numero) { mutableStateOf(false) }
                 val excluido = resumen.numero in configuracion.himnosExcluidos
                 Card(
                     onClick = { onSeleccionarHimno(resumen) },
@@ -722,13 +743,16 @@ private fun BibliotecaHimnos(
                         }
                         if (metadata.temas.isNotEmpty()) {
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                metadata.temas.forEach { tema ->
+                                (if (expandirTemas) metadata.temas else metadata.temas.take(2)).forEach { tema ->
                                     AssistChip(
                                         onClick = { categoria = tema },
                                         label = { Text(tema) }
                                     )
                                 }
                             }
+                        }
+                        if (metadata.temas.size > 2) TextButton(onClick = { expandirTemas = !expandirTemas }) {
+                            Text(stringResource(if (expandirTemas) R.string.hymn_topics_less else R.string.hymn_topics_more, metadata.temas.size - 2))
                         }
                         if (excluido) {
                             Text(
@@ -743,23 +767,13 @@ private fun BibliotecaHimnos(
                         ) {
                             TextButton(enabled = temasListos, onClick = { onEditarTemas(resumen) }) { Text(stringResource(R.string.hymn_topics_edit)) }
                             TextButton(onClick = { onSeleccionarHimno(resumen) }) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.EventNote,
-                                    null,
-                                    modifier = Modifier.padding(end = 6.dp)
-                                )
-                                Text(stringResource(R.string.hymn_library_assign_action))
+                                Text(stringResource(R.string.hymn_library_assign_short))
                             }
                             TextButton(onClick = { onCambiarExclusion(resumen.numero) }) {
-                                Icon(
-                                    if (excluido) Icons.Default.CheckCircle else Icons.Default.Block,
-                                    null,
-                                    modifier = Modifier.padding(end = 6.dp)
-                                )
                                 Text(
                                     stringResource(
-                                        if (excluido) R.string.hymn_include_action
-                                        else R.string.hymn_exclude_action
+                                        if (excluido) R.string.hymn_library_include_short
+                                        else R.string.hymn_library_exclude_short
                                     )
                                 )
                             }

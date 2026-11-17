@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -32,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -80,13 +82,17 @@ fun ConfigurarGeneracionHimnosDialog(
     var incluirIntermedio by remember(configuracion.generarHimnoIntermedio) {
         mutableStateOf(configuracion.generarHimnoIntermedio)
     }
+    var temporada by remember { mutableStateOf(configuracion.modoTemporadaHimnos) }
+    var menuTemporada by remember { mutableStateOf(false) }
+    val modos = listOf("NONE" to R.string.hymn_season_none, "ONE_CHRISTMAS" to R.string.hymn_season_one_christmas, "CHRISTMAS_ONLY" to R.string.hymn_season_christmas, "EASTER_ONLY" to R.string.hymn_season_easter)
     val intervaloNumero = intervalo.toIntOrNull()
     val rangoValido = inicio != null && fin != null && !inicio!!.after(fin) &&
             intervaloNumero != null && intervaloNumero in 0..3650
 
-    Dialog(onDismissRequest = onDismiss) {
+    val maxDialogHeight = (LocalConfiguration.current.screenHeightDp - 48).coerceAtLeast(160).dp
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = MaterialTheme.shapes.extraLarge, tonalElevation = 6.dp) {
-            Column(Modifier.fillMaxWidth().padding(20.dp)) {
+            Column(Modifier.widthIn(max = 560.dp).fillMaxWidth(.94f).heightIn(max = maxDialogHeight).padding(20.dp)) {
                 Text(
                     stringResource(R.string.hymn_generate_title),
                     style = MaterialTheme.typography.titleLarge,
@@ -106,7 +112,7 @@ fun ConfigurarGeneracionHimnosDialog(
                     )
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 540.dp),
+                        modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         item {
@@ -145,6 +151,17 @@ fun ConfigurarGeneracionHimnosDialog(
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
+                        }
+                        item {
+                            ExposedDropdownMenuBox(expanded = menuTemporada, onExpandedChange = { menuTemporada = it }) {
+                                OutlinedTextField(value = stringResource(modos.firstOrNull { it.first == temporada }?.second ?: R.string.hymn_season_none), onValueChange = {}, readOnly = true,
+                                    label = { Text(stringResource(R.string.hymn_season_label)) },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(menuTemporada) }, modifier = Modifier.fillMaxWidth().menuAnchor())
+                                ExposedDropdownMenu(expanded = menuTemporada, onDismissRequest = { menuTemporada = false }) {
+                                    modos.forEach { (modo, label) -> DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = { temporada = modo; menuTemporada = false }) }
+                                }
+                            }
+                            Text(stringResource(R.string.hymn_season_help), style = MaterialTheme.typography.bodySmall)
                         }
                         item {
                             OpcionGeneracion(
@@ -210,6 +227,7 @@ fun ConfigurarGeneracionHimnosDialog(
                                     priorizarTemasHimnos = priorizarTemas,
                                     generarHimnoIntermedio = incluirIntermedio,
                                     soloFechasSinHimnos = soloVacias,
+                                    modoTemporadaHimnos = temporada,
                                     reemplazarHimnosAutomaticos = reemplazarAutomaticas
                                 )
                             )
@@ -468,6 +486,7 @@ private fun textoAdvertencia(advertencia: AdvertenciaGeneracionHimnos): String =
         R.string.hymn_preview_no_candidate_warning,
         advertencia.posicion?.let { etiquetaPosicion(it) }.orEmpty()
     )
+    CodigoAdvertenciaGeneracion.TEMPORADA_NO_CUMPLIDA -> stringResource(R.string.hymn_season_warning)
     CodigoAdvertenciaGeneracion.SIN_HIMNO_NUEVO ->
         stringResource(R.string.hymn_preview_no_new_warning)
 }

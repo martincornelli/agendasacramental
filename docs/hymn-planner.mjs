@@ -181,6 +181,7 @@ export function generateHymnPlans({ catalog, agendas, dates, options = {}, langu
     prioritizeTopics: true,
     forceNewCollection: false,
     includeIntermediate: false,
+    seasonalMode: "NONE",
     excludedHymns: [],
     seed: 0,
     ...options
@@ -228,6 +229,16 @@ export function generateHymnPlans({ catalog, agendas, dates, options = {}, langu
     const warnings = [];
     const positions = ["opening", "sacrament", ...(settings.includeIntermediate ? ["intermediate"] : []), "closing"];
 
+    const isChristmas = number => candidates.some(item => item.number === number && item.metadata.categories.includes("christmas"));
+    const keptChristmas = positions.some(position => position !== "sacrament" && isChristmas(original[position].number) &&
+      (isManual(original[position]) || !settings.replaceAutomatic));
+    const christmasPosition = settings.seasonalMode === "ONE_CHRISTMAS" && !keptChristmas
+      ? positions.find(position => position !== "sacrament" && !isManual(original[position]) &&
+        (!original[position].number || settings.replaceAutomatic)) : null;
+    const seasonFor = position => position === "sacrament" ? null
+      : settings.seasonalMode === "CHRISTMAS_ONLY" || position === christmasPosition ? "christmas"
+      : settings.seasonalMode === "EASTER_ONLY" ? "easter" : null;
+
     positions.forEach((position) => {
       const current = proposal[position];
       if (current.number && (isManual(current) || !settings.replaceAutomatic)) return;
@@ -241,17 +252,19 @@ export function generateHymnPlans({ catalog, agendas, dates, options = {}, langu
         historicalUses,
         excluded,
         settings,
+        season: seasonFor(position),
         onlyNewCollection: false,
         random
       });
       warnings.push(...result.warnings);
       if (result.selection) proposal[position] = result.selection;
+      else if (seasonFor(position)) proposal[position] = { number: 0, name: "", origin: "" };
     });
 
     if (settings.forceNewCollection && !selectedNumbers(proposal).some((number) => String(number).length === 4)) {
       const replaceable = ["opening", "closing", "intermediate", "sacrament"]
         .filter((position) => position !== "intermediate" || settings.includeIntermediate || original.intermediate.number)
-        .filter((position) => !isManual(original[position]));
+        .filter((position) => !isManual(original[position]) && (!original[position].number || settings.replaceAutomatic));
       let included = false;
       for (const position of replaceable) {
         const current = proposal[position];
@@ -265,6 +278,7 @@ export function generateHymnPlans({ catalog, agendas, dates, options = {}, langu
           historicalUses,
           excluded,
           settings,
+          season: seasonFor(position),
           onlyNewCollection: true,
           random
         });
@@ -277,6 +291,14 @@ export function generateHymnPlans({ catalog, agendas, dates, options = {}, langu
       }
       if (!included) warnings.push({ code: "NO_NEW_COLLECTION" });
     }
+
+    const seasonalSatisfied = settings.seasonalMode === "ONE_CHRISTMAS"
+      ? positions.some(position => position !== "sacrament" && isChristmas(proposal[position].number))
+      : ["CHRISTMAS_ONLY", "EASTER_ONLY"].includes(settings.seasonalMode)
+        ? positions.filter(position => position !== "sacrament").every(position =>
+          candidates.some(item => item.number === proposal[position].number && item.metadata.categories.includes(seasonFor(position))))
+        : true;
+    if (!seasonalSatisfied) warnings.push({ code: "SEASON_UNMET" });
 
     HYMN_POSITIONS.map((position) => proposal[position]).filter((item) => item.number).forEach((item) => addMapDate(occupiedDates, item.number, date));
     const changedPositions = HYMN_POSITIONS.filter((position) => !sameSelection(original[position], proposal[position])).length;
@@ -297,11 +319,12 @@ export function generateHymnPlans({ catalog, agendas, dates, options = {}, langu
   return { proposals, evaluatedDates: targetDates.length, unchangedDates };
 }
 
-function chooseHymn({ candidates, position, date, topics, alreadyChosen, occupiedDates, historicalUses, excluded, settings, onlyNewCollection, random }) {
+function chooseHymn({ candidates, position, date, topics, alreadyChosen, occupiedDates, historicalUses, excluded, settings, season, onlyNewCollection, random }) {
   const available = candidates.filter((candidate) =>
     !excluded.has(candidate.number) &&
     !alreadyChosen.has(candidate.number) &&
     (!onlyNewCollection || candidate.metadata.newCollection) &&
+    (!season || candidate.metadata.categories.includes(season)) &&
     (position === "sacrament" ? candidate.metadata.sacramental : !candidate.metadata.sacramental)
   );
   if (!available.length) return { selection: null, warnings: [{ code: "NO_CANDIDATE", position }] };

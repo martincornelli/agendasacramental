@@ -501,4 +501,20 @@
     <string name="release_notes_hymns">8 himnos nuevos en español e inglés. Ahora tenés 90 himnos del nuevo himnario disponibles para tus agendas.</string>
     <string name="release_notes_optimization">Optimizamos la aplicación para reducir el tamaño de la descarga.</string>
     <string name="release_notes_continue">Continuar</string>
+    <string name="hymn_library_filters">Filtros</string>
+    <string name="hymn_library_results">%1$d himnos</string>
+    <string name="hymn_library_show_results">Ver himnos</string>
+    <string name="hymn_library_clear_filters">Limpiar filtros</string>
+    <string name="hymn_topics_more">Ver %1$d temas más</string>
+    <string name="hymn_topics_less">Ver menos temas</string>
+    <string name="hymn_season_label">Himnos de temporada</string>
+    <string name="hymn_season_none">Sin preferencia de temporada</string>
+    <string name="hymn_season_one_christmas">Incluir un himno de Navidad</string>
+    <string name="hymn_season_christmas">Solo Navidad</string>
+    <string name="hymn_season_easter">Solo Pascua</string>
+    <string name="hymn_season_help">Se aplica por reunión. El himno sacramental siempre será de Santa Cena. Las selecciones manuales se conservan.</string>
+    <string name="hymn_season_warning">No se pudo cumplir la preferencia de temporada. Revisá las selecciones manuales y los himnos excluidos.</string>
+    <string name="hymn_library_assign_short">Asignar</string>
+    <string name="hymn_library_include_short">Incluir</string>
+    <string name="hymn_library_exclude_short">Excluir</string>
 </resources>

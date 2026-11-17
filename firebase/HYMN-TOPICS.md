@@ -48,20 +48,48 @@ authorization migration.
 Deploy the additive `hymn-topics.rules.fragment` inside the database match of the
 currently deployed rules **before** releasing either client. It is also included
 in `firestore.rules` for emulator testing. Do not replace production rules with
-an outdated repository snapshot. No rules or clients were deployed by this change.
+an outdated repository snapshot.
+
+On 2026-11-17 the additive fragment was tested against the exact live rules and
+published as ruleset `2ec386e2-5111-4711-8abd-0d93dbd73c26`. The previous release
+was `c8d64d5a-f22f-4847-b3aa-2f90447deb40`; backups and the verified release receipt
+are in local `output/hymn-topics-release/`. Existing rule content was preserved.
+The regular Android package was installed on the user's phone. Web source changes
+remain on the feature branch and have not been published.
 
 ## Refresh
 
 Android Agendas, Participation Planning (all tabs), and Hymn Planning (both tabs)
-use Material pull-to-refresh and an accessible Refresh button. User refreshes
+use Material pull-to-refresh. Hymn Planning retains a quick Refresh button;
+Agendas and Participation Planning expose a TalkBack refresh action without a
+dedicated header row. User refreshes
 request server data, keep existing content/filters/scroll position, suppress
 duplicate refreshes and report failures. Startup reads retain offline fallback.
 Editing forms and web do not add a refresh gesture.
+
+## Compact library and seasonal generation
+
+Library filters open on demand; cards initially show two topics with an expandable
+remainder. Both clients retain search and show an indicator when filters are active.
+The web Library uses a compact year header. This follows the UI/UX skill's
+documented accessibility, touch-target, and progressive-disclosure checklist as
+general guidance: its targeted search returned no relevant verified match.
+
+`modoTemporadaHimnos` defaults to `NONE`, with `ONE_CHRISTMAS`, `CHRISTMAS_ONLY`,
+and `EASTER_ONLY` choices. The mode applies to every generated meeting and uses
+the effective hymn topics. Christmas and Easter/Resurrection categories restrict
+non-sacrament candidate pools; sacrament eligibility remains independent of topics.
+One-Christmas reserves an editable non-sacrament slot, independent of talk topics.
+The new-hymnbook pass respects that reservation and preserved automatic selections.
+Manual selections remain untouched; conflicts and exhausted seasonal pools are
+reported in the preview. A missing seasonal candidate does not fall back to an
+ordinary hymn. Generation still requires preview and explicit saving.
 
 ## Verification
 
 ```sh
 node --test tests/hymn-topics.test.mjs tests/hymn-planner-web.test.mjs
+node --test tests/hymn-seasonal.test.mjs
 node tests/hymn-topics-ui.cjs
 node tests/hymn-topics-phone.cjs DEVICE_SERIAL
 ./gradlew.bat :app:compileDebugKotlin :app:testDebugUnitTest
@@ -85,3 +113,10 @@ editor localization, visible dialog actions and cancellation. Screenshot review
 found and fixed clipped dialog controls in large-text landscape. The installed
 QA fixture uses temporary in-memory data; live unit synchronization remains
 covered by the web tests and Firestore emulator tests, not this phone fixture.
+
+The November 17 follow-up passed Android compilation/unit tests and regular APK
+assembly, 12 additional bilingual seasonal domain cases, all eight browser UI
+combinations including seasonal selection/preview, and all three rule tests using
+the exact proposed live rules (`FIRESTORE_RULES_FILE` override). On the regular
+phone app, live topic loading, opening/canceling the enabled topic editor, the
+filter dialog, and all four seasonal choices were verified without saving changes.

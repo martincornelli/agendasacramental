@@ -158,6 +158,7 @@ data class ConfiguracionPlanificacion(
     val generarHimnoIntermedio: Boolean = false,
     val soloFechasSinHimnos: Boolean = true,
     val reemplazarHimnosAutomaticos: Boolean = true,
+    val modoTemporadaHimnos: String = "NONE",
     val himnosExcluidos: List<Int> = emptyList()
 )
 

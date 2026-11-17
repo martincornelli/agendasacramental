@@ -11,13 +11,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-/** Refresh keeps the existing content and scroll position; the button also supports accessibility. */
+/** Refresh keeps content and scroll position; compact screens expose a TalkBack action. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModuleRefreshBox(modifier: Modifier = Modifier, enabled: Boolean = true,
+fun ModuleRefreshBox(modifier: Modifier = Modifier, enabled: Boolean = true, showRefreshAction: Boolean = true,
                      onRefresh: suspend () -> Unit, content: @Composable BoxScope.() -> Unit) {
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -34,8 +37,13 @@ fun ModuleRefreshBox(modifier: Modifier = Modifier, enabled: Boolean = true,
             }
         }
     }
-    Column(modifier) {
-        TextButton(onClick = refresh, enabled = enabled && !refreshing, modifier = Modifier.align(Alignment.End)) {
+    val refreshLabel = stringResource(R.string.module_refresh)
+    Column(modifier.semantics {
+        if (!showRefreshAction && enabled && !refreshing) customActions = listOf(
+            CustomAccessibilityAction(refreshLabel) { refresh(); true }
+        )
+    }) {
+        if (showRefreshAction) TextButton(onClick = refresh, enabled = enabled && !refreshing, modifier = Modifier.align(Alignment.End)) {
             Icon(Icons.Default.Refresh, null)
             Text(stringResource(R.string.module_refresh))
         }

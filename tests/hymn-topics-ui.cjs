@@ -7,6 +7,7 @@ state.hymnTopicsReady = true;
 setDoc = async (ref, data) => { if(window.failSave) throw Error('offline'); window.savedTopic = {ref,data}; };
 deleteDoc = async ref => { window.restoredTopic = ref; };
 window.qa.openTopics = openHymnTopicsDialog;
+window.qa.openGenerator = openHymnGeneratorDialog;
 state.route='hymns'; state.hymnPlannerTab='library'; render();
 `;
 (async()=>{
@@ -15,7 +16,7 @@ state.route='hymns'; state.hymnPlannerTab='library'; render();
  try {
   for(const language of ['es','en']) for(const viewport of [{width:375,height:812},{width:812,height:375}]) for(const theme of ['light','dark']) {
    const ctx=await browser.newContext({viewport,serviceWorkers:'block',reducedMotion:'reduce'});
-   const page=await ctx.newPage(), errors=[];page.on('pageerror',e=>errors.push(e.message));
+   const page=await ctx.newPage(), errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error(e.message);});
    await page.route('https://hymn-topics.test/**',route=>{
     const url=new URL(route.request().url()),file=path.join(path.resolve('docs'),url.pathname==='/'?'index.html':url.pathname);
     if(!fs.existsSync(file))return route.fulfill({status:404});
@@ -25,6 +26,8 @@ state.route='hymns'; state.hymnPlannerTab='library'; render();
    await page.goto('https://hymn-topics.test/?lang='+language);
    await page.waitForFunction(()=>window.qa);
    await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+   assert.equal(await page.locator('.hymn-library-filters').getAttribute('open'),null);
+   await page.screenshot({path:'output/hymn-topics-ui/library-'+language+'-'+viewport.width+'-'+theme+'.png'});
    await page.locator('[data-edit-hymn-topics="1"]').click();
    const input=page.locator('#unit-hymn-topics');
    assert.ok((await input.inputValue()).length>0);
@@ -39,6 +42,7 @@ state.route='hymns'; state.hymnPlannerTab='library'; render();
    const saved=await page.evaluate(()=>window.savedTopic);
    assert.ok(saved.ref.endsWith('/temasHimnosUnidad/123/himnos/'+language+'-1'));
    assert.deepEqual(saved.data.temas,['Local topic','Another topic']);
+   await page.locator('.hymn-library-filters > summary').click();
    await page.locator('#hymn-category').selectOption('Local topic');
    assert.equal(await page.locator('[data-edit-hymn-topics]').count(),1);
    await page.locator('[data-edit-hymn-topics="1"]').click();
@@ -47,6 +51,16 @@ state.route='hymns'; state.hymnPlannerTab='library'; render();
    await page.locator('[data-restore-topics]').click();
    await page.waitForFunction(()=>window.restoredTopic);
    assert.equal(await page.evaluate(language=>Object.hasOwn(qa.state.hymnTopicOverrides,language+'-1'),language),false);
+   await page.evaluate(()=>{qa.state.hymnPlannerYear=new Date().getFullYear()+1; qa.openGenerator();});
+   await page.locator('#hymn-season').selectOption('CHRISTMAS_ONLY');
+   assert.equal(await page.locator('#hymn-season').inputValue(),'CHRISTMAS_ONLY');
+   const seasonLabel=await page.locator('#hymn-season option:checked').innerText();
+   assert.equal(seasonLabel,language==='en'?'Christmas only':'Solo Navidad');
+   await page.screenshot({path:'output/hymn-topics-ui/season-'+language+'-'+viewport.width+'-'+theme+'.png'});
+   await page.locator('button[form="hymn-generator-form"]').click();
+   await page.waitForFunction(()=>!document.querySelector('#hymn-generator-form'));
+   assert.equal(await page.evaluate(()=>qa.state.config.modoTemporadaHimnos),'CHRISTMAS_ONLY');
+   await page.evaluate(()=>qa.closeModal());
    assert.deepEqual(errors,[]);
    await ctx.close();
   }

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
 import { doc, setDoc, getDoc, getDocs, collection, deleteDoc, serverTimestamp } from 'firebase/firestore';
 let env;
-before(async () => { env = await initializeTestEnvironment({ projectId: 'demo-hymn-topics', firestore: { host: '127.0.0.1', port: 8188, rules: fs.readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8') } }); });
+before(async () => { env = await initializeTestEnvironment({ projectId: 'demo-hymn-topics', firestore: { host: '127.0.0.1', port: 8188, rules: fs.readFileSync(process.env.FIRESTORE_RULES_FILE || new URL('../firestore.rules', import.meta.url), 'utf8') } }); });
 after(async () => { await env?.cleanup(); });
 beforeEach(async () => { await env.clearFirestore(); });
 const ref = (db, unit = '123', hymn = 'es-1') => doc(db, `temasHimnosUnidad/${unit}/himnos/${hymn}`);

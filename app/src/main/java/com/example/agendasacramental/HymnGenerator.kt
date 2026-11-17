@@ -11,7 +11,8 @@ enum class PosicionHimno { APERTURA, SACRAMENTAL, INTERMEDIO, FINAL }
 enum class CodigoAdvertenciaGeneracion {
     INTERVALO_MINIMO_RELAJADO,
     SIN_CANDIDATO,
-    SIN_HIMNO_NUEVO
+    SIN_HIMNO_NUEVO,
+    TEMPORADA_NO_CUMPLIDA
 }
 
 data class AdvertenciaGeneracionHimnos(
@@ -28,6 +29,7 @@ data class OpcionesGeneracionHimnos(
     val incluirIntermedio: Boolean = false,
     val himnosExcluidos: Set<Int> = emptySet(),
     val temasUnidad: Map<String, List<String>> = emptyMap(),
+    val modoTemporada: String = "NONE",
     val semilla: Long = 0L
 )
 
@@ -104,6 +106,23 @@ fun generarPlanificacionHimnos(
             add(PosicionHimno.FINAL)
         }
 
+        fun esNavidad(numero: Int) = catalogoPreparado.any { it.numero == numero && CategoriaHimno.NAVIDAD in it.metadata.categorias }
+        val navidadConservada = posiciones.any { posicion ->
+            val actual = original.seleccion(posicion)
+            posicion != PosicionHimno.SACRAMENTAL && esNavidad(actual.numero) &&
+                (actual.esManual() || !opciones.reemplazarAutomaticas)
+        }
+        val posicionNavidad = if (opciones.modoTemporada == "ONE_CHRISTMAS" && !navidadConservada)
+            posiciones.firstOrNull { it != PosicionHimno.SACRAMENTAL &&
+                !original.seleccion(it).esManual() && (original.seleccion(it).numero == 0 || opciones.reemplazarAutomaticas) }
+            else null
+        fun temporada(posicion: PosicionHimno): CategoriaHimno? = when {
+            posicion == PosicionHimno.SACRAMENTAL -> null
+            opciones.modoTemporada == "CHRISTMAS_ONLY" || posicion == posicionNavidad -> CategoriaHimno.NAVIDAD
+            opciones.modoTemporada == "EASTER_ONLY" -> CategoriaHimno.PASCUA
+            else -> null
+        }
+
         posiciones.forEach { posicion ->
             val actual = propuesta.seleccion(posicion)
             val conservar = actual.numero > 0 &&
@@ -119,11 +138,13 @@ fun generarPlanificacionHimnos(
                     fechasOcupadas = fechasOcupadas,
                     usosReales = usosReales,
                     opciones = opciones,
+                    temporada = temporada(posicion),
                     soloHimnarioNuevo = false,
                     random = random
                 )
                 advertencias += eleccion.advertencias
-                eleccion.seleccion?.let { propuesta = propuesta.conSeleccion(posicion, it) }
+                if (eleccion.seleccion != null) propuesta = propuesta.conSeleccion(posicion, eleccion.seleccion)
+                else if (temporada(posicion) != null) propuesta = propuesta.conSeleccion(posicion, SeleccionHimno())
             }
         }
 
@@ -136,7 +157,8 @@ fun generarPlanificacionHimnos(
             ).filter { posicion ->
                 posicion != PosicionHimno.INTERMEDIO || opciones.incluirIntermedio ||
                         original.intermedio.numero > 0
-            }.filter { posicion -> !original.seleccion(posicion).esManual() }
+            }.filter { posicion -> !original.seleccion(posicion).esManual() &&
+                (original.seleccion(posicion).numero == 0 || opciones.reemplazarAutomaticas) }
 
             var incorporado = false
             for (posicion in reemplazables) {
@@ -150,6 +172,7 @@ fun generarPlanificacionHimnos(
                     fechasOcupadas = fechasOcupadas,
                     usosReales = usosReales,
                     opciones = opciones,
+                    temporada = temporada(posicion),
                     soloHimnarioNuevo = true,
                     random = random
                 )
@@ -164,6 +187,15 @@ fun generarPlanificacionHimnos(
                 advertencias += AdvertenciaGeneracionHimnos(CodigoAdvertenciaGeneracion.SIN_HIMNO_NUEVO)
             }
         }
+
+        val cumpleTemporada = when (opciones.modoTemporada) {
+            "ONE_CHRISTMAS" -> posiciones.any { it != PosicionHimno.SACRAMENTAL && esNavidad(propuesta.seleccion(it).numero) }
+            "CHRISTMAS_ONLY", "EASTER_ONLY" -> posiciones.filter { it != PosicionHimno.SACRAMENTAL }.all { posicion ->
+                catalogoPreparado.any { it.numero == propuesta.seleccion(posicion).numero && temporada(posicion) in it.metadata.categorias }
+            }
+            else -> true
+        }
+        if (!cumpleTemporada) advertencias += AdvertenciaGeneracionHimnos(CodigoAdvertenciaGeneracion.TEMPORADA_NO_CUMPLIDA)
 
         PosicionHimno.entries.map { propuesta.seleccion(it) }
             .filter { it.numero > 0 }
@@ -218,6 +250,7 @@ private fun elegirHimno(
     fechasOcupadas: Map<Int, List<Date>>,
     usosReales: Map<Int, List<Date>>,
     opciones: OpcionesGeneracionHimnos,
+    temporada: CategoriaHimno?,
     soloHimnarioNuevo: Boolean,
     random: Random
 ): EleccionHimno {
@@ -225,6 +258,7 @@ private fun elegirHimno(
         .filter { it.numero !in opciones.himnosExcluidos }
         .filter { it.numero !in numerosYaElegidos }
         .filter { !soloHimnarioNuevo || it.metadata.himnarioNuevo }
+        .filter { temporada == null || temporada in it.metadata.categorias }
         .filter { candidato ->
             if (posicion == PosicionHimno.SACRAMENTAL) candidato.metadata.sacramental
             else !candidato.metadata.sacramental

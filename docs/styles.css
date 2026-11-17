@@ -4097,3 +4097,18 @@ summary:focus-visible {
   .editor-heading .action-menu { margin-inline-start:0; }
   .editor-heading .action-menu > summary > span:not([aria-hidden]) { display:none; }
 }
+
+/* Keep the library focused on hymns; secondary controls expand on demand. */
+.hymn-hero-compact > div:first-child { display: none; }
+.module-hero.hymn-hero-compact { padding: 8px 12px; min-height: 0; justify-content: flex-end; }
+.hymn-hero-compact .year-stepper { margin: 0; }
+.library-toolbar .search-field { flex: 1; max-width: none; }
+#hymn-planner-content .library-toolbar { grid-template-columns: minmax(0, 1fr); }
+.hymn-library-filters { margin-block: 4px 12px; }
+.hymn-library-filters > summary, .hymn-more-topics > summary {
+  cursor: pointer; min-height: 44px; padding-block: 12px; color: var(--primary);
+}
+.hymn-library-filters .select { width: 100%; margin-bottom: 8px; }
+.hymn-library-filters > summary:focus-visible, .hymn-more-topics > summary:focus-visible {
+  outline: 2px solid currentColor; outline-offset: 2px; border-radius: 4px;
+}

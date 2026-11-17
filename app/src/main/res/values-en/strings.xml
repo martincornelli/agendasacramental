@@ -500,4 +500,20 @@
     <string name="release_notes_hymns">8 new hymns in English and Spanish. You now have 90 hymns from the new hymnbook available for your agendas.</string>
     <string name="release_notes_optimization">We optimized the app to reduce the download size.</string>
     <string name="release_notes_continue">Continue</string>
+    <string name="hymn_library_filters">Filters</string>
+    <string name="hymn_library_results">%1$d hymns</string>
+    <string name="hymn_library_show_results">Show hymns</string>
+    <string name="hymn_library_clear_filters">Clear filters</string>
+    <string name="hymn_topics_more">Show %1$d more topics</string>
+    <string name="hymn_topics_less">Show fewer topics</string>
+    <string name="hymn_season_label">Seasonal hymns</string>
+    <string name="hymn_season_none">No seasonal preference</string>
+    <string name="hymn_season_one_christmas">Include one Christmas hymn</string>
+    <string name="hymn_season_christmas">Christmas only</string>
+    <string name="hymn_season_easter">Easter only</string>
+    <string name="hymn_season_help">Applies to each meeting. The sacrament hymn always remains a sacrament hymn. Manual selections are preserved.</string>
+    <string name="hymn_season_warning">The seasonal preference could not be met. Review manual selections and excluded hymns.</string>
+    <string name="hymn_library_assign_short">Assign</string>
+    <string name="hymn_library_include_short">Include</string>
+    <string name="hymn_library_exclude_short">Exclude</string>
 </resources>

@@ -691,6 +691,7 @@ class AgendaRepository {
                 "generarHimnoIntermedio" to config.generarHimnoIntermedio,
                 "soloFechasSinHimnos" to config.soloFechasSinHimnos,
                 "reemplazarHimnosAutomaticos" to config.reemplazarHimnosAutomaticos,
+                "modoTemporadaHimnos" to config.modoTemporadaHimnos,
                 "himnosExcluidos" to config.himnosExcluidos
             )
             val configuracionRef = db.collection("configuracion")

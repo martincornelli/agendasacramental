@@ -249,7 +249,7 @@ fun ListaAgendasScreen(
                 }
             }
 
-            ModuleRefreshBox(modifier = Modifier.fillMaxSize(), enabled = !isLoading, onRefresh = {
+            ModuleRefreshBox(modifier = Modifier.fillMaxSize(), enabled = !isLoading, showRefreshAction = false, onRefresh = {
                 val nuevas = repository.getAgendas(numeroUnidad, com.google.firebase.firestore.Source.SERVER).getOrThrow()
                 agendas = nuevas
             }) {

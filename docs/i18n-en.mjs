@@ -1,5 +1,15 @@
 // UI copy only. Persisted values and user content are never translated.
 export const EN_TEXT = {
+  "Filtros": "Filters",
+  "Más temas": "More topics",
+  "Himnos de temporada": "Seasonal hymns",
+  "Sin preferencia de temporada": "No seasonal preference",
+  "Incluir un himno de Navidad": "Include one Christmas hymn",
+  "Solo Navidad": "Christmas only",
+  "Solo Pascua": "Easter only",
+  "Se aplica por reunión. El himno sacramental siempre será de Santa Cena.": "Applies to each meeting. The sacrament hymn always remains a sacrament hymn.",
+  "No se pudo cumplir la preferencia de temporada. Revisá las selecciones manuales y los himnos excluidos.": "The seasonal preference could not be met. Review manual selections and excluded hymns.",
+
   "Formato de filas": "Row layout",
   "Importá menos de 500 cambios de organización a la vez.": "Import fewer than 500 organization changes at a time.",
   "Organización no reconocida.": "Organization not recognized.",

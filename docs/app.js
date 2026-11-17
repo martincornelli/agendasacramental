@@ -256,6 +256,7 @@ const defaultConfig = {
   generarHimnoIntermedio: false,
   soloFechasSinHimnos: true,
   reemplazarHimnosAutomaticos: true,
+  modoTemporadaHimnos: "NONE",
   himnosExcluidos: []
 };
 
@@ -3542,7 +3543,7 @@ function hymnLanguage() {
 function renderHymnPlanner() {
   const tab = state.hymnPlannerTab;
   screen.innerHTML = `
-    <div class="module-hero hymn-hero">
+    <div class="module-hero hymn-hero ${tab === "library" ? "hymn-hero-compact" : ""}">
       <div>
         <p class="eyebrow">${t("Música de la reunión")}</p>
         <h2>${t("Planificador de himnos")}</h2>
@@ -3765,13 +3766,15 @@ function renderHymnLibrary() {
     <div class="module-toolbar library-toolbar" aria-label="${t("Buscar y filtrar biblioteca")}">
       <div class="search-field">
         <span class="search-icon" aria-hidden="true">${icon("search")}</span>
-        <input id="hymn-library-search" class="input" type="search" placeholder="${t("Buscar himno...")}">
+        <input id="hymn-library-search" class="input" type="search" aria-label="${t("Buscar himno...")}" placeholder="${t("Buscar himno...")}">
       </div>
+    </div>
+    <details class="hymn-library-filters">
+      <summary>${t("Filtros")}${state.hymnLibraryCategory !== "all" || state.hymnLibraryFilter !== "all" ? " •" : ""}</summary>
       <select id="hymn-category" class="select" aria-label="${t("Filtrar por tema")}">
         <option value="all">${t("Todos los temas")}</option>
         ${categories.map(([value, label]) => option(value, label, state.hymnLibraryCategory)).join("")}
       </select>
-    </div>
     <div class="filter-strip" aria-label="${t("Filtros de biblioteca")}">
       ${[
         ["all", "Todos"],
@@ -3781,6 +3784,7 @@ function renderHymnLibrary() {
         ["excluded", "Excluidos"]
       ].map(([value, label]) => `<button class="filter-chip ${state.hymnLibraryFilter === value ? "active" : ""}" data-hymn-filter="${value}" type="button">${t(label)}</button>`).join("")}
     </div>
+    </details>
     ${!state.hymnTopicsReady || state.hymnTopicsError ? `<p role="status">${HYMN_TOPICS_TEXT[uiLanguage()][state.hymnTopicsError ? "unavailable" : "loading"]}</p>` : ""}
     <div id="hymn-library-list" class="hymn-library-grid">${renderHymnLibraryList("")}</div>
   `;
@@ -3812,13 +3816,16 @@ function renderHymnLibraryList(searchValue) {
 }
 
 function hymnLibraryCard(item) {
-  const categories = item.metadata.topics.map((topic) => `<span>${escapeHtml(topic)}</span>`).join("");
+  const chips = topics => topics.map(topic => `<span>${escapeHtml(topic)}</span>`).join("");
+  const categories = chips(item.metadata.topics.slice(0, 2));
+  const moreTopics = item.metadata.topics.length > 2 ? `<details class="hymn-more-topics"><summary>${t("Más temas")} (+${item.metadata.topics.length - 2})</summary><div class="topic-chips">${chips(item.metadata.topics.slice(2))}</div></details>` : "";
   return `
     <article class="hymn-library-card ${item.excluded ? "is-excluded" : ""}">
       <div class="hymn-number">${item.number}</div>
       <div class="hymn-library-main">
         <div class="hymn-library-title"><h3>${escapeHtml(item.name)}</h3>${item.metadata.newCollection ? `<span class="new-hymn-badge">${t("Nuevo")}</span>` : ""}</div>
         <div class="topic-chips">${categories || `<span>${HYMN_TOPICS_TEXT[uiLanguage()].empty}</span>`}</div>
+        ${moreTopics}
         <p class="item-meta">${hymnHistoryText(item)}</p>
         ${item.nextPlanned ? `<p class="item-meta next-use">${t("Próxima planificación:")} ${escapeHtml(formatDateShort(item.nextPlanned))}</p>` : ""}
         ${item.excluded ? `<p class="item-meta warning-text">${t("Excluido de la generación automática")}</p>` : ""}
@@ -3840,6 +3847,7 @@ function hymnHistoryText(item) {
 function bindHymnLibraryActions() {
   const search = screen.querySelector("#hymn-library-search");
   const refresh = () => {
+    screen.querySelector(".hymn-library-filters > summary").textContent = t("Filtros") + (state.hymnLibraryCategory !== "all" || state.hymnLibraryFilter !== "all" ? " •" : "");
     screen.querySelector("#hymn-library-list").innerHTML = renderHymnLibraryList(search.value);
     bindHymnLibraryCardActions();
   };
@@ -3947,6 +3955,11 @@ function openHymnGeneratorDialog() {
           ${field("hymn-end", t("Hasta"), `<input id="hymn-end" class="input" type="date" min="${dateInputValue(available[0])}" max="${dateInputValue(available.at(-1))}" value="${dateInputValue(available.at(-1))}" required>`)}
         </div>
         ${field("hymn-interval", t("Intervalo mínimo entre usos (días)"), `<input id="hymn-interval" class="input" type="number" min="0" max="730" value="${Number(state.config.intervaloMinimoHimnosDias || 180)}">`, t("Si no hay alternativas, se relajará el intervalo y aparecerá una advertencia."))}
+        ${field("hymn-season", t("Himnos de temporada"), `<select id="hymn-season" class="select">${[
+          ["NONE", "Sin preferencia de temporada"], ["ONE_CHRISTMAS", "Incluir un himno de Navidad"],
+          ["CHRISTMAS_ONLY", "Solo Navidad"], ["EASTER_ONLY", "Solo Pascua"]]
+          .map(([value, label]) => option(value, t(label), state.config.modoTemporadaHimnos || "NONE")).join("")}</select>`,
+          t("Se aplica por reunión. El himno sacramental siempre será de Santa Cena."))}
         <div class="option-stack">
           ${generatorCheckbox("only-empty-hymns", t("Solo reuniones sin himnos planificados"), state.config.soloFechasSinHimnos !== false)}
           ${generatorCheckbox("replace-auto-hymns", t("Actualizar selecciones automáticas anteriores"), state.config.reemplazarHimnosAutomaticos !== false)}
@@ -3971,6 +3984,7 @@ function openHymnGeneratorDialog() {
           const dates = available.filter((date) => date >= start && date <= end);
           const config = {
             intervaloMinimoHimnosDias: Number(dialog.querySelector("#hymn-interval").value || 0),
+            modoTemporadaHimnos: dialog.querySelector("#hymn-season").value,
             soloFechasSinHimnos: dialog.querySelector("#only-empty-hymns").checked,
             reemplazarHimnosAutomaticos: dialog.querySelector("#replace-auto-hymns").checked,
             forzarHimnoNuevo: dialog.querySelector("#force-new-hymn").checked,
@@ -3984,6 +3998,7 @@ function openHymnGeneratorDialog() {
             dates,
             language: hymnLanguage(),
             options: {
+              seasonalMode: config.modoTemporadaHimnos,
               minimumIntervalDays: config.intervaloMinimoHimnosDias,
               onlyEmptyDates: config.soloFechasSinHimnos,
               replaceAutomatic: config.reemplazarHimnosAutomaticos,
@@ -4052,6 +4067,7 @@ function hymnWarningText(warning) {
   const position = warning.position ? HYMN_POSITION_LABELS[warning.position] : "";
   if (warning.code === "INTERVAL_RELAXED") return `${t("No había alternativas para")} ${position} ${t("dentro del intervalo elegido.")}`;
   if (warning.code === "NO_CANDIDATE") return `${t("No se encontró un himno adecuado para")} ${position}.`;
+  if (warning.code === "SEASON_UNMET") return t("No se pudo cumplir la preferencia de temporada. Revisá las selecciones manuales y los himnos excluidos.");
   if (warning.code === "NO_NEW_COLLECTION") return t("No se pudo incluir un himno del himnario nuevo.");
   return t("No se pudo cumplir una de las reglas.");
 }

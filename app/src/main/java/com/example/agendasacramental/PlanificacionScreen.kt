@@ -401,7 +401,7 @@ fun PlanificacionScreen(
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.history_transfer))
             }
-            ModuleRefreshBox(Modifier.weight(1f), enabled = !isLoading, onRefresh = {
+            ModuleRefreshBox(Modifier.weight(1f), enabled = !isLoading, showRefreshAction = false, onRefresh = {
                 val source = com.google.firebase.firestore.Source.SERVER
                 val nuevaConfig = repository.getConfiguracion(numeroUnidad, source) ?: ConfiguracionPlanificacion(numeroUnidad = numeroUnidad)
                 val records = HistorialRepository().registros(numeroUnidad, source)
